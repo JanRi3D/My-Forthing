@@ -78,16 +78,31 @@ import me.ri3d.cam.enhance.UpscaleFailure
 import me.ri3d.cam.enhance.UpscaleRequest
 import me.ri3d.cam.enhance.VideoCodec
 import me.ri3d.cam.enhance.resolution
+import me.ri3d.cam.media.MediaKind
 import me.ri3d.cam.media.MediaRepository
 import java.io.File
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
+/** Android 15+ stops `dataSync` work after 6 h per day: a measured estimate above 5 h (ML in practice) is not offered. */
+internal const val DATA_SYNC_BUDGET_MS = 5 * 3_600_000L
+
 /** Source facts as the pipeline reads them (coded size, track duration, frame rate). */
 data class ClipFacts(val width: Int, val height: Int, val durationMs: Long, val fps: Int, val bytes: Long)
 
 /** A target above the source; [encoder] = this phone has an H.264 encoder for that size. [etaMs] only when measured. */
-data class UpscaleOption(val target: Resolution, val width: Int, val height: Int, val encoder: Boolean, val bytes: Long, val etaMs: Long?)
+data class UpscaleOption(
+    val target: Resolution,
+    val width: Int,
+    val height: Int,
+    val encoder: Boolean,
+    val bytes: Long,
+    val etaMs: Long?,
+    /** Measured time beyond what Android 15+ lets a `dataSync` job run (6 h per day), with a margin. */
+    val tooLong: Boolean = false,
+) {
+    val usable get() = encoder && !tooLong
+}
 
 data class UpscaleUiState(
     val loading: Boolean = true,
@@ -103,7 +118,7 @@ data class UpscaleUiState(
     /** Another clip's upscale that is still pending or running: only one at a time. */
     val otherJob: UpscaleJob? = null,
 ) {
-    val canStart get() = !loading && loadError == null && options.any { it.target == target && it.encoder } && job?.active != true && otherJob == null
+    val canStart get() = !loading && loadError == null && options.any { it.target == target && it.usable } && job?.active != true && otherJob == null
 }
 
 @HiltViewModel
@@ -128,7 +143,10 @@ class UpscaleViewModel @Inject constructor(
     }
 
     private suspend fun load() {
-        val f = repository.get(mediaId)?.localFile?.takeIf { it.isFile }
+        val item = repository.get(mediaId)
+        // Only original recordings are upscaled; an output is never processed again.
+        if (item != null && item.kind != MediaKind.ORIGINAL_VIDEO) return form.update { it.copy(loading = false, loadError = R.string.upscale_failure_not_original) }
+        val f = item?.localFile?.takeIf { it.isFile }
             ?: return form.update { it.copy(loading = false, loadError = R.string.enhance_error_no_copy) }
         val facts = withContext(Dispatchers.IO) { readFacts(f) }
             ?: return form.update { it.copy(loading = false, loadError = R.string.upscale_failure_decoder) }
@@ -139,7 +157,7 @@ class UpscaleViewModel @Inject constructor(
         form.update { it.copy(source = facts, engine = engine) }
         val options = options(engine) ?: return
         val preferred = last?.target ?: preferences.preferences.first().exportQuality.resolution
-        val usable = options.filter { it.encoder }
+        val usable = options.filter { it.usable }
         form.update {
             it.copy(loading = false, options = options, target = (usable.firstOrNull { o -> o.target == preferred } ?: usable.firstOrNull())?.target)
         }
@@ -164,7 +182,8 @@ class UpscaleViewModel @Inject constructor(
                 return null
             }
             val encoder = withContext(Dispatchers.IO) { hasEncoder(estimate.width, estimate.height, facts.fps) }
-            UpscaleOption(target, estimate.width, estimate.height, encoder, estimate.outputBytes, estimate.etaMs)
+            val tooLong = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && (estimate.etaMs ?: 0) > DATA_SYNC_BUDGET_MS
+            UpscaleOption(target, estimate.width, estimate.height, encoder, estimate.outputBytes, estimate.etaMs, tooLong)
         }
     }
 
@@ -303,6 +322,7 @@ private fun sourceText(context: Context, f: ClipFacts) = context.getString(
 @StringRes
 internal fun optionTextRes(o: UpscaleOption) = when {
     !o.encoder -> R.string.upscale_no_encoder
+    o.tooLong -> R.string.upscale_too_long
     o.etaMs == null -> R.string.upscale_option_size
     else -> R.string.upscale_option_size_time
 }
@@ -332,13 +352,13 @@ private fun Targets(s: UpscaleUiState, idle: Boolean, viewModel: UpscaleViewMode
                             },
                         ),
                         optionText(context, o),
-                        selected = s.target == o.target, enabled = o.encoder && idle, shape = shape,
+                        selected = s.target == o.target, enabled = o.usable && idle, shape = shape,
                     ) { viewModel.setTarget(o.target) }
                 }
             },
             Modifier.selectableGroup(),
         )
-        if (s.options.any { it.encoder && it.etaMs == null }) {
+        if (s.options.any { it.usable && it.etaMs == null }) {
             Text(
                 stringResource(R.string.upscale_time_unknown),
                 Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -378,26 +398,27 @@ private fun JobCard(job: UpscaleJob) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
             .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(20.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite },
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val color = MaterialTheme.colorScheme.onPrimaryContainer
+        // Only the status line is announced when it changes, not every percent and ETA update.
+        val status = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         val p = job.progress
         when (job.state) {
-            WorkInfo.State.SUCCEEDED -> Text(stringResource(R.string.upscale_done), color = color, style = MaterialTheme.typography.titleMedium)
+            WorkInfo.State.SUCCEEDED -> Text(stringResource(R.string.upscale_done), status, color = color, style = MaterialTheme.typography.titleMedium)
             WorkInfo.State.FAILED -> {
-                Text(stringResource(R.string.upscale_failed_title), color = color, style = MaterialTheme.typography.titleMedium)
-                Text(stringResource((job.failure ?: UpscaleFailureKind.ENCODER).text), color = color, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.upscale_failed_title), status, color = color, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(job.failure?.text ?: R.string.upscale_failure_unknown), color = color, style = MaterialTheme.typography.bodyMedium)
             }
-            WorkInfo.State.CANCELLED -> Text(stringResource(R.string.upscale_cancelled), color = color, style = MaterialTheme.typography.titleMedium)
+            WorkInfo.State.CANCELLED -> Text(stringResource(R.string.upscale_cancelled), status, color = color, style = MaterialTheme.typography.titleMedium)
             else -> {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(if (p == null) R.string.upscale_waiting else R.string.upscale_running),
                         color = color,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
+                        modifier = status.weight(1f),
                     )
                     if (p != null) Text(stringResource(R.string.upscale_percent, (p.fraction * 100).toInt()), color = color)
                 }
