@@ -56,7 +56,7 @@ class PlatesSettingsViewModel @Inject constructor(
     val state: StateFlow<AppPreferences?> = preferences.preferences.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun update(transform: (AppPreferences) -> AppPreferences) {
-        viewModelScope.launch { preferences.update(transform) }
+        viewModelScope.launch { runCatching { preferences.update(transform) } } // a failed write keeps the old value
     }
 
     /** Every plate, sighting and crop. */

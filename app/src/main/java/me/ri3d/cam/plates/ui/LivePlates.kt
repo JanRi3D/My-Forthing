@@ -102,6 +102,8 @@ class LivePlatesViewModel @Inject constructor(
         if (keys.isEmpty()) emptyList() else history.filter { it.normalized in keys }.take(3)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private var run: Job? = null
+
     init {
         viewModelScope.launch {
             combine(enabled, resumed, frames.videoSize) { on, r, size -> on && r && size != null }
@@ -114,8 +116,6 @@ class LivePlatesViewModel @Inject constructor(
             }
         }
     }
-
-    private var run: Job? = null
 
     private fun start() {
         val p = LivePlateProcessor(recognizers.get(), repository, viewModelScope)
@@ -143,7 +143,7 @@ class LivePlatesViewModel @Inject constructor(
     }
 
     fun toggle() {
-        viewModelScope.launch { preferences.update { it.copy(platesLive = !it.platesLive) } }
+        viewModelScope.launch { runCatching { preferences.update { it.copy(platesLive = !it.platesLive) } } } // a failed write keeps the old value
     }
 
     companion object {
