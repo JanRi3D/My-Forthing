@@ -35,6 +35,7 @@ import me.ri3d.cam.core.model.AppTheme
 import me.ri3d.cam.core.navigation.Appearance
 import me.ri3d.cam.core.navigation.Backup
 import me.ri3d.cam.core.navigation.DriveAccount
+import me.ri3d.cam.core.navigation.EnhanceSettings
 import me.ri3d.cam.core.navigation.Route
 import me.ri3d.cam.core.navigation.Storage
 import me.ri3d.cam.core.ui.AxoTopBar
@@ -42,6 +43,7 @@ import me.ri3d.cam.core.ui.ListGroup
 import me.ri3d.cam.core.ui.ListRow
 import me.ri3d.cam.core.ui.SectionHeader
 import me.ri3d.cam.drive.DriveSettingsRow
+import me.ri3d.cam.enhance.ui.EnhanceSettingsRow
 import javax.inject.Inject
 
 @Composable
@@ -102,6 +104,7 @@ fun SettingsScreen(
                             )
                         }
                     }
+                    add { shape -> EnhanceSettingsRow(shape, onClick = { onNavigate(EnhanceSettings) }) }
                 },
             )
             recorderSettingsSection?.invoke()
