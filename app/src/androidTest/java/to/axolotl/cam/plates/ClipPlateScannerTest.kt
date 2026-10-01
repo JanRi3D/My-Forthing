@@ -51,18 +51,19 @@ class ClipPlateScannerTest {
         Log.i("PlateEval", "clip scan: $summary")
 
         assertEquals(6, summary.framesScanned)
-        assertEquals(listOf(0L, 500L, 1000L, 1500L, 2000L, 2500L), progress.map { it.positionMs })
+        assertEquals(listOf(0L, 500L, 1000L, 1500L, 2000L, 2500L, 3000L), progress.map { it.positionMs })
+        assertEquals(1f, progress.last().fraction)
         assertEquals(setOf("BMK4821", "HHJK553"), summary.plates)
         assertTrue(progress.flatMap { it.detections }.all { it.frameTimestampMs in 0..2500 })
 
-        val rows = PlateExport(db.plateDao()).forMedia("clip-1")
+        val rows = db.plateDao().sightingsForMedia("clip-1")
         assertEquals(2, rows.size) // one continuous sighting per plate
         val bmk = rows.single { it.normalized == "BMK4821" }
         val hh = rows.single { it.normalized == "HHJK553" }
         assertTrue(bmk.positionMs!! in 0L..1000L)
         assertTrue(hh.positionMs!! in 1500L..2500L)
         // plate drawn around x 640 ± 190, y 446 ± 40 in the 1280×720 clip
-        assertTrue("box ${bmk.box}", bmk.box[0] in 400..700 && bmk.box[2] in 600..900 && bmk.box[1] in 380..480)
+        assertTrue("box $bmk", bmk.boxLeft in 400f..700f && bmk.boxRight in 600f..900f && bmk.boxTop in 380f..480f)
 
         val plate = repository.history().first().single { it.normalized == "BMK4821" }
         val sighting = repository.plate(plate.id).first()!!.sightings.single()

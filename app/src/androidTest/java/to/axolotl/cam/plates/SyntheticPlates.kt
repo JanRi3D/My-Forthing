@@ -32,8 +32,15 @@ object SyntheticPlates {
     private val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     private val serif = Typeface.create(Typeface.SERIF, Typeface.BOLD)
 
-    /** A plate: groups as printed, EU band code (null = none), German seals between group 0 and 1. */
-    class Spec(val groups: List<String>, val band: String? = "D", val seals: Boolean = true, val font: Typeface = condensed) {
+    /** A plate: groups as printed, EU band code (null = none), German seals between group 0 and 1, colours. */
+    class Spec(
+        val groups: List<String>,
+        val band: String? = "D",
+        val seals: Boolean = true,
+        val font: Typeface = condensed,
+        val background: Int = Color.rgb(245, 245, 242),
+        val ink: Int = Color.rgb(15, 15, 15),
+    ) {
         val normalized get() = PlateText.normalize(groups.joinToString(""))
     }
 
@@ -102,6 +109,9 @@ object SyntheticPlates {
         add("eu-generic", Spec(listOf("AB", "123CD"), band = "I", seals = false), format = PlateFormat.GENERIC)
         add("eu-generic", Spec(listOf("1234", "BCD"), band = "E", seals = false, font = sans), format = PlateFormat.GENERIC)
 
+        add("eu-generic", Spec(listOf("12-ABC-3"), band = "NL", seals = false, background = Color.rgb(247, 198, 0)), format = PlateFormat.GENERIC)
+        add("green-ink", Spec(listOf("B", "GR", "123"), ink = Color.rgb(0, 120, 60))) // tax-exempt plate
+
         add("suffix-HE", Spec(listOf("B", "MK", "482E")))
         add("suffix-HE", Spec(listOf("M", "AB", "123H"), font = sans))
 
@@ -129,6 +139,7 @@ object SyntheticPlates {
         neg("zone-30-upper") { c -> panel(c, listOf("ZONE 30"), Color.WHITE, Color.BLACK, 0.5f) },
         neg("truck") { c -> panel(c, listOf("MAN TGX 18.510"), Color.rgb(200, 200, 205), Color.rgb(20, 20, 60), 0.45f) },
         neg("taxi") { c -> panel(c, listOf("TAXI 4711"), Color.rgb(250, 230, 120), Color.BLACK, 0.55f) },
+        neg("taxi-white") { c -> panel(c, listOf("TAXI 4711"), Color.WHITE, Color.BLACK, 0.55f) },
     )
 
     private fun neg(name: String, draw: (Canvas) -> Unit) = Sample(name, "negative", null, null) {
@@ -200,7 +211,7 @@ object SyntheticPlates {
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val unit = if (twoLine) height / 2f else height.toFloat()
-        p.color = Color.rgb(245, 245, 242)
+        p.color = spec.background
         c.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), unit * 0.08f, unit * 0.08f, p)
         p.style = Paint.Style.STROKE
         p.strokeWidth = unit * 0.035f
@@ -228,7 +239,7 @@ object SyntheticPlates {
             left = unit * 0.05f + bandW + unit * 0.1f
         }
 
-        p.color = Color.rgb(15, 15, 15)
+        p.color = spec.ink
         p.typeface = spec.font
         p.textAlign = Paint.Align.LEFT
         p.textSize = unit * 0.72f
