@@ -444,7 +444,9 @@
     <string name="media_reconstructed_enhanced">verbessert – rekonstruiert, kein Beweis</string>
     <string name="media_reconstructed_upscaled">hochskaliert – rekonstruiert, kein Beweis</string>
     <string name="media_reconstructed_short">rekonstruiert, kein Beweis</string>
-    <string name="media_enhancement_info">Erzeugt mit %1$s (%2$s), Faktor %3$.2f – %4$s</string>
+    <string name="media_enhancement_info">Erzeugt: %1$s (%2$s), Faktor %3$.2f – rekonstruiert, kein Beweis</string>
+    <string name="media_engine_ml">KI-Modell</string>
+    <string name="media_engine_classical">klassisch</string>
     <string name="media_not_connected_text">Aufnahmen auf der Dashcam gibt es nur mit aktiver Verbindung.</string>
     <string name="media_offline_hint">Heruntergeladene Dateien findest du unter „Handy“.</string>
     <string name="media_empty">Keine Aufnahmen</string>
@@ -461,6 +463,8 @@
     <string name="media_copy_recorder">Auf der Dashcam</string>
     <string name="media_open">Öffnen</string>
     <string name="media_select">Auswählen</string>
+    <string name="media_select_toggle">Auswahl umschalten</string>
+    <string name="media_photo_description">Foto %1$s, %2$s</string>
     <string name="media_selection_end">Auswahl beenden</string>
     <plurals name="media_selected">
         <item quantity="one">%d ausgewählt</item>
@@ -526,7 +530,13 @@
     <string name="media_transfer_queued">Wartet</string>
     <string name="media_transfer_waiting">Wartet auf die Dashcam-Verbindung, neuer Versuch folgt</string>
     <string name="media_transfer_done">Fertig</string>
-    <string name="media_transfer_failed">Fehlgeschlagen: %1$s</string>
+    <string name="media_failure_unknown_item">Fehlgeschlagen: Die Datei ist nicht mehr in der Bibliothek.</string>
+    <string name="media_failure_not_on_recorder">Fehlgeschlagen: Die Datei ist nicht mehr auf der Dashcam.</string>
+    <string name="media_failure_http">Fehlgeschlagen: Die Dashcam hat die Datei nicht geliefert.</string>
+    <string name="media_failure_not_media">Fehlgeschlagen: Die Antwort war keine Aufnahme. Ist das WLAN wirklich das der Dashcam?</string>
+    <string name="media_failure_incomplete">Fehlgeschlagen: Die Übertragung blieb unvollständig.</string>
+    <string name="media_failure_network">Fehlgeschlagen: Die Verbindung zur Dashcam brach immer wieder ab.</string>
+    <string name="media_failure_http_code">HTTP %1$d</string>
     <string name="media_transfer_cancelled">Abgebrochen</string>
     <string name="media_transfer_of">%1$s von %2$s</string>
     <string name="media_download_notification_title">Download: %1$s</string>
@@ -544,7 +554,11 @@
     <string name="media_storage_free_downloads_text">Löscht alle heruntergeladenen Aufnahmen und Fotos auf diesem Handy, auch unvollständige Downloads. Kopien auf der Dashcam und in Google Drive bleiben.</string>
     <string name="media_storage_free_screenshots_text">Löscht alle Screenshots auf diesem Handy. Kopien in Google Drive bleiben.</string>
     <string name="media_storage_free_enhanced_text">Löscht alle verbesserten Bilder und hochskalierten Clips auf diesem Handy. Die Originale bleiben.</string>
-    <string name="media_storage_free_cache_text">Löscht zwischengespeicherte Vorschaubilder und temporäre Dateien. Sie werden bei Bedarf neu geladen.</string>
+    <string name="media_storage_free_cache_text">Löscht zwischengespeicherte Vorschaubilder der Dashcam. Sie werden bei Bedarf neu geladen.</string>
+    <plurals name="media_storage_last_copies">
+        <item quantity="one">Achtung: Eine dieser Dateien gibt es nur auf diesem Handy. Sie ist danach endgültig weg.</item>
+        <item quantity="other">Achtung: %d dieser Dateien gibt es nur auf diesem Handy. Sie sind danach endgültig weg.</item>
+    </plurals>
     <string name="media_storage_free_space">Frei auf dem Handy: %1$s</string>
     <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
     <!-- /media -->

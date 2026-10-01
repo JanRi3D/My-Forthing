@@ -5,10 +5,12 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.hilt.work.HiltWorker
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
@@ -32,49 +34,68 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import to.axolotl.cam.R
 import to.axolotl.cam.core.log.Log
 import to.axolotl.cam.dashcam.RecorderConnectionManager
 import to.axolotl.cam.dashcam.RecorderConnectionState
+import to.axolotl.cam.dashcam.RecorderNotBoundException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Why a download stopped; shown in German, the raw HTTP code as a second line. */
+enum class DownloadFailure(@StringRes val text: Int) {
+    UNKNOWN_ITEM(R.string.media_failure_unknown_item),
+    NOT_ON_RECORDER(R.string.media_failure_not_on_recorder),
+    HTTP(R.string.media_failure_http),
+    NOT_MEDIA(R.string.media_failure_not_media),
+    INCOMPLETE(R.string.media_failure_incomplete),
+    NETWORK(R.string.media_failure_network),
+}
+
 /** A download that cannot finish now; [permanent] = retrying will not help. */
-class DownloadException(message: String, val permanent: Boolean) : IOException(message)
+class DownloadException(val failure: DownloadFailure, val permanent: Boolean, val httpCode: Int? = null) :
+    IOException(failure.name + (httpCode?.let { " (HTTP $it)" } ?: ""))
 
 /** One recorder file → `files/media/<id>/<name>`. */
 @Singleton
 class MediaDownloader @Inject constructor(private val repository: MediaRepository, private val http: RecorderHttp) {
 
     /**
-     * Bytes go to `<name>.part`. If a part exists the request asks for the rest (`Range: bytes=<n>-`) and appends only
-     * when the recorder answers 206 with a Content-Range starting at n (`If-Range` is not assumed); a 200 rewrites
-     * the part from the start. When complete (length checked if the recorder sent one): fsync, atomic rename, row
-     * updated. A file already on the phone is returned unchanged: no second copy, no new item.
+     * Only with a Ready session ([RecorderHttp.client]; otherwise [RecorderNotReadyException] before any request).
+     * Bytes go to `<name>.part`, the size the recorder announced to `<name>.part.size`. With a part the request asks
+     * for the rest (`Range: bytes=<n>-`) and appends only on a 206 whose Content-Range starts at n and announces the
+     * same size (`If-Range` is not assumed); a 200 rewrites from the start; 416 or a non-fitting 206 restarts. A
+     * response that is not a recording (Content-Type other than video/image/octet-stream, empty body) is never saved.
+     * When complete (length checked when announced): fsync, atomic rename, row updated. A file already on the phone
+     * is returned unchanged: no second copy, no new item.
      */
     suspend fun download(mediaId: String, onProgress: suspend (bytes: Long, total: Long?) -> Unit = { _, _ -> }): MediaItem {
-        val item = repository.get(mediaId) ?: throw DownloadException("unknown item", permanent = true)
+        val item = repository.get(mediaId) ?: throw DownloadException(DownloadFailure.UNKNOWN_ITEM, permanent = true)
         if (item.localFile?.isFile == true) return item
-        val path = item.recorderPath ?: throw DownloadException("not on the recorder", permanent = true)
+        val path = item.recorderPath ?: throw DownloadException(DownloadFailure.NOT_ON_RECORDER, permanent = true)
+        val client = http.client()
         val target = targetFile(item)
         val part = partFile(target)
+        val sizeFile = sizeFile(part)
         target.parentFile?.mkdirs()
         val offset = if (part.isFile) part.length() else 0L
         val request = Request.Builder().url(http.url(path)).apply { if (offset > 0) header("Range", "bytes=$offset-") }.build()
-        val call = http.client().newCall(request)
+        val call = client.newCall(request)
         coroutineScope {
             // A blocked read does not see coroutine cancellation; cancelling the call ends it at once.
             val watchdog = launch { try { awaitCancellation() } finally { call.cancel() } }
@@ -84,14 +105,27 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
                         val code = response.code
                         val range = response.header("Content-Range")
                         val append = code == 206 && offset > 0 && rangeStart(range) == offset
-                        when {
-                            code == 416 || code == 206 && !append -> {
-                                part.delete() // the part does not fit what the recorder offers: start over
-                                throw DownloadException("HTTP $code for bytes=$offset-", permanent = false)
-                            }
-                            code != 200 && code != 206 -> throw DownloadException("HTTP $code", permanent = code in 400..499 && code != 408 && code != 429)
-                        }
                         val total = if (append) rangeTotal(range) else response.body.contentLength().takeIf { it >= 0 }
+                        val announced = sizeFile.takeIf { it.isFile }?.readText()?.toLongOrNull()
+                        fun restart(): Nothing {
+                            part.delete() // the part does not fit what the recorder offers now: start over
+                            sizeFile.delete()
+                            throw DownloadException(DownloadFailure.INCOMPLETE, permanent = false, httpCode = code)
+                        }
+                        when {
+                            code == 416 || code == 206 && !append -> restart()
+                            code != 200 && code != 206 -> throw DownloadException(
+                                DownloadFailure.HTTP, permanent = code in 400..499 && code != 408 && code != 429, httpCode = code,
+                            )
+                            !isMediaType(response.header("Content-Type")) ->
+                                throw DownloadException(DownloadFailure.NOT_MEDIA, permanent = true, httpCode = code)
+                            response.header("Content-Length") != null && response.body.contentLength() <= 0 ->
+                                throw DownloadException(DownloadFailure.INCOMPLETE, permanent = false, httpCode = code)
+                            append && (total == null || total <= offset || announced != null && announced != total) -> restart()
+                        }
+                        if (!append) {
+                            if (total != null) sizeFile.writeText(total.toString()) else sizeFile.delete()
+                        }
                         var done = if (append) offset else 0L
                         FileOutputStream(part, append).use { out ->
                             val source = response.body.byteStream()
@@ -106,9 +140,12 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
                             }
                             out.fd.sync()
                         }
-                        if (total != null && done != total) throw DownloadException("incomplete: $done of $total", permanent = false)
+                        if (total != null && done != total || done == 0L) {
+                            throw DownloadException(DownloadFailure.INCOMPLETE, permanent = false, httpCode = code)
+                        }
                     }
                     Files.move(part.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                    sizeFile.delete()
                 }
             } finally {
                 watchdog.cancel()
@@ -116,7 +153,7 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
         }
         return repository.markDownloaded(mediaId, target) ?: run {
             target.delete() // the item was deleted meanwhile: keep no orphan file
-            throw DownloadException("item deleted", permanent = true)
+            throw DownloadException(DownloadFailure.UNKNOWN_ITEM, permanent = true)
         }
     }
 
@@ -126,6 +163,7 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
         val target = targetFile(item)
         withContext(Dispatchers.IO) {
             partFile(target).delete()
+            sizeFile(partFile(target)).delete()
             if (!target.exists()) target.parentFile?.delete()
         }
     }
@@ -137,6 +175,7 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
 
         fun partFile(target: File) = File(target.path + ".part")
+        private fun sizeFile(part: File) = File(part.path + ".size")
 
         /** The recorder's name, reduced to safe characters (it is also the name others see when sharing). */
         fun safeName(name: String, fallback: String) = name.replace(UNSAFE, "_").trim('.').ifBlank { fallback }
@@ -146,6 +185,12 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
 
         /** `bytes <start>-<end>/<total>` → total; null for `*`. */
         fun rangeTotal(contentRange: String?): Long? = contentRange?.substringAfterLast('/', "")?.toLongOrNull()
+
+        /** A missing Content-Type is accepted (the recorder's headers are unverified); HTML and the like are not. */
+        fun isMediaType(contentType: String?): Boolean {
+            val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return true
+            return type.startsWith("video/") || type.startsWith("image/") || type == "application/octet-stream"
+        }
     }
 }
 
@@ -158,13 +203,15 @@ data class TransferProgress(
     val state: TransferState,
     val bytes: Long,
     val totalBytes: Long?,
-    val error: String?,
+    val failure: DownloadFailure?,
+    val httpCode: Int?,
 )
 
 /**
  * Durable download queue: WorkManager unique work per media id (KEEP), no network constraint (the recorder Wi-Fi
- * has no internet), linear backoff. Runs survive process death; WorkManager re-enqueues them, and a work waiting for
- * its next attempt starts again as soon as a session is Ready.
+ * has no internet), linear backoff. At most [MAX_PARALLEL] downloads are runnable; further ones are enqueued "held"
+ * (far initial delay) and promoted when a slot frees, so no worker waits while running. Runs survive process death;
+ * a work waiting for its next attempt starts again as soon as a session is Ready.
  */
 @Singleton
 class DownloadQueue @Inject constructor(
@@ -175,6 +222,7 @@ class DownloadQueue @Inject constructor(
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mutex = Mutex()
 
     val progress: StateFlow<Map<String, TransferProgress>> = workManager.getWorkInfosByTagFlow(TAG)
         .map { infos ->
@@ -185,6 +233,7 @@ class DownloadQueue @Inject constructor(
         .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
     init {
+        scope.launch { promote() }
         scope.launch {
             manager.state.collect { if (it is RecorderConnectionState.Ready) resumeWaiting() }
         }
@@ -194,7 +243,10 @@ class DownloadQueue @Inject constructor(
     suspend fun enqueue(mediaId: String): Boolean {
         val item = repository.get(mediaId) ?: return false
         if (item.localFile?.isFile == true || item.recorderPath == null) return false
-        enqueue(item, ExistingWorkPolicy.KEEP)
+        mutex.withLock {
+            val busy = infos().count { it.occupiesSlot() && idOf(it) != mediaId }
+            enqueue(item, ExistingWorkPolicy.KEEP, held = busy >= MAX_PARALLEL)
+        }
         return true
     }
 
@@ -202,35 +254,63 @@ class DownloadQueue @Inject constructor(
     suspend fun cancel(mediaId: String) {
         workManager.cancelUniqueWork(workName(mediaId))
         downloader.discardPartial(mediaId)
+        promote()
     }
 
-    private fun enqueue(item: MediaItem, policy: ExistingWorkPolicy) {
+    /** Fills free slots with held downloads. [excluding] = the calling worker, which is about to finish. */
+    suspend fun promote(excluding: UUID? = null) = mutex.withLock {
+        val infos = infos()
+        val free = MAX_PARALLEL - infos.count { it.occupiesSlot() && it.id != excluding }
+        // ponytail: WorkInfo has no enqueue time, so held downloads start in WorkManager's order, not strictly FIFO.
+        infos.filter { HELD in it.tags && it.state == WorkInfo.State.ENQUEUED }.take(free.coerceAtLeast(0)).forEach { info ->
+            idOf(info)?.let { repository.get(it) }?.let { enqueue(it, ExistingWorkPolicy.REPLACE, held = false) }
+        }
+    }
+
+    private fun enqueue(item: MediaItem, policy: ExistingWorkPolicy, held: Boolean) {
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.KEY_ID to item.id, DownloadWorker.KEY_NAME to item.originalFileName))
             .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(TAG).addTag(ID_TAG + item.id).addTag(NAME_TAG + item.originalFileName)
+            .apply { if (held) addTag(HELD).setInitialDelay(HOLD_DAYS, TimeUnit.DAYS) }
             .build()
         workManager.enqueueUniqueWork(workName(item.id), policy, request)
     }
 
-    /** Waiting for the next attempt (e.g. no recorder Wi-Fi after a restart): try now. Running work is left alone. */
-    private suspend fun resumeWaiting() {
-        progress.value.values.filter { it.state == TransferState.WAITING }.forEach { p ->
-            repository.get(p.mediaId)?.let { enqueue(it, ExistingWorkPolicy.REPLACE) }
+    /**
+     * Waiting for the next attempt (e.g. no recorder Wi-Fi after a restart): try now. Only works still ENQUEUED when
+     * checked under the lock are replaced; running ones are left alone.
+     */
+    private suspend fun resumeWaiting() = mutex.withLock {
+        infos().filter { it.state == WorkInfo.State.ENQUEUED && it.runAttemptCount > 0 && HELD !in it.tags }.forEach { info ->
+            val id = idOf(info) ?: return@forEach
+            val current = workManager.getWorkInfosForUniqueWorkFlow(workName(id)).first()
+            if (current.any { it.id == info.id && it.state == WorkInfo.State.ENQUEUED }) {
+                repository.get(id)?.let { enqueue(it, ExistingWorkPolicy.REPLACE, held = false) }
+            }
         }
     }
+
+    private suspend fun infos() = workManager.getWorkInfosByTagFlow(TAG).first()
+
+    private fun WorkInfo.occupiesSlot() = !state.isFinished && HELD !in tags
 
     companion object {
         const val TAG = "media-download"
         private const val ID_TAG = "media-id:"
         private const val NAME_TAG = "media-name:"
+        private const val HELD = "media-held"
+        private const val HOLD_DAYS = 3650L
         private const val BACKOFF_SECONDS = 15L
+        const val MAX_PARALLEL = 2
         val ACTIVE = setOf(TransferState.QUEUED, TransferState.RUNNING, TransferState.WAITING)
 
         fun workName(mediaId: String) = "media-download-$mediaId"
 
+        private fun idOf(info: WorkInfo) = info.tags.firstOrNull { it.startsWith(ID_TAG) }?.removePrefix(ID_TAG)
+
         internal fun toProgress(info: WorkInfo): TransferProgress? {
-            val id = info.tags.firstOrNull { it.startsWith(ID_TAG) }?.removePrefix(ID_TAG) ?: return null
+            val id = idOf(info) ?: return null
             val state = when (info.state) {
                 WorkInfo.State.ENQUEUED -> if (info.runAttemptCount > 0) TransferState.WAITING else TransferState.QUEUED
                 WorkInfo.State.BLOCKED -> TransferState.QUEUED
@@ -246,55 +326,85 @@ class DownloadQueue @Inject constructor(
                 state = state,
                 bytes = info.progress.getLong(DownloadWorker.KEY_BYTES, 0),
                 totalBytes = total,
-                error = info.outputData.getString(DownloadWorker.KEY_ERROR),
+                failure = info.outputData.getString(DownloadWorker.KEY_ERROR)?.let { name -> DownloadFailure.entries.firstOrNull { it.name == name } },
+                httpCode = info.outputData.getInt(DownloadWorker.KEY_HTTP, -1).takeIf { it >= 0 },
             )
         }
     }
 }
 
 /**
- * Runs one download in the foreground (data sync) with a German progress notification and a cancel action. At most
- * [MAX_PARALLEL] transfers run at once; the recorder serves them over one Wi-Fi link.
+ * Runs one download in the foreground (data sync) with a German progress notification and a cancel action.
+ * Without a Ready session it retries without using up attempts ([MAX_ATTEMPTS] counts real failures only).
  */
 @HiltWorker
 class DownloadWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val downloader: MediaDownloader,
+    private val queue: DownloadQueue,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val mediaId = inputData.getString(KEY_ID) ?: return Result.failure()
         val name = inputData.getString(KEY_NAME).orEmpty()
-        return try {
-            transfers.withPermit {
-                // Not allowed from the background on Android 12+: then it runs as normal work.
-                runCatching { setForeground(foregroundInfo(name, 0, null)) }
-                var last = 0L
-                downloader.download(mediaId) { bytes, total ->
-                    val now = System.currentTimeMillis()
-                    if (now - last >= PROGRESS_INTERVAL_MS || bytes == total) {
-                        last = now
-                        setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L)))
-                        updateNotification(name, bytes, total)
-                    }
+        val result = try {
+            // Not allowed from the background on Android 12+: then it runs as normal work.
+            runCatching { setForeground(foregroundInfo(name, 0, null)) }
+            var last = 0L
+            downloader.download(mediaId) { bytes, total ->
+                val now = System.currentTimeMillis()
+                if (now - last >= PROGRESS_INTERVAL_MS || bytes == total) {
+                    last = now
+                    setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L)))
+                    updateNotification(name, bytes, total)
                 }
             }
+            attempts(mediaId, clear = true)
             Result.success()
         } catch (e: CancellationException) {
-            // Cancelled from the notification: drop the part. ponytail: the stop reason needs Android 12; below, the
-            // part stays and the next download of the file resumes from it (Storage "Freigeben" removes it).
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && stopReason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) {
-                withContext(NonCancellable) { downloader.discardPartial(mediaId) }
-            }
+            if (discardIfCancelled(mediaId)) withContext(NonCancellable) { queue.promote(excluding = id) }
             throw e
-        } catch (e: IOException) { // includes RecorderNotBoundException: no recorder Wi-Fi yet
-            if (e is DownloadException && e.permanent || runAttemptCount + 1 >= MAX_ATTEMPTS) {
-                Result.failure(workDataOf(KEY_ERROR to (e.message ?: e.javaClass.simpleName)))
-            } else {
-                Result.retry()
-            }
+        } catch (e: IOException) {
+            failed(mediaId, e)
         }
+        // A retried work keeps its slot; a finished one frees it for a held download.
+        if (result !is Result.Retry) queue.promote(excluding = id)
+        return result
+    }
+
+    private suspend fun failed(mediaId: String, e: IOException): Result {
+        if (discardIfCancelled(mediaId)) return Result.failure() // ignored by WorkManager: the work is cancelled
+        if (e is RecorderNotReadyException || e is RecorderNotBoundException) return Result.retry() // waits, uses no attempt
+        val download = e as? DownloadException
+        if (download?.permanent != true && attempts(mediaId) < MAX_ATTEMPTS) return Result.retry()
+        attempts(mediaId, clear = true)
+        val failure = download?.failure ?: DownloadFailure.NETWORK
+        return Result.failure(workDataOf(KEY_ERROR to failure.name, KEY_HTTP to (download?.httpCode ?: -1)))
+    }
+
+    /**
+     * Cancelled by the user (sheet, notification "Abbrechen"): the part is dropped. Checked through the work's own
+     * state, so it works on every Android version; a REPLACE successor (resume after Ready) keeps the part.
+     */
+    private suspend fun discardIfCancelled(mediaId: String): Boolean = withContext(NonCancellable) {
+        if (!isStopped) return@withContext false
+        val works = WorkManager.getInstance(applicationContext).getWorkInfosForUniqueWorkFlow(DownloadQueue.workName(mediaId)).first()
+        val cancelled = works.any { it.id == id && it.state == WorkInfo.State.CANCELLED } && works.none { !it.state.isFinished }
+        if (cancelled) downloader.discardPartial(mediaId)
+        cancelled
+    }
+
+    /** Real failures per media id (not-ready retries are not counted); returns the new count. */
+    private fun attempts(mediaId: String, clear: Boolean = false): Int {
+        val prefs = applicationContext.getSharedPreferences(ATTEMPTS, Context.MODE_PRIVATE)
+        if (clear) {
+            prefs.edit { remove(mediaId) }
+            return 0
+        }
+        val count = prefs.getInt(mediaId, 0) + 1
+        prefs.edit { putInt(mediaId, count) }
+        return count
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(inputData.getString(KEY_NAME).orEmpty(), 0, null)
@@ -350,12 +460,12 @@ class DownloadWorker @AssistedInject constructor(
         const val KEY_BYTES = "bytes"
         const val KEY_TOTAL = "total"
         const val KEY_ERROR = "error"
+        const val KEY_HTTP = "http"
+        const val MAX_ATTEMPTS = 10
+        private const val ATTEMPTS = "media_download_attempts"
         private const val TAG = "DownloadWorker"
         private const val CHANNEL = "media_transfers"
-        private const val MAX_PARALLEL = 2
-        private const val MAX_ATTEMPTS = 10
         private const val PROGRESS_INTERVAL_MS = 500L
-        private val transfers = Semaphore(MAX_PARALLEL)
     }
 }
 

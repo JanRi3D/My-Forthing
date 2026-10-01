@@ -410,12 +410,20 @@ private fun DayHeader(text: String) {
     )
 }
 
+/** Accessibility labels of a row: open, toggle in selection mode, long press to select. */
+private class RowLabels(val open: String, val toggle: String, val select: String)
+
+@Composable
+private fun rowLabels() = RowLabels(
+    stringResource(R.string.media_open), stringResource(R.string.media_select_toggle), stringResource(R.string.media_select),
+)
+
 @OptIn(ExperimentalFoundationApi::class)
-private fun Modifier.selectable(item: MediaItem, selection: Set<String>, onTap: (MediaItem) -> Unit, onToggle: (String) -> Unit, openLabel: String, selectLabel: String) =
+private fun Modifier.selectable(item: MediaItem, selection: Set<String>, onTap: (MediaItem) -> Unit, onToggle: (String) -> Unit, labels: RowLabels) =
     semantics { if (selection.isNotEmpty()) selected = item.id in selection }
         .combinedClickable(
-            onClickLabel = openLabel,
-            onLongClickLabel = selectLabel,
+            onClickLabel = if (selection.isNotEmpty()) labels.toggle else labels.open,
+            onLongClickLabel = labels.select,
             onLongClick = { onToggle(item.id) },
             onClick = { onTap(item) },
         )
@@ -428,7 +436,7 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
             .fillMaxWidth()
             .clip(listRowShape(1, 3))
             .background(MaterialTheme.colorScheme.surfaceContainer)
-            .selectable(item, selection, onTap, viewModel::toggle, stringResource(R.string.media_open), stringResource(R.string.media_select))
+            .selectable(item, selection, onTap, viewModel::toggle, rowLabels())
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -456,12 +464,13 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
 private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit) {
     val item = entry.item
     val clock = recorderClock(entry.file.fileTime) ?: "–"
+    val description = stringResource(R.string.media_photo_description, clock, entry.file.fileName.orEmpty().substringAfterLast('/'))
     Box(
         Modifier
             .aspectRatio(1f)
             .clip(MaterialTheme.shapes.extraSmall)
-            .semantics { contentDescription = clock }
-            .selectable(item, selection, onTap, viewModel::toggle, stringResource(R.string.media_open), stringResource(R.string.media_select)),
+            .semantics { contentDescription = description }
+            .selectable(item, selection, onTap, viewModel::toggle, rowLabels()),
     ) {
         MediaThumb(entry.file.fileThm?.let(viewModel.http::url), R.drawable.ic_media_photo, Modifier.fillMaxSize(), viewModel.http.imageLoader)
         Text(
@@ -549,7 +558,7 @@ private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>,
                         .fillMaxWidth()
                         .clip(listRowShape(1, 3))
                         .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .selectable(item, selection, onTap, viewModel::toggle, stringResource(R.string.media_open), stringResource(R.string.media_select))
+                        .selectable(item, selection, onTap, viewModel::toggle, rowLabels())
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -652,7 +661,8 @@ private fun TransfersSheet(
                             TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes)
                             TransferState.WAITING -> stringResource(R.string.media_transfer_waiting)
                             TransferState.DONE -> stringResource(R.string.media_transfer_done)
-                            TransferState.FAILED -> stringResource(R.string.media_transfer_failed, t.error ?: "–")
+                            TransferState.FAILED -> stringResource(t.failure?.text ?: R.string.media_failure_network) +
+                                (t.httpCode?.let { "\n" + stringResource(R.string.media_failure_http_code, it) } ?: "")
                             TransferState.CANCELLED -> stringResource(R.string.media_transfer_cancelled)
                         },
                         style = MaterialTheme.typography.bodyMedium,

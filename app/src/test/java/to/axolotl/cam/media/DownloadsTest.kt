@@ -9,6 +9,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.workDataOf
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.TestScope
@@ -37,14 +39,15 @@ class DownloadsTest {
     private val server = MockWebServer()
     private val body = ByteArray(5000) { (it % 251).toByte() }
     private lateinit var downloader: MediaDownloader
+    private lateinit var queue: DownloadQueue
+    private val factory = object : WorkerFactory() {
+        override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
+            DownloadWorker(appContext, workerParameters, downloader, queue)
+    }
 
     @Before
     fun setUp() {
         server.start()
-        val factory = object : WorkerFactory() {
-            override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
-                DownloadWorker(appContext, workerParameters, downloader)
-        }
         val config = Configuration.Builder().setMinimumLoggingLevel(Log.DEBUG).setExecutor(SynchronousExecutor())
             .setTaskExecutor(SynchronousExecutor()).setWorkerFactory(factory).build()
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
@@ -55,6 +58,7 @@ class DownloadsTest {
         server.close()
         db.close()
         listOf("media", "thumbs").forEach { File(context.filesDir, it).deleteRecursively() }
+        context.getSharedPreferences("media_download_attempts", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     private class Setup(val repository: MediaRepository, val queue: DownloadQueue, val item: MediaItem) {
@@ -62,13 +66,22 @@ class DownloadsTest {
         val part: File get() = MediaDownloader.partFile(target)
     }
 
-    private suspend fun TestScope.setup(): Setup {
-        val manager = managerFor(RecorderSimulator()).apply { setSimulator(true) } // simulator: the unbound client is allowed
+    /** Simulator mode (the unbound client is allowed) with a Ready session unless [ready] is false. */
+    private suspend fun TestScope.setup(ready: Boolean = true): Setup {
+        val manager = managerFor(RecorderSimulator()).apply { setSimulator(true) }
+        if (ready) manager.connect()
         val repository = MediaRepository(context, db, manager)
         downloader = MediaDownloader(repository, RecorderHttp(manager, server.url("/").toString(), context))
         repository.upsertFromRecorderListing(0, listOf(recorderFile("/sim/a.mp4")))
-        return Setup(repository, DownloadQueue(context, repository, downloader, manager), db.mediaDao().byRecorderPath("/sim/a.mp4")!!)
+        queue = DownloadQueue(context, repository, downloader, manager)
+        return Setup(repository, queue, db.mediaDao().byRecorderPath("/sim/a.mp4")!!)
     }
+
+    private fun worker(id: String, runAttemptCount: Int = 0) = TestListenableWorkerBuilder.from(context, DownloadWorker::class.java)
+        .setInputData(workDataOf(DownloadWorker.KEY_ID to id, DownloadWorker.KEY_NAME to "a.mp4"))
+        .setRunAttemptCount(runAttemptCount)
+        .setWorkerFactory(factory)
+        .build() as DownloadWorker
 
     private fun Setup.writePart(bytes: ByteArray) = part.apply { parentFile!!.mkdirs(); writeBytes(bytes) }
 
@@ -185,5 +198,83 @@ class DownloadsTest {
         assertThat(s.part.exists()).isFalse()
         assertThat(s.target.exists()).isFalse()
         assertThat(db.mediaDao().get(s.item.id)!!.localUri).isNull()
+    }
+
+    @Test
+    fun `nothing is requested without a Ready session`() = runTest {
+        val s = setup(ready = false)
+        assertThrows(RecorderNotReadyException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+        assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `a worker without a session waits beyond the attempt limit`() = runTest {
+        val s = setup(ready = false)
+        val result = worker(s.item.id, runAttemptCount = DownloadWorker.MAX_ATTEMPTS + 5).doWork()
+        assertThat(result).isEqualTo(ListenableWorker.Result.retry())
+        assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `real failures fail the work after the attempt limit with a reason`() = runTest {
+        val s = setup()
+        server.dispatcher = object : mockwebserver3.Dispatcher() {
+            override fun dispatch(request: mockwebserver3.RecordedRequest) = MockResponse.Builder().code(503).build()
+        }
+        repeat(DownloadWorker.MAX_ATTEMPTS - 1) {
+            assertThat(worker(s.item.id, runAttemptCount = it).doWork()).isEqualTo(ListenableWorker.Result.retry())
+        }
+        val last = worker(s.item.id, runAttemptCount = DownloadWorker.MAX_ATTEMPTS).doWork()
+        assertThat(last).isEqualTo(
+            ListenableWorker.Result.failure(workDataOf(DownloadWorker.KEY_ERROR to DownloadFailure.HTTP.name, DownloadWorker.KEY_HTTP to 503)),
+        )
+    }
+
+    @Test
+    fun `a 416 restarts the file from the start`() = runTest {
+        val s = setup()
+        s.writePart(body.copyOf(1000))
+        server.enqueue(MockResponse.Builder().code(416).setHeader("Content-Range", "bytes */${body.size}").build())
+
+        val e = assertThrows(DownloadException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+        assertThat(e.permanent).isFalse()
+        assertThat(s.part.exists()).isFalse()
+
+        server.enqueue(full())
+        downloader.download(s.item.id)
+        server.takeRequest()
+        assertThat(server.takeRequest().headers["Range"]).isNull()
+        assertThat(s.target.readBytes()).isEqualTo(body)
+    }
+
+    @Test
+    fun `an answer that is no recording is never saved`() = runTest {
+        val s = setup()
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Content-Type", "text/html; charset=utf-8").body("<html>router</html>").build())
+
+        val e = assertThrows(DownloadException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+
+        assertThat(e.failure).isEqualTo(DownloadFailure.NOT_MEDIA)
+        assertThat(e.permanent).isTrue()
+        assertThat(s.target.exists() || s.part.exists()).isFalse()
+        assertThat(db.mediaDao().get(s.item.id)!!.localUri).isNull()
+    }
+
+    @Test
+    fun `a resume announcing another size restarts`() = runTest {
+        val s = setup()
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(body)).onResponseBody(SocketEffect.CloseSocket()).build())
+        assertThrows(IOException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+        val kept = s.part.length().toInt()
+        assertThat(kept).isGreaterThan(0)
+
+        val other = ByteArray(6000)
+        server.enqueue(MockResponse.Builder().code(206).setHeader("Content-Range", "bytes $kept-5999/6000").body(Buffer().write(other, kept, 6000 - kept)).build())
+        assertThrows(DownloadException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+        assertThat(s.part.exists()).isFalse()
+
+        server.enqueue(full())
+        downloader.download(s.item.id)
+        assertThat(s.target.readBytes()).isEqualTo(body)
     }
 }

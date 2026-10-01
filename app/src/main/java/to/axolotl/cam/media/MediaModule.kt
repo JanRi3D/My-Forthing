@@ -13,7 +13,12 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import to.axolotl.cam.dashcam.RecorderConnectionManager
+import to.axolotl.cam.dashcam.RecorderConnectionState
+import java.io.IOException
 import javax.inject.Singleton
+
+/** No Ready session on the bound recorder Wi-Fi: nothing is requested; downloads wait without using up attempts. */
+class RecorderNotReadyException : IOException("no ready recorder session")
 
 /**
  * Recorder media over HTTP: the client bound to the recorder Wi-Fi and the file URL. In the debug simulator mode
@@ -24,16 +29,25 @@ class RecorderHttp(
     private val simulatorBaseUrl: String,
     context: Context,
 ) {
-    /** Throws `RecorderNotBoundException` while no recorder Wi-Fi is bound (never falls back to mobile data). */
-    fun client(): OkHttpClient = manager.httpClient()
+    /**
+     * The bound client, only while a session is Ready on the network that client is bound to (or in simulator mode).
+     * Any other device answering at 192.168.42.1 on some Wi-Fi is never asked. Throws [RecorderNotReadyException]
+     * (or `RecorderNotBoundException`); never falls back to mobile data.
+     */
+    fun client(): OkHttpClient {
+        val state = manager.state.value
+        if (state !is RecorderConnectionState.Ready) throw RecorderNotReadyException()
+        if (!manager.simulator.value && state.network != manager.recorderNetwork.value) throw RecorderNotReadyException()
+        return manager.httpClient()
+    }
 
     fun url(recorderPath: String): String =
         if (manager.simulator.value) simulatorBaseUrl.trimEnd('/') + "/" + recorderPath.trimStart('/') else manager.mediaUrl(recorderPath)
 
     /**
-     * Thumbnails from the recorder. Every request asks [client] at call time, so a new or lost Wi-Fi binding applies
-     * at once and an unbound phone shows the placeholder. Coil's own connectivity check is off: the recorder Wi-Fi
-     * has no internet. No service-loaded fetchers: nothing may load recorder URLs unbound.
+     * Thumbnails from the recorder. Every request asks [client] at call time, so a new or lost session applies at
+     * once and without a Ready session the placeholder stays. Coil's own connectivity check is off: the recorder
+     * Wi-Fi has no internet. No service-loaded fetchers: nothing may load recorder URLs unbound.
      */
     val imageLoader: ImageLoader by lazy {
         ImageLoader.Builder(context)
