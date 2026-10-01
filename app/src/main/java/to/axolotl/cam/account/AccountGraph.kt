@@ -3,7 +3,6 @@ package to.axolotl.cam.account
 import androidx.compose.runtime.remember
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dagger.hilt.android.EntryPointAccessors
@@ -16,7 +15,6 @@ import to.axolotl.cam.core.navigation.ResetSent
 import to.axolotl.cam.core.navigation.SignIn
 import to.axolotl.cam.core.navigation.Upgrade
 import to.axolotl.cam.core.navigation.VerifyEmail
-import to.axolotl.cam.core.navigation.Welcome
 
 fun NavGraphBuilder.accountGraph(navController: NavController) {
     // The repository is a singleton: creating it with the graph (app start) restores a linked account's session and
@@ -26,8 +24,6 @@ fun NavGraphBuilder.accountGraph(navController: NavController) {
     val onDone: (AuthDone) -> Unit = { navController.afterAuth(it) }
     composable<SignIn> {
         SignInScreen(
-            // Welcome only exists in the back stack before a profile does.
-            showOfflineOption = navController.currentBackStack.value.any { it.destination.hasRoute<Welcome>() },
             onBack = { navController.navigateUp() },
             onForgotPassword = { navController.navigate(ForgotPassword) { launchSingleTop = true } },
             onCreateAccount = { navController.navigate(CreateAccount) { popUpTo<CreateAccount> { inclusive = true } } },

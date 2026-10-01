@@ -37,10 +37,9 @@ import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.LocalSnackbarHostState
 import java.io.File
 
-/** Anmelden: Google or e-mail/password; [showOfflineOption] during onboarding (no profile yet). */
+/** Anmelden: Google or e-mail/password; "Offline nutzen" while the phone has no profile yet (onboarding). */
 @Composable
 fun SignInScreen(
-    showOfflineOption: Boolean,
     onBack: () -> Unit,
     onForgotPassword: () -> Unit,
     onCreateAccount: () -> Unit,
@@ -50,6 +49,7 @@ fun SignInScreen(
 ) {
     val activity = LocalActivity.current
     val enabled = viewModel.configured && !viewModel.busy
+    val showOfflineOption by viewModel.canContinueOffline.collectAsStateWithLifecycle()
     AuthEffects(viewModel, onDone)
     AuthLayout(onBack = onBack) {
         if (!viewModel.configured) NotConfiguredNotice()

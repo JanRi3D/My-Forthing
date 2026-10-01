@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import to.axolotl.cam.R
@@ -54,6 +55,10 @@ class AuthViewModel @Inject constructor(
 ) : ViewModel() {
     val configured = accounts.isConfigured
     val profile: StateFlow<LocalProfile?> = profiles.observe().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Onboarding only: before a profile exists, "Offline nutzen" is still an option (hidden until known). */
+    val canContinueOffline: StateFlow<Boolean> =
+        profiles.observe().map { it == null }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     // Only the e-mail address survives process death; the password never goes into saved state.
     var email by mutableStateOf(savedState.get<String>(KEY_EMAIL).orEmpty())
