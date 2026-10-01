@@ -113,7 +113,9 @@ fun AccountScreen(
             if (signedIn != null) {
                 ListGroup(
                     listOf(
-                        { shape -> VerificationRow(signedIn, shape, viewModel::sendVerification) },
+                        { shape ->
+                            VerificationRow(signedIn, shape, viewModel.sending, viewModel.verifyCooldown.secondsLeft, viewModel::sendVerification)
+                        },
                         { shape ->
                             ListRow(
                                 stringResource(if (signedIn.online) R.string.account_online else R.string.account_offline),
@@ -183,16 +185,20 @@ private fun NameEditor(profile: LocalProfile, onSave: (String) -> Unit) {
 }
 
 @Composable
-private fun VerificationRow(state: AccountState.SignedIn, shape: Shape, onSend: () -> Unit) {
+private fun VerificationRow(state: AccountState.SignedIn, shape: Shape, sending: Boolean, secondsLeft: Int, onSend: () -> Unit) {
     if (state.emailVerified) {
         ListRow(stringResource(R.string.account_email_verified), icon = R.drawable.ic_mail_sent, shape = shape)
     } else {
         ListRow(
             stringResource(R.string.account_email_unverified),
-            supporting = stringResource(R.string.account_email_verify_action),
+            supporting = if (secondsLeft > 0) {
+                stringResource(R.string.account_resend_in, secondsLeft / 60, secondsLeft % 60)
+            } else {
+                stringResource(R.string.account_email_verify_action)
+            },
             icon = R.drawable.ic_mail_sent,
             shape = shape,
-            onClick = onSend,
+            onClick = onSend.takeIf { !sending && secondsLeft == 0 },
         )
     }
 }
@@ -234,6 +240,9 @@ class AccountViewModel @Inject constructor(
         private set
     var event by mutableStateOf<AccountEvent?>(null)
         private set
+    var sending by mutableStateOf(false)
+        private set
+    val verifyCooldown = Cooldown(viewModelScope)
 
     /** Local write only; the running profile sync pushes it to the account (queued while offline). */
     fun rename(name: String) {
@@ -247,18 +256,24 @@ class AccountViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Renaming the profile failed", e)
+                Log.e(TAG, "Renaming the profile failed: ${e.logLabel()}")
                 message = UiText.Res(R.string.account_error_generic)
             }
         }
     }
 
     fun sendVerification() {
+        if (sending || verifyCooldown.secondsLeft > 0) return
+        sending = true
         message = null
         viewModelScope.launch {
             accounts.sendVerification()
-                .onSuccess { event = AccountEvent.VERIFICATION_SENT }
+                .onSuccess {
+                    verifyCooldown.start(RESEND_COOLDOWN_S)
+                    event = AccountEvent.VERIFICATION_SENT
+                }
                 .onFailure { message = it.toAccountMessage() }
+            sending = false
         }
     }
 

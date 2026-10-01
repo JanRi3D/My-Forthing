@@ -187,6 +187,7 @@ internal fun EmailField(
     value: String,
     onValueChange: (String) -> Unit,
     @StringRes error: Int?,
+    readOnly: Boolean,
     imeAction: ImeAction = ImeAction.Next,
     onDone: () -> Unit = {},
 ) {
@@ -194,6 +195,7 @@ internal fun EmailField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.EmailAddress },
+        readOnly = readOnly,
         label = { Text(stringResource(R.string.account_email)) },
         placeholder = { Text(stringResource(R.string.account_email_placeholder)) },
         singleLine = true,
@@ -211,6 +213,7 @@ internal fun PasswordField(
     onValueChange: (String) -> Unit,
     @StringRes error: Int?,
     newPassword: Boolean,
+    readOnly: Boolean,
     onDone: () -> Unit,
 ) {
     var shown by rememberSaveable { mutableStateOf(false) }
@@ -218,6 +221,7 @@ internal fun PasswordField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        readOnly = readOnly,
         modifier = Modifier.fillMaxWidth().semantics {
             contentType = if (newPassword) ContentType.NewPassword else ContentType.Password
         },
@@ -244,18 +248,18 @@ internal fun PasswordField(
 
 /** Consent checkbox plus links to the legal pages (links are separate buttons so TalkBack reaches them). */
 @Composable
-internal fun TermsRow(accepted: Boolean, onChange: (Boolean) -> Unit, @StringRes error: Int?) {
+internal fun TermsRow(accepted: Boolean, onChange: (Boolean) -> Unit, @StringRes error: Int?, enabled: Boolean) {
     val uriHandler = LocalUriHandler.current
     Column {
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .toggleable(accepted, role = Role.Checkbox, onValueChange = onChange),
+                .toggleable(accepted, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Checkbox(checked = accepted, onCheckedChange = null)
+            Checkbox(checked = accepted, onCheckedChange = null, enabled = enabled)
             Text(stringResource(R.string.create_terms), style = MaterialTheme.typography.bodyMedium)
         }
         if (error != null) {

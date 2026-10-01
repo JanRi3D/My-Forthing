@@ -57,8 +57,15 @@ fun SignInScreen(
         GoogleButton(enabled) { activity?.let { viewModel.signInGoogle(it, needsTerms = false) } }
         OrDivider(stringResource(R.string.account_or))
         Column {
-            EmailField(viewModel.email, viewModel::onEmail, viewModel.emailError)
-            PasswordField(viewModel.password, viewModel::onPassword, viewModel.passwordError(newPassword = false), newPassword = false, onDone = viewModel::signIn)
+            EmailField(viewModel.email, viewModel::onEmail, viewModel.emailError, readOnly = viewModel.busy)
+            PasswordField(
+                viewModel.password,
+                viewModel::onPassword,
+                viewModel.passwordError(newPassword = false),
+                newPassword = false,
+                readOnly = viewModel.busy,
+                onDone = viewModel::signIn,
+            )
             TextButton(onClick = onForgotPassword, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.sign_in_forgot)) }
         }
         FormMessage(viewModel.message)
@@ -141,9 +148,16 @@ fun UpgradeScreen(
 
 @Composable
 private fun NewAccountForm(viewModel: AuthViewModel) {
-    EmailField(viewModel.email, viewModel::onEmail, viewModel.emailError)
-    PasswordField(viewModel.password, viewModel::onPassword, viewModel.passwordError(newPassword = true), newPassword = true, onDone = viewModel::create)
-    TermsRow(viewModel.termsAccepted, viewModel::onTerms, viewModel.termsError)
+    EmailField(viewModel.email, viewModel::onEmail, viewModel.emailError, readOnly = viewModel.busy)
+    PasswordField(
+        viewModel.password,
+        viewModel::onPassword,
+        viewModel.passwordError(newPassword = true),
+        newPassword = true,
+        readOnly = viewModel.busy,
+        onDone = viewModel::create,
+    )
+    TermsRow(viewModel.termsAccepted, viewModel::onTerms, viewModel.termsError, enabled = !viewModel.busy)
     FormMessage(viewModel.message)
 }
 
@@ -156,7 +170,14 @@ fun ForgotPasswordScreen(onBack: () -> Unit, onDone: (AuthDone) -> Unit, viewMod
             HeadingIcon(R.drawable.ic_password_reset)
             AuthHeading(stringResource(R.string.forgot_title), stringResource(R.string.forgot_text))
         }
-        EmailField(viewModel.email, viewModel::onEmail, viewModel.emailError, imeAction = ImeAction.Done, onDone = viewModel::sendReset)
+        EmailField(
+            viewModel.email,
+            viewModel::onEmail,
+            viewModel.emailError,
+            readOnly = viewModel.busy,
+            imeAction = ImeAction.Done,
+            onDone = viewModel::sendReset,
+        )
         FormMessage(viewModel.message)
         PrimaryButton(stringResource(R.string.forgot_send), viewModel.busy, viewModel.configured, viewModel::sendReset)
         FooterLink(stringResource(R.string.forgot_remembered), stringResource(R.string.welcome_sign_in), onBack)
