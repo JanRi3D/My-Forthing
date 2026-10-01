@@ -66,6 +66,22 @@ class PlateTextTest {
     }
 
     @Test
+    fun `a seal shown as question mark may sit next to a space and does not count as a character`() {
+        assertThat(PlateText.match("OF? NB 512", "OFS NB 512")).isEqualTo(PlateMatch("OF? NB 512", "OFSNB512", PlateFormat.GERMAN))
+        assertThat(PlateText.match("KA?FE 3310", "KASFE 3310")?.display).isEqualTo("KA?FE 3310") // 8 + seal
+        assertThat(PlateText.match("KAX?FE 3310", "KAXSFE 3310")).isNull() // 9 + seal
+    }
+
+    @Test
+    fun `a seal gap from glyph geometry is tried as separator and as nothing`() {
+        val gap = PlateText.SEAL_GAP
+        assertThat(PlateText.match("B${gap}MK 4821")).isEqualTo(PlateMatch("B MK 4821", "BMK4821", PlateFormat.GERMAN))
+        assertThat(PlateText.match("W${gap}I CD 88")?.display).isEqualTo("WI CD 88") // a wide W is not the seal
+        assertThat(PlateText.match("W${gap}A 12345")).isEqualTo(PlateMatch("WA 12345", "WA12345", PlateFormat.GENERIC))
+        assertThat(PlateText.match("B${gap}US 42")?.format).isEqualTo(PlateFormat.GERMAN) // only with seal evidence
+    }
+
+    @Test
     fun `unreadable digits are never dropped and at most two characters may be unsure`() {
         assertThat(PlateText.match("B MK ?821", "B MK 4821")).isEqualTo(PlateMatch("B MK ?821", "BMK4821", PlateFormat.GERMAN))
         assertThat(PlateText.match("B MK ???1", "B MK 4821")).isNull()

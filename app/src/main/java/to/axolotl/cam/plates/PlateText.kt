@@ -33,6 +33,12 @@ object PlateText {
 
     fun normalize(text: String): String = text.uppercase().filter(::isPlateChar)
 
+    /**
+     * Possible seal gap from glyph geometry (a letter as wide as it is high has the seal merged into it). Tried
+     * as a separator and as nothing; German beats generic, otherwise the reading without the gap wins.
+     */
+    const val SEAL_GAP = '\uE000'
+
     fun match(text: String): PlateMatch? = match(text, text)
 
     /**
@@ -42,6 +48,13 @@ object PlateText {
      */
     fun match(shown: String, raw: String): PlateMatch? {
         require(shown.length == raw.length) { "shown and raw must be aligned" }
+        if (SEAL_GAP !in shown) return matchPlain(shown, raw)
+        val gap = matchPlain(shown.replace(SEAL_GAP, ' '), raw.replace(SEAL_GAP, ' '))
+        val joined = matchPlain(shown.replace(SEAL_GAP.toString(), ""), raw.replace(SEAL_GAP.toString(), ""))
+        return if (gap?.format == PlateFormat.GERMAN && joined?.format != PlateFormat.GERMAN) gap else joined ?: gap
+    }
+
+    private fun matchPlain(shown: String, raw: String): PlateMatch? {
         if (shown.any { it != '?' && it.isLowerCase() }) return null
         val (s, r) = clean(shown, raw)
         if (s.isEmpty()) return null
@@ -121,27 +134,35 @@ object PlateText {
     }
 
     /**
-     * German layout: district code (official list, see [GERMAN_DISTRICT_CODES]), a visible boundary (separator, or
-     * an unreadable glyph between letters: the seal), 1–2 letters, optional separator, 1–4 digits with at least one
-     * read digit, optional H/E; at most 8 characters before the suffix. A joined "BMK 4821" is not accepted as
-     * text ("BUS 42", "RAST 500" read the same way); the recognizer turns a seal merged into a glyph into a separator.
+     * German layout: district code (official list, see [GERMAN_DISTRICT_CODES]), a visible boundary (separators
+     * and at most one unreadable glyph between letters: the seal), 1–2 letters, optional separator, 1–4 digits with
+     * at least one read digit, optional H/E; at most 8 characters before the suffix, a boundary glyph not counted.
+     * A joined "BMK 4821" is not accepted as text ("BUS 42", "RAST 500" read the same way).
      */
     private fun isGerman(s: String): Boolean {
         val core = if (s.length > 1 && s.last() in "HE" && s[s.length - 2].let { it.isDigit() || it == '?' }) s.dropLast(1) else s
-        if (core.count { it != ' ' && it != '-' } > 8) return false
+        val chars = core.count { it != ' ' && it != '-' }
         return (1..minOf(4, core.length)).any { d ->
             val digits = core.takeLast(d)
             digits.all { it.isDigit() || it == '?' } && digits.any { it.isDigit() } &&
-                hasDistrictAndLetters(core.dropLast(d).removeSuffix(" ").removeSuffix("-"))
+                boundaryGlyphs(core.dropLast(d).removeSuffix(" ").removeSuffix("-")).any { chars - it <= 8 }
         }
     }
 
-    private fun hasDistrictAndLetters(head: String) = head.indices.any { i ->
-        val boundary = head[i] == ' ' || head[i] == '-' ||
-            (head[i] == '?' && head.getOrNull(i - 1)?.isLetter() == true && head.getOrNull(i + 1)?.isLetter() == true)
-        val district = head.substring(0, i)
-        val letters = head.substring(i + 1)
-        boundary && letters.length in 1..2 && letters.all { it in 'A'..'Z' || it == '?' } && isDistrict(district)
+    /** For every valid district|letters split of [head]: how many unreadable glyphs its boundary holds (0 or 1). */
+    private fun boundaryGlyphs(head: String): List<Int> = buildList {
+        for (i in 1 until head.length) {
+            for (j in i until head.length - 1) {
+                val run = head.substring(i, j + 1)
+                val glyphs = run.count { it == '?' }
+                if (run.any { it != ' ' && it != '-' && it != '?' } || glyphs > 1) break
+                if (glyphs == 1 && (!head[i - 1].isLetter() || !head[j + 1].isLetter())) continue // seal sits between letters
+                val letters = head.substring(j + 1)
+                if (letters.length in 1..2 && letters.all { it in 'A'..'Z' || it == '?' } && isDistrict(head.substring(0, i))) {
+                    add(glyphs)
+                }
+            }
+        }
     }
 
     private fun isDistrict(code: String): Boolean = when {
