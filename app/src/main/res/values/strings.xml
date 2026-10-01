@@ -205,6 +205,7 @@
     <string name="dashcam_wifi_current">%1$s · %2$s</string>
     <string name="dashcam_band_24">2,4 GHz</string>
     <string name="dashcam_band_5">5 GHz</string>
+    <string name="dashcam_wifi_dialog_title">WLAN-Passwort ändern</string>
     <string name="dashcam_wifi_ssid_readonly">WLAN-Name: %1$s (bleibt unverändert)</string>
     <string name="dashcam_wifi_password">Neues Passwort</string>
     <string name="dashcam_wifi_password_rule">8–16 Zeichen, Buchstaben und Ziffern</string>

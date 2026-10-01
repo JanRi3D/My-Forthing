@@ -593,7 +593,7 @@ private fun WifiDialog(current: WifiParam, onSubmit: (password: String) -> Unit,
     val keyboard = KeyboardOptions(keyboardType = KeyboardType.Password)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.dashcam_set_wifi)) },
+        title = { Text(stringResource(R.string.dashcam_wifi_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.dashcam_wifi_ssid_readonly, current.ssid ?: missing))
