@@ -23,6 +23,7 @@ class AccountErrorsTest {
     fun `auth error codes map to German texts`() {
         assertThat(authErrorText("ERROR_INVALID_EMAIL")).isEqualTo(R.string.account_error_invalid_email)
         assertThat(authErrorText("ERROR_EMAIL_ALREADY_IN_USE")).isEqualTo(R.string.account_error_email_in_use)
+        assertThat(authErrorText("ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL")).isEqualTo(R.string.account_error_other_method)
         assertThat(authErrorText("ERROR_WEAK_PASSWORD")).isEqualTo(R.string.account_error_weak_password)
         assertThat(authErrorText("ERROR_USER_DISABLED")).isEqualTo(R.string.account_error_user_disabled)
         assertThat(authErrorText("ERROR_OPERATION_NOT_ALLOWED")).isEqualTo(R.string.account_error_method_disabled)
@@ -51,6 +52,13 @@ class AccountErrorsTest {
             .isEqualTo(R.string.account_error_network)
         assertThat(text(NoCredentialException())).isEqualTo(R.string.account_error_no_google_account)
         assertThat(text(IllegalStateException("boom"))).isEqualTo(R.string.account_error_generic)
+    }
+
+    @Test
+    fun `log labels carry class and code, never the message`() {
+        assertThat(FirebaseAuthException("ERROR_INVALID_EMAIL", "jane@example.com is bad").logLabel())
+            .isEqualTo("FirebaseAuthException ERROR_INVALID_EMAIL")
+        assertThat(IllegalStateException("users/me/avatar.jpg").logLabel()).isEqualTo("IllegalStateException")
     }
 
     @Test

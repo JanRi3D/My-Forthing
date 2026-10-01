@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.storage.StorageException
 import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.UiText
 
@@ -21,6 +22,14 @@ fun Throwable.toAccountMessage(): UiText? = when (this) {
     is FirebaseFirestoreException ->
         UiText.Res(if (code == FirebaseFirestoreException.Code.UNAVAILABLE) R.string.account_error_network else R.string.account_error_generic)
     else -> UiText.Res(R.string.account_error_generic)
+}
+
+/** For logs: class name and error code only. Firebase messages can carry e-mail addresses, Storage ones bucket and path. */
+internal fun Throwable.logLabel(): String = javaClass.simpleName + when (this) {
+    is FirebaseAuthException -> " $errorCode"
+    is FirebaseFirestoreException -> " $code"
+    is StorageException -> " $errorCode/$httpResultCode"
+    else -> ""
 }
 
 /** [FirebaseAuthException.getErrorCode] values. Wrong password and unknown user read the same (no account probing). */

@@ -65,7 +65,7 @@ class FirestoreProfileRemote @Inject constructor(private val firebase: FirebaseH
             put("updatedAt", FieldValue.serverTimestamp())
             if (create) put("createdAt", FieldValue.serverTimestamp())
         }
-        doc(uid).set(data, SetOptions.merge()).addOnFailureListener { Log.w(TAG, "Saving the profile failed", it) }
+        doc(uid).set(data, SetOptions.merge()).addOnFailureListener { Log.w(TAG, "Saving the profile failed: ${it.logLabel()}") }
     }
 
     override suspend fun uploadAvatar(uid: String, jpeg: File): String {

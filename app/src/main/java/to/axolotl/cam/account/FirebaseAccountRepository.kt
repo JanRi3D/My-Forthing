@@ -9,7 +9,9 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -39,7 +41,6 @@ import kotlinx.coroutines.withContext
 import to.axolotl.cam.R
 import to.axolotl.cam.core.log.Log
 import to.axolotl.cam.core.profile.LocalProfileDao
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,7 +57,7 @@ class FirebaseAccountRepository @Inject constructor(
     private val profiles: LocalProfileDao,
 ) : AccountRepository {
     private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.e(TAG, "Account background work failed", e) },
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.e(TAG, "Account background work failed: ${e.logLabel()}") },
     )
     private val user = MutableStateFlow<AuthUser?>(null)
     private val listening = AtomicBoolean(false)
@@ -89,16 +90,20 @@ class FirebaseAccountRepository @Inject constructor(
 
     override suspend fun signInGoogle(activity: Activity): Result<Unit> = call { auth ->
         if (firebase.webClientId.isBlank()) throw AccountNotConfigured
-        val option = GetGoogleIdOption.Builder()
+        // No nonce: Firebase does not check one for Google ID tokens.
+        val manager = CredentialManager.create(activity)
+        val accountPicker = GetGoogleIdOption.Builder()
             .setServerClientId(firebase.webClientId)
             .setFilterByAuthorizedAccounts(false)
-            .setNonce(UUID.randomUUID().toString())
             .build()
-        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-        val credential = CredentialManager.create(activity).getCredential(activity, request).credential
-        check(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-            "Unexpected credential type"
-        }
+        val credential = try {
+            manager.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(accountPicker).build())
+        } catch (e: NoCredentialException) {
+            // No Google account on the phone yet: the explicit "Sign in with Google" flow lets the user add one.
+            val button = GetSignInWithGoogleOption.Builder(firebase.webClientId).build()
+            manager.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(button).build())
+        }.credential
+        check(credential is CustomCredential && credential.type in GOOGLE_ID_TOKEN_TYPES) { "Unexpected credential type" }
         val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
         auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
         refresh(auth)
@@ -114,17 +119,15 @@ class FirebaseAccountRepository @Inject constructor(
         refresh(auth)
         // The account exists either way; the verification screen offers "Erneut senden".
         runCatching { created?.sendEmailVerification()?.await() }
-            .onFailure { if (it is CancellationException) throw it else Log.w(TAG, "Sending the verification mail failed", it) }
+            .onFailure { if (it is CancellationException) throw it else Log.w(TAG, "Sending the verification mail failed: ${it.logLabel()}") }
     }
 
     override suspend fun sendPasswordReset(email: String): Result<Unit> = call { auth ->
         auth.sendPasswordResetEmail(email.trim()).await()
-        Unit
     }
 
     override suspend fun sendVerification(): Result<Unit> = call { auth ->
         currentUser(auth).sendEmailVerification().await()
-        Unit
     }
 
     override suspend fun reloadVerification(): Result<Boolean> = call { auth ->
@@ -139,7 +142,7 @@ class FirebaseAccountRepository @Inject constructor(
         user.value = null
         // Lets the next Google sign-in show the account picker again.
         runCatching { CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest()) }
-            .onFailure { if (it is CancellationException) throw it else Log.w(TAG, "Clearing the credential state failed", it) }
+            .onFailure { if (it is CancellationException) throw it else Log.w(TAG, "Clearing the credential state failed: ${it.logLabel()}") }
     }
 
     override suspend fun linkGuestProfile(strategy: MergeStrategy): Result<Unit> = call { auth ->
@@ -170,8 +173,7 @@ class FirebaseAccountRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // Firebase messages may contain the e-mail address: class name only.
-            Log.w(TAG, "Account action failed: ${e.javaClass.simpleName}")
+            Log.w(TAG, "Account action failed: ${e.logLabel()}")
             Result.failure(e)
         }
     }
@@ -182,6 +184,12 @@ class FirebaseAccountRepository @Inject constructor(
 
     private companion object {
         const val TAG = "Accounts"
+
+        // The account picker and the explicit "Sign in with Google" flow return different types.
+        val GOOGLE_ID_TOKEN_TYPES = setOf(
+            GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL,
+            GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_SIWG_CREDENTIAL,
+        )
     }
 }
 
