@@ -20,9 +20,12 @@ Package `to.axolotl.cam.media`. Implements CONTRACTS §8 on top of the connectio
 **Library rows come from the listing.** Every 4100 page is registered (`upsertFromRecorderListing`) before it is shown, so
 each listed file has a stable UUID (unique index on `recorderPath`) that downloads, the clip route and Phase 4 backup
 use. Rows store the raw `fileTime`, `fileThm` and type; `recorderTimeEpochGuess` reads `fileTime` with the phone's zone
-and is shown as a guess ("Zeiten laut Recorder, Zeitzone unbekannt"). A listing that ran to its end (empty or short page)
-forgets recorder copies it no longer lists (`reconcileRecorderListing`: loop overwrite, deleted elsewhere); a stopped
-listing does not.
+and is shown as a guess ("Zeiten laut Recorder, Zeitzone unbekannt"). Only a listing that ended *and* holds
+`totalFileNum` files forgets recorder copies it no longer lists (`reconcileRecorderListing`: loop overwrite, deleted
+elsewhere); rows whose download is queued or running are never touched; a stopped or short listing forgets nothing.
+**Path reuse** (format, clock reset): a known path listed with another `fileTime` whose row has a phone or Drive copy is
+another recording – the old row is detached (`recorderPath = null`, its copies stay) and a new row inserted. A listed
+path without a row re-links a detached row with the same type, name and time.
 
 **Three copies, never cascading.** `recorderPath` / `localUri` / `driveFileId` mark the three copies. `deleteLocalCopy`
 deletes the phone file, its thumbnail and its companion file (screenshot JSON, `*.enhance.json`); `deleteOnRecorder`
@@ -38,8 +41,10 @@ children (their `parentId` stays; the clip screen says "Original nicht mehr vorh
 gallery export (Android backup is off app-wide, so nothing leaves the phone).
 
 **Paging** (report "Cursor-based browsing"): `ListFiles(type, lastFileName, 50)`, empty cursor on refresh, the next
-cursor is the exact `fileName` of the last entry of the last page. The listing completes on an empty page or one shorter
-than 50. It stops (note "Die Liste endet hier …") when the last `fileName` of a page is missing or was already listed,
+cursor is the exact `fileName` of the last entry of the last page. The listing completes on an empty page, or on a page
+shorter than 50 once the listed count reaches `totalFileNum` (or none is reported); a short page below the total asks
+again (the recorder may page in smaller batches), and a short page holding only already listed entries (inclusive
+cursor) completes. It stops (note "Die Liste endet hier …") when the last `fileName` of a page is missing or was already listed,
 which catches a recorder that ignores the cursor or cycles. Entries already listed are dropped (cursor inclusivity is
 unknown), entries without `fileName` are skipped. A failed page shows the raw code and waits for "Erneut versuchen"
 (no polling). The next page is requested when the list is scrolled to within 8 items of its end.
@@ -62,51 +67,66 @@ recorder's counts; Recordings links to it ("Rohliste"); the SD card screen can l
 `ConfirmDialog(danger)`, outcome-unknown errors refresh the listing); phone tab → "Handy-Kopie löschen" (danger when an
 item has no other copy). Phase 4 adds actions through the `selectionActions` slot.
 
-**Thumbnails** load through a media-only Coil `ImageLoader`: `OkHttpNetworkFetcherFactory` whose call factory asks
-`connectionManager.httpClient()` per request (a new or lost binding applies at once; `RecorderNotBoundException`
-shows the placeholder), Coil's connectivity check off (the recorder Wi-Fi has no internet), service-loaded fetchers off
+**Recorder HTTP only with a Ready session.** `RecorderHttp.client()` hands out `connectionManager.httpClient()` only while
+the state is `Ready` and its network is the bound one (simulator mode: Ready only); otherwise
+`RecorderNotReadyException` and nothing is requested, so another device answering at 192.168.42.1 on some Wi-Fi is never
+asked. **Thumbnails** load through a media-only Coil `ImageLoader`: `OkHttpNetworkFetcherFactory` whose call factory asks
+`client()` per request (a new or lost session applies at once; no session shows the placeholder), Coil's connectivity check off (the recorder Wi-Fi has no internet), service-loaded fetchers off
 (nothing may load recorder URLs unbound). URL: `connectionManager.mediaUrl(path)`; in the debug simulator mode
 `http://10.0.2.2:8080/<path>` (`MediaModule.SIMULATOR_BASE_URL`).
 
 **Downloads.** `DownloadQueue.enqueue(id)`: WorkManager unique work `media-download-<id>` (KEEP), no constraints (the
-recorder Wi-Fi has no internet), linear backoff 15 s, 10 attempts, at most 2 transfers at once. Duplicates: a file
-already on the phone is never queued again (and `download()` returns it without a request); the same recorder path
-always maps to the same row. `MediaDownloader` writes `<name>.part`; with a part it asks `Range: bytes=<n>-` and appends
-only on 206 whose Content-Range starts at n (`If-Range` is not assumed), 200 rewrites from 0, 416 or a 206 that does not
-continue the part deletes it and retries. The length is checked against Content-Length / Content-Range, then fsync,
-atomic rename, thumbnail, `markDownloaded`. 4xx (except 408/429) are permanent. Cancel ("Abbrechen" in the sheet or the
-notification) drops the part. The worker runs as a `dataSync` foreground service with a German notification ("Download:
-<name>", "1,9 MB von 6,3 MB", progress, "Abbrechen"); Android 13+ asks for the notification permission at the first
-download, transfers run without it. After process death or reboot WorkManager runs the work again; without a recorder
-binding (`RecorderNotBoundException`) it waits for the next attempt ("Wartet auf die Dashcam-Verbindung") and every
-waiting download restarts as soon as a session is Ready. `DownloadQueue.progress: StateFlow<Map<String,
-TransferProgress>>` feeds the row indicators and the "Übertragungen" sheet (top bar of Recordings; queued, running with
-bytes, waiting, done → "Öffnen", failed with reason / cancelled → "Erneut versuchen").
+recorder Wi-Fi has no internet), linear backoff 15 s. At most 2 downloads are runnable; more are enqueued *held* (tag
+`media-held`, initial delay 10 years) and promoted (REPLACE without delay) when a slot frees: by the finishing worker
+(success, failure, user cancel – a retried work keeps its slot), on queue start, on Ready and after a cancel. So no
+worker ever runs waiting for a slot. Duplicates: a file already on the phone is never queued again (and `download()`
+returns it without a request); the same recorder path maps to the same row. `MediaDownloader` writes `<name>.part` and
+the announced size to `<name>.part.size`; with a part it asks `Range: bytes=<n>-` and appends only on a 206 whose
+Content-Range starts at n and announces the same size (`If-Range` is not assumed); a 200 rewrites from 0; 416 or a 206
+that does not fit restarts. A response with a Content-Type other than `video/*`, `image/*` or `application/octet-stream`
+(a missing type is accepted: unverified) is never saved ("keine Aufnahme", permanent); an empty body is incomplete. The
+length is checked against Content-Length / Content-Range, then fsync, atomic rename, thumbnail, `markDownloaded`. 4xx
+(except 408/429) are permanent. **Attempts:** without a Ready session (`RecorderNotReadyException`,
+`RecorderNotBoundException`) the worker returns `retry` without counting; only real failures count (SharedPreferences
+`media_download_attempts`), the 10th fails the work. After process death or reboot WorkManager runs the work again; it
+waits ("Wartet auf die Dashcam-Verbindung") and every waiting work still ENQUEUED is restarted as soon as a session is
+Ready. **Cancel** ("Abbrechen" in the sheet or the notification) drops the part: the worker checks its own state in both
+catch paths (CANCELLED and no successor, so a resume REPLACE keeps the part), on every Android version. The worker runs
+as a `dataSync` foreground service with a German notification ("Download: <name>", "1,9 MB von 6,3 MB", progress,
+"Abbrechen"); Android 13+ asks for the notification permission at the first download, transfers run without it.
+`DownloadQueue.progress: StateFlow<Map<String, TransferProgress>>` feeds the row indicators and the "Übertragungen"
+sheet (top bar of Recordings; queued, running with bytes, waiting, done → "Öffnen", failed with a German reason
+(`DownloadFailure`: nicht mehr in der Bibliothek / nicht mehr auf der Dashcam / nicht geliefert / keine Aufnahme /
+unvollständig / Verbindung) and the raw HTTP code as a second line, cancelled → "Erneut versuchen").
 
 **Clip.** Media3 `ExoPlayer` + `PlayerView` for phone copies of videos, seeking to `positionMs`; the position survives
 rotation, playback pauses on `ON_STOP`. Photos, screenshots and enhanced frames use an image view. Without a phone copy:
 local thumbnail + "Herunterladen". Header: day · kind ("Schleife", "Vorfall", "Foto", "Screenshot", …), the raw recorder
 time "laut Recorder, Zeitzone unbekannt" (phone time for screenshots/outputs), tags "Vorfall", "verbessert –
 rekonstruiert, kein Beweis" / "hochskaliert – …" for derived kinds, the copies; for derived items the
-`*.enhance.json` sidecar (`EnhancementInfo.read`: engine, model, factor, note). "Teilen" shares the phone copy through
+`*.enhance.json` sidecar (`EnhancementInfo.read`: engine as "KI-Modell"/"klassisch", model, factor). "Teilen" shares the phone copy through
 `MediaFileProvider` (authority `${applicationId}.media.files`; `files/media`, `files/screenshots`, `files/enhance`).
-"Löschen" asks which copy (Handy-Kopie / Recorder-Kopie / slot rows), each with its own confirmation; deleting the last
-copy leaves the screen. Parent ("Original", opens at `parentPositionMs`) and children ("Daraus erzeugt") are linked.
+"Löschen" asks which copy (Handy-Kopie / Recorder-Kopie / `DeleteTarget`s from the slot) and then shows that target's own
+confirmation (rendered by the clip screen); deleting the last copy leaves the screen. Parent ("Original", opens at `parentPositionMs`) and children ("Daraus erzeugt") are linked.
 
 **Storage** (Settings → "Speicher"): bytes per kind on this phone – Downloads (phone copies + interrupted `.part`),
-Screenshots, Verbesserte Dateien, Cache (`cacheDir`, includes Coil's disk cache), Kennzeichen-Ausschnitte
+Screenshots (imported first), Verbesserte Dateien, Cache (only the media image cache – Coil memory + disk; other files in
+`cacheDir` such as the diagnostics export or the avatar preview are not touched), Kennzeichen-Ausschnitte
 (`files/plates`), free space (`StatFs`). "Freigeben" (confirmation, danger except cache) deletes phone copies through
-`deleteLocalCopy` only; recorder and Drive copies stay. Plate crops are only shown: they belong to the plate history
+`deleteLocalCopy` only; recorder and Drive copies stay. When some of them have neither a recorder nor a Drive copy,
+the confirmation says how many are then gone for good. Plate crops are only shown: they belong to the plate history
 (`PlateRepository.clear()` in plates-ui), deleting the files alone would leave dangling `cropPath`s.
 
 ## Interfaces for Phase 4
 
 ```kotlin
-// AxoNavHost: mediaGraph(navController, selectionActions = …, clipActions = …, clipExtras = …, clipDeleteTargets = …)
+// AxoNavHost: mediaGraph(navController, selectionActions = …, clipActions = …, clipExtras = …, clipOverlay = …, clipDeleteTargets = …)
 typealias SelectionActions = @Composable RowScope.(items: List<MediaItem>, clearSelection: () -> Unit) -> Unit // "Sichern"
 typealias ClipActions = @Composable (item: MediaItem, positionMs: Long) -> Unit   // "Bild verbessern", "Clip hochskalieren"
-typealias ClipExtras = @Composable (item: MediaItem) -> Unit                       // "Kennzeichen in diesem Clip"
-typealias ClipDeleteTargets = @Composable ColumnScope.(item: MediaItem, dismiss: () -> Unit) -> Unit // "Drive-Kopie löschen"
+typealias ClipExtras = @Composable (item: MediaItem, positionMs: Long, seekTo: (Long) -> Unit) -> Unit // "Kennzeichen in diesem Clip"
+typealias ClipOverlay = @Composable BoxScope.(item: MediaItem, positionMs: Long) -> Unit // over the 16:9 media box: plate boxes
+data class DeleteTarget(val label: String, val enabled: Boolean, val title: String, val text: String, val danger: Boolean, val onConfirm: () -> Unit)
+typealias ClipDeleteTargets = @Composable (item: MediaItem) -> List<DeleteTarget> // "Drive-Kopie löschen"; the clip screen renders chooser + confirmation
 
 class MediaRepository {
   fun observe(id): Flow<MediaItem?>; fun observe(kind: MediaKind? = null, category: MediaCategory? = null): Flow<List<MediaItem>>
@@ -116,7 +136,7 @@ class MediaRepository {
   suspend fun markDriveDeleted(id)                                    // after deleteOnDrive: Drive columns cleared, row removed if no copy is left
   suspend fun update(id, transform: (MediaItem) -> MediaItem): MediaItem? // backup columns (state, driveFileId, driveMd5, backupError)
 }
-class DownloadQueue { val progress: StateFlow<Map<String, TransferProgress>>; suspend fun enqueue(mediaId): Boolean; suspend fun cancel(mediaId) }
+class DownloadQueue { val progress: StateFlow<Map<String, TransferProgress>>; suspend fun enqueue(mediaId): Boolean; suspend fun cancel(mediaId); suspend fun promote(excluding: UUID? = null) }
 ```
 enhance-ui: register outputs with `registerDerived(ENHANCED_FRAME | UPSCALED_CLIP, output.file, sourceMediaId, positionMs,
 output.info)`; the file name UUID becomes the item id. drive-backup: `MediaItem.localFile` is the file to upload;
@@ -144,7 +164,8 @@ feature/live-view writes, feature/media imports:
 `./gradlew :recorder:runSimulator` now starts both servers (test fixtures): the TCP recorder on `127.0.0.1:7878` and
 `SimulatorHttpServer` on `127.0.0.1:8080` (`com.sun.net.httpserver`, no auth, GET/HEAD, `Range: bytes=n-[m]` → 206 with
 Content-Range, past the end → 416, otherwise 200). Slow downloads for resume tests: `-PsimThrottle=262144` (bytes per
-second). Other ports: `--args="<local.properties> <tcpPort> <httpPort> <throttle>"`.
+second). Other ports: `--args="<local.properties> <tcpPort> <httpPort> <throttle>"`. When the HTTP port is busy the
+simulator still starts (listings work, downloads and thumbnails do not) and says so.
 `SimulatedFiles` is the fictional card: 120 loop clips (3 pages, across midnight), 3 incidents, 12 photos, newest first,
 exclusive cursor, unknown cursor → empty page, 4101 removes files (rval 107 if none existed), `totalFileSize` in KiB.
 Videos are the committed 3-second `recorder/src/testFixtures/resources/sim/clip.mp4` (16.6 KB, recorded on the emulator
@@ -167,6 +188,11 @@ single download, no second copy, cancel drops the part; repository: upsert idemp
 derived registration (link, category, idempotent, parent untouched, sidecar deleted); view models: tab listing on Ready /
 cleared on disconnect, `fileNew` / `fileDel` refresh, selection + 4101, stale entry hidden, phone tab offline, clip
 delete targets, sidecar and parent/children. `:recorder`: simulated paging, delete, HTTP 200/206/416/404.
+After the review: no request without a Ready session; a worker without session returns `retry` beyond the attempt
+limit; real failures fail after 10 with reason and HTTP code; 416 restarts; an HTML answer is never saved; a resume
+announcing another size restarts; short page below `totalFileNum` keeps paging, no reconcile below the total [SIM],
+inclusive cursor alone completes; reconcile leaves rows in transfer; path reuse detaches, a listed file re-links;
+`markDriveDeleted` keeps the phone file; deleting an original keeps derived children; storage counts last copies.
 
 Emulator (`emulator-5554`, API 36) against `:recorder:runSimulator` [SIM], throttled to 256 KiB/s: all three recorder
 tabs with thumbnails (loop paged in 3 requests with the exact cursors, "Heute"/"Gestern", incidents tagged, photos grid);
@@ -196,8 +222,8 @@ Verified only against the simulator [SIM]; to check on the car (read-only first:
 
 ## Limits
 
-- `ponytail:` notes in code: the stop reason of a notification cancel needs Android 12 (below, the part stays and the
-  next download resumes from it); no share target is not reported.
+- `ponytail:` notes in code: held downloads start in WorkManager's order, not strictly first in, first out; no share
+  target is not reported.
 - Phone copies live under app storage; uninstalling the app deletes them (by design, as the offline profile).
 - A notification re-lists the whole type from the first page; the scroll position resets.
 - Streaming directly from the recorder (without download) is not offered.
