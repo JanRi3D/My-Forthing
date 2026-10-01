@@ -36,9 +36,18 @@ class FakeProfileRemote(initial: Map<String, RemoteProfile> = emptyMap()) : Prof
         docs.value = docs.value + (uid to saved)
     }
 
-    override suspend fun uploadAvatar(uid: String, jpeg: File): String = "users/$uid/avatar.jpg"
+    /** Like a project without Storage (or offline): every picture transfer throws. */
+    var failTransfers = false
+    val uploads = mutableListOf<File>()
+
+    override suspend fun uploadAvatar(uid: String, jpeg: File): String {
+        if (failTransfers) throw IllegalStateException("no storage bucket")
+        uploads += jpeg
+        return "users/$uid/avatar.jpg"
+    }
 
     override suspend fun downloadAvatar(path: String, target: File) {
+        if (failTransfers) throw IllegalStateException("no storage bucket")
         target.writeBytes(byteArrayOf(1, 2, 3))
     }
 

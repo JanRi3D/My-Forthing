@@ -4,12 +4,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -168,6 +171,55 @@ class ProfileSyncTest {
         assertThat(env.remote.docs.first { it["me"]?.displayName == "Familienauto" }.getValue("me").preferences)
             .containsExactly("theme", "BLACK", "exportQuality", "Q1080")
         assertThat(env.remote.saves).hasSize(1)
+    }
+
+    @Test
+    fun `signing in again keeps the phone's picture when the account has none`() = runTest {
+        writeJpeg("profile/avatar-p1", 2000, 1000)
+        val env = env(guest.copy(avatarPath = "profile/avatar-p1"))
+        env.remote.failTransfers = true // no Storage: the upload fails, the account has no photoPath
+
+        env.sync.link("me", null, "jane", MergeStrategy.ASK)
+        val picture = env.dao.stored.value!!.avatarPath!!
+        assertThat(env.remote.docs.value.getValue("me").photoPath).isNull()
+
+        env.sync.link("me", null, "jane", MergeStrategy.ASK) // same account, account copy applied
+
+        assertThat(env.dao.stored.value!!.avatarPath).isEqualTo(picture)
+        assertThat(File(context.filesDir, picture).isFile).isTrue()
+    }
+
+    @Test
+    fun `while signed in - the phone's picture goes up once Storage works, without re-encoding`() = runTest {
+        writeJpeg("profile/avatar-small.jpg", 400, 300)
+        val linked = guest.copy(displayName = "Janes Auto", avatarPath = "profile/avatar-small.jpg", linkedUid = "me")
+        val env = env(linked, mapOf("me" to accountProfile.copy(preferences = localPrefs.toSynced())))
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { env.sync.run("me") }
+
+        assertThat(env.remote.docs.first { it["me"]?.photoPath != null }.getValue("me").photoPath).isEqualTo("users/me/avatar.jpg")
+        assertThat(env.remote.uploads).containsExactly(File(context.filesDir, "profile/avatar-small.jpg"))
+        assertThat(env.dao.stored.value!!.avatarPath).isEqualTo("profile/avatar-small.jpg")
+    }
+
+    @Test
+    fun `while signed in - a remote change of name and preference together is not reverted`() = runTest {
+        val linked = guest.copy(displayName = "Janes Auto", linkedUid = "me")
+        val env = env(linked, mapOf("me" to accountProfile.copy(preferences = localPrefs.toSynced())))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { env.sync.run("me") }
+
+        env.remote.docs.value = mapOf("me" to accountProfile.copy(displayName = "Familienauto"))
+
+        assertThat(env.prefs.preferences.first { it.theme == AppTheme.BLACK }.exportQuality).isEqualTo(ExportQuality.Q1080)
+        assertThat(env.dao.stored.first { it?.displayName == "Familienauto" }).isNotNull()
+        withContext(Dispatchers.Default) { delay(300) } // real time: a wrong push would come from a round still in flight
+        assertThat(env.remote.saves).isEmpty()
+        assertThat(env.remote.docs.value.getValue("me").preferences).containsExactly("theme", "BLACK", "exportQuality", "Q1080")
+    }
+
+    private fun writeJpeg(path: String, width: Int, height: Int) {
+        val file = File(context.filesDir, path).apply { parentFile?.mkdirs() }
+        file.outputStream().use { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG, 90, it) }
     }
 
     @Test

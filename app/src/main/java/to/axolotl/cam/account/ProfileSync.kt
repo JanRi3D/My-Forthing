@@ -5,6 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import to.axolotl.cam.core.data.PreferencesRepository
@@ -82,21 +83,67 @@ class ProfileSync @Inject constructor(
      * preferences) are written to Firestore, which queues them while offline. Never returns normally.
      */
     suspend fun run(uid: String) {
-        var seen: RemoteProfile? = null
-        combine(remote.observe(uid), profiles.observe(), preferences.preferences, ::Triple).collect { (remoteProfile, local, prefs) ->
-            if (remoteProfile == null || local == null || local.linkedUid != uid) return@collect
-            val differs = local.displayName != remoteProfile.displayName || prefs.withSynced(remoteProfile.preferences) != prefs
-            if (remoteProfile != seen) {
-                seen = remoteProfile
-                // ponytail: a picture replaced on another phone arrives with the next sign-in; only a missing one is fetched here.
-                val avatar = local.avatarPath ?: remoteProfile.photoPath?.let { download(it) }
-                val updated = local.copy(displayName = remoteProfile.displayName.take(PROFILE_NAME_MAX), avatarPath = avatar)
-                if (updated != local) profiles.upsert(updated)
-                if (differs) preferences.update { it.withSynced(remoteProfile.preferences) }
-            } else if (differs) {
-                // Unknown keys from newer app versions are kept.
-                val synced = remoteProfile.preferences + prefs.toSynced()
-                remote.save(uid, local.displayName, remoteProfile.photoPath, synced, create = false)
+        // The phone's synced state right after the last apply or push. A different state now is a local edit; an
+        // unchanged one means any difference came from the account. Null at start: the account's copy wins.
+        var lastSynced: SyncedState? = null
+        var pictureChecked = false
+        var pictureCheckedFor: String? = null
+        val remoteContent = remote.observe(uid).distinctUntilChangedBy { it?.copy(createdAt = null, updatedAt = null) }
+        // Emissions only start a round and the state is re-read, so a write of ours still on its way through Room or
+        // DataStore never looks like a user edit. Timestamps are ignored: acknowledgements are not remote changes.
+        combine(remoteContent, profiles.observe(), preferences.preferences) { remoteProfile, _, _ -> remoteProfile }.collect { remoteProfile ->
+            if (remoteProfile == null) return@collect
+            val local = linkedProfile(uid) ?: return@collect
+            val prefs = preferences.preferences.first()
+            val state = SyncedState(local.displayName, prefs.toSynced())
+            val remoteState = SyncedState(remoteProfile.displayName.take(PROFILE_NAME_MAX), prefs.withSynced(remoteProfile.preferences).toSynced())
+            lastSynced = when {
+                state == remoteState -> state
+                lastSynced == null || state == lastSynced -> {
+                    if (local.displayName != remoteState.displayName) profiles.upsert(local.copy(displayName = remoteState.displayName))
+                    preferences.update { it.withSynced(remoteProfile.preferences) }
+                    remoteState
+                }
+                else -> {
+                    // Unknown keys from newer app versions are kept.
+                    remote.save(uid, local.displayName, remoteProfile.photoPath, remoteProfile.preferences + state.preferences, create = false)
+                    state
+                }
+            }
+            if (!pictureChecked || remoteProfile.photoPath != pictureCheckedFor) {
+                pictureChecked = true
+                pictureCheckedFor = remoteProfile.photoPath
+                syncPicture(uid, remoteProfile)
+            }
+        }
+    }
+
+    private data class SyncedState(val displayName: String, val preferences: Map<String, String>)
+
+    private suspend fun linkedProfile(uid: String) = profiles.observe().first()?.takeIf { it.linkedUid == uid }
+
+    /**
+     * Fetches the account's picture when the phone has none, or uploads the phone's when the account has none
+     * (Storage enabled later, or an earlier upload failed).
+     */
+    // ponytail: a picture replaced on another phone arrives with the next sign-in; only a missing one is fetched here.
+    private suspend fun syncPicture(uid: String, remoteProfile: RemoteProfile) {
+        val local = linkedProfile(uid) ?: return
+        val photoPath = remoteProfile.photoPath
+        val localPath = local.avatarPath
+        if (localPath == null && photoPath != null) {
+            val downloaded = download(photoPath) ?: return
+            keepOrDelete(downloaded) { profiles.upsert(local.copy(avatarPath = downloaded)) }
+        } else if (localPath != null && photoPath == null) {
+            val small = ensureSmall(localPath) ?: return
+            val uploaded = attempt("Uploading the profile picture") { remote.uploadAvatar(uid, File(filesDir, small)) }
+            if (small != localPath) {
+                keepOrDelete(small) { profiles.upsert(local.copy(avatarPath = small)) }
+                File(filesDir, localPath).delete()
+            }
+            if (uploaded != null) {
+                val synced = remoteProfile.preferences + preferences.preferences.first().toSynced()
+                remote.save(uid, local.displayName, uploaded, synced, create = false)
             }
         }
     }
@@ -105,23 +152,30 @@ class ProfileSync @Inject constructor(
         LocalProfile(UUID.randomUUID().toString(), name.trim().take(PROFILE_NAME_MAX), null, System.currentTimeMillis(), linkedUid = null)
 
     private suspend fun uploadLocal(uid: String, profile: LocalProfile, create: Boolean) {
-        // The guest copy is the original picture; linked profiles keep (and upload) a downscaled one.
-        val small = profile.avatarPath?.let { shrink(it) }
-        val photoPath = small?.let { path ->
-            attempt("Uploading the profile picture") { remote.uploadAvatar(uid, File(filesDir, path)) }
-        }
+        // The guest copy is the original picture; linked profiles keep (and upload) one of at most 512 px.
+        val small = profile.avatarPath?.let { ensureSmall(it) }
+        val created = small?.takeIf { it != profile.avatarPath }
+        val photoPath = small?.let { path -> attempt("Uploading the profile picture") { remote.uploadAvatar(uid, File(filesDir, path)) } }
         val linked = profile.copy(linkedUid = uid, avatarPath = small ?: profile.avatarPath)
-        remote.save(uid, linked.displayName, photoPath, preferences.preferences.first().toSynced(), create)
-        profiles.upsert(linked)
-        if (small != null) profile.avatarPath?.let { File(filesDir, it).delete() }
+        keepOrDelete(created) {
+            remote.save(uid, linked.displayName, photoPath, preferences.preferences.first().toSynced(), create)
+            profiles.upsert(linked)
+        }
+        // The original is replaced by the downscaled copy.
+        profile.avatarPath?.takeIf { created != null }?.let { File(filesDir, it).delete() }
     }
 
     private suspend fun applyRemote(uid: String, local: LocalProfile?, remoteProfile: RemoteProfile) {
-        val avatar = remoteProfile.photoPath?.let { download(it) }
+        val downloaded = remoteProfile.photoPath?.let { download(it) }
+        // Without a new picture the same account keeps the phone's copy: the account may just have none in Storage.
+        val avatar = downloaded ?: local?.avatarPath?.takeIf { local.linkedUid == uid }
         val base = local ?: newProfile(remoteProfile.displayName)
-        profiles.upsert(base.copy(displayName = remoteProfile.displayName.take(PROFILE_NAME_MAX), avatarPath = avatar, linkedUid = uid))
+        keepOrDelete(downloaded) {
+            profiles.upsert(base.copy(displayName = remoteProfile.displayName.take(PROFILE_NAME_MAX), avatarPath = avatar, linkedUid = uid))
+        }
         preferences.update { it.withSynced(remoteProfile.preferences) }
-        local?.avatarPath?.let { File(filesDir, it).delete() }
+        // ponytail: a picture dropped without a replacement (guest or other account) stays on disk unreferenced.
+        if (downloaded != null) local?.avatarPath?.let { File(filesDir, it).delete() }
     }
 
     private fun LocalProfile.summary() =
@@ -139,30 +193,50 @@ class ProfileSync @Inject constructor(
         return ProfileSummary(displayName, avatar, updatedAt)
     }
 
-    /** Returns the new path relative to filesDir, or null (the original stays). */
-    private suspend fun shrink(path: String): String? = attempt("Downscaling the profile picture") {
-        val target = "profile/avatar-${UUID.randomUUID()}.jpg"
-        withContext(Dispatchers.IO) { writeSmallAvatar(File(filesDir, path), File(filesDir, target)) }
-        target
+    /** The phone's picture as a JPEG of at most 512 px: the same file if it already is one, else a new copy (or null). */
+    private suspend fun ensureSmall(path: String): String? {
+        val source = File(filesDir, path)
+        if (withContext(Dispatchers.IO) { isSmallJpeg(source) }) return path
+        return newPicture("Downscaling the profile picture") { withContext(Dispatchers.IO) { writeSmallAvatar(source, it) } }
     }
 
-    private suspend fun download(storagePath: String): String? {
-        val target = "profile/avatar-${UUID.randomUUID()}.jpg"
-        val file = File(filesDir, target)
-        return attempt("Downloading the profile picture") {
-            file.parentFile?.mkdirs()
-            remote.downloadAvatar(storagePath, file)
-            target
-        }.also { if (it == null) file.delete() }
+    private suspend fun download(storagePath: String): String? =
+        newPicture("Downloading the profile picture") { remote.downloadAvatar(storagePath, it) }
+
+    /** Writes a new picture file and returns its path relative to filesDir; on failure or cancellation nothing is left. */
+    private suspend fun newPicture(what: String, write: suspend (File) -> Unit): String? {
+        val path = "profile/avatar-${UUID.randomUUID()}.jpg"
+        val file = File(filesDir, path)
+        var written = false
+        try {
+            return attempt(what) {
+                file.parentFile?.mkdirs()
+                write(file)
+                written = true
+                path
+            }
+        } finally {
+            if (!written) file.delete()
+        }
+    }
+
+    /** Runs [save]; if it fails or is cancelled, the new picture at [path] would be orphaned and is deleted. */
+    private inline fun keepOrDelete(path: String?, save: () -> Unit) {
+        try {
+            save()
+        } catch (e: Throwable) {
+            path?.let { File(filesDir, it).delete() }
+            throw e
+        }
     }
 
     /** Pictures are best effort: a missing Storage bucket or a failed transfer never blocks linking or sync. */
-    private suspend fun <T> attempt(what: String, block: suspend () -> T): T? = try {
+    private inline fun <T> attempt(what: String, block: () -> T): T? = try {
         block()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "$what failed", e)
+        Log.w(TAG, "$what failed: ${e.logLabel()}")
         null
     }
 
