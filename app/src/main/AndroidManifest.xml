@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- drive: Google Drive REST -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- accounts: androidx.credentials declares these for passkey/biometric prompts; the app only uses Google ID tokens. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
