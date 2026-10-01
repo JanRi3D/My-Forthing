@@ -642,7 +642,8 @@
     <string name="backup_remove">Entfernen</string>
     <string name="backup_failure_no_local">Fehlgeschlagen: Die Handy-Kopie fehlt.</string>
     <string name="backup_failure_md5">Fehlgeschlagen: Die Datei kam nicht unverändert in Drive an (Prüfsumme).</string>
-    <string name="backup_failure_conflict">Fehlgeschlagen: In Drive liegt schon eine andere Fassung dieser Datei. Lösche dort die Drive-Kopie, um neu zu sichern.</string>
+    <string name="backup_failure_conflict">Nicht gesichert: In Drive liegt unter dieser Datei schon eine bestätigte Fassung mit anderem Inhalt. Sie bleibt unverändert; die Handy-Kopie wird nicht darübergeschrieben.</string>
+    <string name="backup_row_action">%1$s: %2$s</string>
     <string name="backup_paused_title">Sicherung pausiert</string>
     <string name="backup_paused_reconnect">Google Drive erneut verbinden, damit die Sicherung weiterläuft.</string>
     <string name="backup_paused_not_connected">Google Drive ist nicht verbunden. Die Warteschlange wartet.</string>

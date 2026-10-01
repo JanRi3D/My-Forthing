@@ -312,12 +312,17 @@ private fun QueueRow(item: MediaItem, progress: BackupProgress?, prefs: AppPrefe
             )
         }
         Row(Modifier.align(Alignment.End)) {
-            if (failed) TextButton(onClick = { viewModel.retry(item.id) }) { Text(stringResource(R.string.action_retry)) }
-            TextButton(onClick = { viewModel.cancel(item.id) }) {
-                Text(stringResource(if (failed) R.string.backup_remove else R.string.action_cancel))
-            }
+            if (failed) RowAction(stringResource(R.string.action_retry), item.originalFileName) { viewModel.retry(item.id) }
+            RowAction(stringResource(if (failed) R.string.backup_remove else R.string.action_cancel), item.originalFileName) { viewModel.cancel(item.id) }
         }
     }
+}
+
+/** Text button whose TalkBack label names the file ("Abbrechen: E2026….mp4"). */
+@Composable
+private fun RowAction(label: String, fileName: String, onClick: () -> Unit) {
+    val description = stringResource(R.string.backup_row_action, label, fileName)
+    TextButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = description }) { Text(label) }
 }
 
 /** A switch row, or with [radio] a radio button row; the whole row is the touch target. */
@@ -425,7 +430,7 @@ fun driveDeleteTargets(item: MediaItem, viewModel: BackupViewModel = hiltViewMod
     val snackbar = LocalSnackbarHostState.current
     val resources = LocalResources.current
     val scope = LocalLifecycleOwner.current.lifecycleScope
-    val onDrive = item.driveFileId != null || item.backupError == BackupErrors.DRIVE_CONFLICT
+    val onDrive = item.driveFileId != null || item.backupError == BackupErrors.DRIVE_CONFLICT || item.backupError == BackupErrors.SIDECAR_LEFT
     return listOf(
         DeleteTarget(
             label = stringResource(R.string.backup_delete_drive),
