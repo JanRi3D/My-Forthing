@@ -1,0 +1,1 @@
+{"msgId":20484,"rval":0,"param":{"SDStatus":[0,1,2],"sdDriver":[{"supportDriver":1,"supportFormat":1}],"normalVideoTime":[1,3,5],"manualVideoTime":[10,20,30],"timeLapseVideo":{"sampleInterval":[1,10],"playFrameRate":[15,30],"totalRecordTime":[1,120]},"eventRecCycle":1,"picCycle":1}}
