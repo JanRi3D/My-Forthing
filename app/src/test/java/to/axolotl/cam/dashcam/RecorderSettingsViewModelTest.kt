@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -15,6 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.UiText
+import to.axolotl.cam.recorder.ErrorCodes
 import to.axolotl.cam.recorder.RecorderSimulator
 
 /** [SIM] Settings change → rval → readback, against the real manager in simulator mode. */
@@ -78,32 +80,69 @@ class RecorderSettingsViewModelTest {
     }
 
     @Test
-    fun `Wi-Fi is resubmitted whole with mode and frequency as read and without chanNo`() = runTest {
+    fun `Wi-Fi is resubmitted whole with ssid, mode and frequency as read and without chanNo`() = runTest {
         val viewModel = loadedViewModel()
-        sim.replies[4097] = settingsReply(wifi = """{"mode":1,"ssid":"FORTHING-NEW","passwd":"New12345","frequency":1}""")
+        sim.replies[4097] = settingsReply(wifi = """{"mode":1,"ssid":"FORTHING-OLD","passwd":"New12345","frequency":1}""")
 
-        viewModel.changeWifi("FORTHING-NEW", "New12345")
+        viewModel.changeWifi("New12345")
         runCurrent()
 
         assertThat(lastSettingsRequest()).isEqualTo(
-            """{"msgId":8192,"token":123,"param":{"wifi":{"mode":1,"ssid":"FORTHING-NEW","passwd":"New12345","frequency":1}}}""",
+            """{"msgId":8192,"token":123,"param":{"wifi":{"mode":1,"ssid":"FORTHING-OLD","passwd":"New12345","frequency":1}}}""",
         )
         assertThat(viewModel.ui.value.status["wifi"]).isEqualTo(ChangeStatus.Confirmed)
         assertThat(viewModel.ui.value.rejoinWifi).isTrue()
     }
 
     @Test
-    fun `an empty Wi-Fi password keeps the one read back`() = runTest {
-        val viewModel = loadedViewModel()
+    fun `a Wi-Fi readback with another password is a mismatch without showing either password`() = runTest {
+        val viewModel = loadedViewModel() // the readback keeps Old12345
 
-        viewModel.changeWifi("FORTHING-RENAMED", "")
+        viewModel.changeWifi("New12345")
         runCurrent()
 
-        assertThat(lastSettingsRequest()).isEqualTo(
-            """{"msgId":8192,"token":123,"param":{"wifi":{"mode":1,"ssid":"FORTHING-RENAMED","passwd":"Old12345","frequency":1}}}""",
+        assertThat(viewModel.ui.value.status["wifi"]).isEqualTo(
+            ChangeStatus.Mismatch(UiText.Res(R.string.dashcam_wifi_password_sent), UiText.Res(R.string.dashcam_wifi_password_differs)),
         )
-        assertThat(viewModel.ui.value.status["wifi"])
-            .isEqualTo(ChangeStatus.Mismatch(UiText.Dynamic("FORTHING-RENAMED"), UiText.Dynamic("FORTHING-OLD")))
+        assertThat(viewModel.ui.value.rejoinWifi).isTrue()
+    }
+
+    @Test
+    fun `an invalid Wi-Fi password is never sent`() = runTest {
+        val viewModel = loadedViewModel()
+
+        viewModel.changeWifi("kurz1")
+        viewModel.changeWifi("Passwört123")
+        runCurrent()
+
+        assertThat(sim.received.map { it.msgId }).doesNotContain(8192)
+    }
+
+    @Test
+    fun `an unanswered Wi-Fi change has an unknown outcome and still asks to rejoin`() = runTest {
+        val viewModel = loadedViewModel()
+        sim.silentMsgIds += 8192
+
+        viewModel.changeWifi("New12345")
+        advanceTimeBy(11_000)
+        runCurrent()
+
+        val status = viewModel.ui.value.status["wifi"] as ChangeStatus.Unknown
+        assertThat(status.error.code).isEqualTo(ErrorCodes.REQUEST_TIMEOUT)
+        assertThat(viewModel.ui.value.rejoinWifi).isTrue()
+    }
+
+    @Test
+    fun `a failed readback after rval 0 is unconfirmed`() = runTest {
+        val viewModel = loadedViewModel()
+        sim.silentMsgIds += 4097
+
+        viewModel.change(RecorderSetting.NORMAL_VIDEO_TIME, 5)
+        advanceTimeBy(11_000)
+        runCurrent()
+
+        val status = viewModel.ui.value.status["normalVideoTime"] as ChangeStatus.Unconfirmed
+        assertThat(status.error.code).isEqualTo(ErrorCodes.REQUEST_TIMEOUT)
     }
 
     @Test
@@ -118,14 +157,26 @@ class RecorderSettingsViewModelTest {
     }
 
     @Test
-    fun `factory reset reports rval 0 and asks to rejoin the Wi-Fi`() = runTest {
+    fun `factory reset is only accepted (rval 0, no readback) and asks to rejoin the Wi-Fi`() = runTest {
         val viewModel = loadedViewModel()
 
         viewModel.factoryReset()
         runCurrent()
 
         assertThat(sim.received.map { it.msgId }).contains(12289)
-        assertThat(viewModel.ui.value.reset).isEqualTo(ChangeStatus.Confirmed)
+        assertThat(viewModel.ui.value.reset).isEqualTo(ChangeStatus.Accepted)
         assertThat(viewModel.ui.value.rejoinWifi).isTrue()
+    }
+
+    @Test
+    fun `a refused factory reset is a failure without rejoin prompt`() = runTest {
+        val viewModel = loadedViewModel()
+        sim.rvalOverrides[12289] = 301
+
+        viewModel.factoryReset()
+        runCurrent()
+
+        assertThat((viewModel.ui.value.reset as ChangeStatus.Failed).error.code).isEqualTo(301)
+        assertThat(viewModel.ui.value.rejoinWifi).isFalse()
     }
 }

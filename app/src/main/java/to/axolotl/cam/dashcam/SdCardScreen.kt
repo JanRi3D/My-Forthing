@@ -177,7 +177,7 @@ fun SdCardScreen(onBack: () -> Unit, onConnect: () -> Unit, viewModel: SdCardVie
                 val result = format
                 if (result != null && !formatting) {
                     Text(
-                        if (result is RecorderResult.Failed) errorText(result.error) else stringResource(R.string.dashcam_sd_format_done),
+                        if (result is RecorderResult.Failed) commandFailedText(result.error) else stringResource(R.string.dashcam_sd_format_done),
                         Modifier
                             .padding(horizontal = 16.dp)
                             .semantics { liveRegion = LiveRegionMode.Polite },

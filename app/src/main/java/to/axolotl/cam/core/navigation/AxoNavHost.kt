@@ -22,7 +22,7 @@ import to.axolotl.cam.core.ui.LocalReduceMotion
 import to.axolotl.cam.core.ui.LocalSnackbarHostState
 import to.axolotl.cam.core.ui.rememberReduceMotion
 import to.axolotl.cam.dashcam.DashcamHomeCard
-import to.axolotl.cam.dashcam.RecorderSettingsSection
+import to.axolotl.cam.dashcam.DashcamSettingsSection
 import to.axolotl.cam.dashcam.dashcamGraph
 
 /** The single NavHost. Features register their graph here with one line each. */
@@ -48,7 +48,7 @@ fun AxoNavHost(startDestination: Route) {
                 ) {
                     onboardingGraph(navController)
                     homeGraph(navController, dashcamCard = { DashcamHomeCard(onClick = { navController.navigate(Connection) }) })
-                    settingsGraph(navController, recorderSettingsSection = { RecorderSettingsSection(onNavigate = { navController.navigate(it) }) })
+                    settingsGraph(navController, recorderSettingsSection = { DashcamSettingsSection(onNavigate = { navController.navigate(it) }) })
                     dashcamGraph(navController)
                 }
                 SnackbarHost(

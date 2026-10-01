@@ -49,6 +49,20 @@ fun isConfigurationError(error: RecorderError): Boolean =
     error.code == ErrorCodes.SESSION_KEY_INVALID &&
         (error.message == RecorderConnectionManagerImpl.KEY_MISSING || error.message == RecorderConnectionManagerImpl.KEY_INVALID)
 
+/**
+ * A state-changing command that ended without a recorder answer (timeout, connection lost) may or may not have been
+ * applied: the app must not claim "nicht übernommen".
+ */
+fun outcomeUnknown(error: RecorderError): Boolean =
+    error.source == RecorderError.Source.TIMEOUT || error.code == ErrorCodes.DISCONNECTED
+
+/** "Ergebnis unbekannt – neu verbinden und prüfen (…)" for [outcomeUnknown] errors, else "nicht übernommen: …". */
+@Composable
+fun commandFailedText(error: RecorderError): String = stringResource(
+    if (outcomeUnknown(error)) R.string.dashcam_status_unknown else R.string.dashcam_status_failed,
+    errorText(error),
+)
+
 private val AppMeaning.text: Int
     get() = when (this) {
         AppMeaning.UNKNOWN_ERROR -> R.string.dashcam_err_app_unknown

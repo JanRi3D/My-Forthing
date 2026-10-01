@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -162,15 +165,20 @@ fun RecorderSettings.patch(setting: RecorderSetting, value: Int): SettingsPatch?
 }
 
 /**
- * The Wi-Fi dialog resubmits the whole object read back (no chanNo): `mode` and `frequency` exactly as read,
- * never converted. An empty [password] keeps the current one.
+ * The Wi-Fi dialog changes only the password and resubmits the whole object read back (no chanNo): `ssid`, `mode`
+ * and `frequency` exactly as read, never converted.
  */
-fun wifiToSend(read: WifiParam, ssid: String, password: String): WifiParam =
-    read.copy(ssid = ssid, passwd = password.ifEmpty { read.passwd })
+fun wifiToSend(read: WifiParam, password: String): WifiParam = read.copy(passwd = password)
 
-/** The original dialog's check: at least 8 characters with a letter and a digit. */
+/**
+ * Hotspot password rule: 8–16 characters (the original dialog's message; WPA2 allows 63 at most), printable ASCII
+ * without space (0x21–0x7E), at least one letter A–Z/a–z and one digit 0–9.
+ */
 fun isValidWifiPassword(password: String): Boolean =
-    password.length >= 8 && password.any(Char::isLetter) && password.any(Char::isDigit)
+    password.length in 8..16 &&
+        password.all { it in '!'..'~' } &&
+        password.any { it in 'A'..'Z' || it in 'a'..'z' } &&
+        password.any { it in '0'..'9' }
 
 /** Readback fields this screen does not show, as `path = raw JSON` (secrets masked). */
 fun extraValues(settings: RecorderSettings): List<Pair<String, String>> {
@@ -198,15 +206,25 @@ sealed interface ChangeStatus {
     /** rval 0 and the readback shows the sent value. */
     data object Confirmed : ChangeStatus
 
+    /** rval 0 and nothing to read back (factory reset): "vom Recorder angenommen". */
+    data object Accepted : ChangeStatus
+
     /** rval 0 but the readback differs. */
     data class Mismatch(val sent: UiText, val read: UiText) : ChangeStatus
 
-    /** The change itself failed. */
+    /** The recorder rejected the change (rval ≠ 0) or it was not sent. */
     data class Failed(val error: RecorderError) : ChangeStatus
+
+    /** No recorder answer (timeout, connection lost): it may or may not have been applied. */
+    data class Unknown(val error: RecorderError) : ChangeStatus
 
     /** rval 0, but the readback failed (e.g. the recorder restarted its Wi-Fi). */
     data class Unconfirmed(val error: RecorderError) : ChangeStatus
 }
+
+/** Failed (definitely not applied) or Unknown (may have been applied), see [outcomeUnknown]. */
+private fun failure(error: RecorderError): ChangeStatus =
+    if (outcomeUnknown(error)) ChangeStatus.Unknown(error) else ChangeStatus.Failed(error)
 
 data class RecorderSettingsUi(
     val settings: RecorderSettings? = null,
@@ -215,7 +233,7 @@ data class RecorderSettingsUi(
     /** By [RecorderSetting.key], or [WIFI_KEY]. */
     val status: Map<String, ChangeStatus> = emptyMap(),
     val reset: ChangeStatus? = null,
-    /** After a successful Wi-Fi change or factory reset: ask the user to rejoin the recorder Wi-Fi. */
+    /** After a Wi-Fi change or factory reset that may have been applied: ask the user to rejoin the recorder Wi-Fi. */
     val rejoinWifi: Boolean = false,
 ) {
     companion object {
@@ -257,19 +275,21 @@ class RecorderSettingsViewModel @Inject constructor(private val manager: Recorde
         }
     }
 
-    fun changeWifi(ssid: String, password: String) {
+    /** Password only (the SSID stays as read); the dialog has validated it and had it entered twice. */
+    fun changeWifi(password: String) {
         val read = _ui.value.settings?.global?.wifi ?: return
-        val sent = wifiToSend(read, ssid, password)
+        if (!isValidWifiPassword(password)) return
+        val sent = wifiToSend(read, password)
         viewModelScope.launch {
-            val accepted = sendAndConfirm(RecorderSettingsUi.WIFI_KEY, SettingsPatch(wifi = sent)) { readback ->
-                val got = readback.global.wifi
-                when {
-                    got?.ssid == sent.ssid && got?.passwd == sent.passwd -> ChangeStatus.Confirmed
-                    got?.ssid != sent.ssid -> ChangeStatus.Mismatch(UiText.Dynamic(sent.ssid.orEmpty()), got?.ssid?.let(UiText::Dynamic) ?: UiText.Res(R.string.dashcam_value_missing))
-                    else -> ChangeStatus.Mismatch(UiText.Res(R.string.dashcam_wifi_password_sent), UiText.Res(R.string.dashcam_wifi_password_differs))
+            val status = sendAndConfirm(RecorderSettingsUi.WIFI_KEY, SettingsPatch(wifi = sent)) { readback ->
+                if (readback.global.wifi?.passwd == sent.passwd) {
+                    ChangeStatus.Confirmed
+                } else {
+                    ChangeStatus.Mismatch(UiText.Res(R.string.dashcam_wifi_password_sent), UiText.Res(R.string.dashcam_wifi_password_differs))
                 }
             }
-            if (accepted) _ui.update { it.copy(rejoinWifi = true) }
+            // The hotspot may already use the new password unless the recorder clearly refused it.
+            if (status != null && status !is ChangeStatus.Failed) _ui.update { it.copy(rejoinWifi = true) }
         }
     }
 
@@ -278,35 +298,32 @@ class RecorderSettingsViewModel @Inject constructor(private val manager: Recorde
             _ui.update { it.copy(reset = ChangeStatus.Sending) }
             val r = manager.request(RecorderCommand.FactoryReset, { })
             // No readback: what the reset changes is up to the firmware (Wi-Fi may restart).
-            _ui.update {
-                it.copy(
-                    reset = if (r is RecorderResult.Failed) ChangeStatus.Failed(r.error) else ChangeStatus.Confirmed,
-                    rejoinWifi = it.rejoinWifi || r is RecorderResult.Ok,
-                )
-            }
+            val status = if (r is RecorderResult.Failed) failure(r.error) else ChangeStatus.Accepted
+            _ui.update { it.copy(reset = status, rejoinWifi = it.rejoinWifi || status !is ChangeStatus.Failed) }
             if (r is RecorderResult.Ok) load()
         }
     }
 
     fun dismissRejoin() = _ui.update { it.copy(rejoinWifi = false) }
 
-    /** 8192, then 4097 readback; returns whether the recorder accepted the change (rval 0). */
-    private suspend fun sendAndConfirm(key: String, patch: SettingsPatch, check: (RecorderSettings) -> ChangeStatus): Boolean {
-        if (_ui.value.status[key] == ChangeStatus.Sending) return false
+    /** 8192, then 4097 readback; returns the final status, or null while a change of [key] is still being sent. */
+    private suspend fun sendAndConfirm(key: String, patch: SettingsPatch, check: (RecorderSettings) -> ChangeStatus): ChangeStatus? {
+        if (_ui.value.status[key] == ChangeStatus.Sending) return null
         setStatus(key, ChangeStatus.Sending)
         val sent = manager.request(RecorderCommand.SetSettings(patch), { })
-        if (sent is RecorderResult.Failed) {
-            setStatus(key, ChangeStatus.Failed(sent.error))
-            return false
-        }
-        when (val read = manager.request(RecorderCommand.GetAllSettings, ::parseSettings)) {
-            is RecorderResult.Ok -> {
-                _ui.update { it.copy(settings = read.value) }
-                setStatus(key, check(read.value))
+        val status = if (sent is RecorderResult.Failed) {
+            failure(sent.error)
+        } else {
+            when (val read = manager.request(RecorderCommand.GetAllSettings, ::parseSettings)) {
+                is RecorderResult.Ok -> {
+                    _ui.update { it.copy(settings = read.value) }
+                    check(read.value)
+                }
+                is RecorderResult.Failed -> ChangeStatus.Unconfirmed(read.error)
             }
-            is RecorderResult.Failed -> setStatus(key, ChangeStatus.Unconfirmed(read.error))
         }
-        return true
+        setStatus(key, status)
+        return status
     }
 
     private fun setStatus(key: String, status: ChangeStatus) = _ui.update { it.copy(status = it.status + (key to status)) }
@@ -319,9 +336,9 @@ fun label(setting: RecorderSetting, value: Int?): UiText {
         ?: UiText.Res(R.string.dashcam_value_unknown, listOf(value))
 }
 
-/** Rendered by core Settings below the app section (settingsGraph slot). */
+/** Rendered by core Settings below the app section (the settingsGraph `recorderSettingsSection` slot). */
 @Composable
-fun RecorderSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSettingsViewModel = hiltViewModel()) {
+fun DashcamSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSettingsViewModel = hiltViewModel()) {
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val ready = connection is RecorderConnectionState.Ready
@@ -344,8 +361,10 @@ fun RecorderSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSett
 
         val onRow: (RecorderSetting) -> Unit = { setting ->
             if (setting.isSwitch) {
-                val current = settings?.value(setting)
-                viewModel.change(setting, if (current == RecorderValues.ON) RecorderValues.OFF else RecorderValues.ON)
+                when (settings?.value(setting)) { // rows with an unknown raw value are disabled in SettingRow
+                    RecorderValues.ON -> viewModel.change(setting, RecorderValues.OFF)
+                    RecorderValues.OFF -> viewModel.change(setting, RecorderValues.ON)
+                }
             } else {
                 optionDialog = setting
             }
@@ -361,7 +380,7 @@ fun RecorderSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSett
                 { shape -> SettingRow(RecorderSetting.POWEROFF_DELAY, settings, ui.status[RecorderSetting.POWEROFF_DELAY.key], enabled, shape) { onRow(RecorderSetting.POWEROFF_DELAY) } },
                 { shape ->
                     val current = if (wifi == null) stringResource(R.string.dashcam_value_missing)
-                    else stringResource(R.string.dashcam_wifi_current, wifi.ssid ?: "–", bandText(wifi.frequency))
+                    else stringResource(R.string.dashcam_wifi_current, wifi.ssid ?: stringResource(R.string.dashcam_value_missing), bandText(wifi.frequency))
                     ListRow(
                         stringResource(R.string.dashcam_set_wifi),
                         modifier = Modifier.alpha(if (enabled && wifi != null) 1f else DISABLED_ALPHA),
@@ -423,9 +442,9 @@ fun RecorderSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSett
         }, onDismiss = { optionDialog = null })
     }
     if (wifiDialog && settings?.global?.wifi != null) {
-        WifiDialog(settings.global.wifi!!, onSubmit = { ssid, password ->
+        WifiDialog(settings.global.wifi!!, onSubmit = { password ->
             wifiDialog = false
-            viewModel.changeWifi(ssid, password)
+            viewModel.changeWifi(password)
         }, onDismiss = { wifiDialog = false })
     }
     if (confirmReset) {
@@ -482,15 +501,18 @@ private fun SettingRow(
     onClick: () -> Unit,
 ) {
     val value = settings?.value(setting)
-    val rowEnabled = enabled && status != ChangeStatus.Sending
+    // A switch reading neither 1 nor 0 is shown raw and not toggled: the app would not know what "on" replaces.
+    val usable = enabled && (!setting.isSwitch || value == RecorderValues.ON || value == RecorderValues.OFF)
+    val rowEnabled = usable && status != ChangeStatus.Sending
     var supporting = statusLine(label(setting, value).asString(), status)
     if (setting == RecorderSetting.OSD && settings != null) {
-        val content = (settings.channel()?.raw?.get("osd") as? JsonObject)?.get("osdContent")?.toString() ?: "–"
+        val content = (settings.channel()?.raw?.get("osd") as? JsonObject)?.get("osdContent")?.toString()
+            ?: stringResource(R.string.dashcam_value_missing)
         supporting += "\n" + stringResource(R.string.dashcam_osd_content, content)
     }
     ListRow(
         stringResource(setting.title),
-        modifier = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA),
+        modifier = Modifier.alpha(if (usable) 1f else DISABLED_ALPHA),
         supporting = supporting,
         shape = shape,
         onClick = if (rowEnabled) onClick else null,
@@ -511,8 +533,10 @@ private fun statusLine(value: String, status: ChangeStatus?): String =
 private fun statusText(status: ChangeStatus): String = when (status) {
     ChangeStatus.Sending -> stringResource(R.string.dashcam_status_sending)
     ChangeStatus.Confirmed -> stringResource(R.string.dashcam_status_confirmed)
+    ChangeStatus.Accepted -> stringResource(R.string.dashcam_status_accepted)
     is ChangeStatus.Mismatch -> stringResource(R.string.dashcam_status_mismatch, status.sent.asString(), status.read.asString())
     is ChangeStatus.Failed -> stringResource(R.string.dashcam_status_failed, errorText(status.error))
+    is ChangeStatus.Unknown -> stringResource(R.string.dashcam_status_unknown, errorText(status.error))
     is ChangeStatus.Unconfirmed -> stringResource(R.string.dashcam_status_unconfirmed, errorText(status.error))
 }
 
@@ -553,43 +577,67 @@ private fun OptionDialog(setting: RecorderSetting, current: Int?, onSelect: (Int
     )
 }
 
+/**
+ * Changes the hotspot password only, like the vendor dialog; the SSID is shown read-only. The password is typed
+ * twice and validated with [isValidWifiPassword]; it is kept out of saved state.
+ */
 @Composable
-private fun WifiDialog(current: WifiParam, onSubmit: (ssid: String, password: String) -> Unit, onDismiss: () -> Unit) {
-    var ssid by rememberSaveable { mutableStateOf(current.ssid.orEmpty()) }
-    var password by remember { mutableStateOf("") } // not saveable: the password stays out of saved state
-    val passwordInvalid = password.isNotEmpty() && !isValidWifiPassword(password)
-    val passwordOk = if (password.isEmpty()) current.passwd != null else !passwordInvalid
-    val changed = ssid != current.ssid || password.isNotEmpty()
+private fun WifiDialog(current: WifiParam, onSubmit: (password: String) -> Unit, onDismiss: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+    var repeat by remember { mutableStateOf("") }
+    var visible by remember { mutableStateOf(false) }
+    val invalid = password.isNotEmpty() && !isValidWifiPassword(password)
+    val differs = repeat.isNotEmpty() && repeat != password
+    val missing = stringResource(R.string.dashcam_value_missing)
+    val transformation = if (visible) VisualTransformation.None else PasswordVisualTransformation()
+    val keyboard = KeyboardOptions(keyboardType = KeyboardType.Password)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.dashcam_set_wifi)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    ssid,
-                    onValueChange = { ssid = it },
-                    label = { Text(stringResource(R.string.dashcam_wifi_ssid)) },
-                    singleLine = true,
-                )
+                Text(stringResource(R.string.dashcam_wifi_ssid_readonly, current.ssid ?: missing))
                 OutlinedTextField(
                     password,
                     onValueChange = { password = it },
                     label = { Text(stringResource(R.string.dashcam_wifi_password)) },
-                    supportingText = { Text(stringResource(R.string.dashcam_wifi_password_rule)) },
-                    isError = passwordInvalid,
+                    supportingText = {
+                        Text(stringResource(if (password.any { it !in '!'..'~' }) R.string.dashcam_wifi_password_ascii else R.string.dashcam_wifi_password_rule))
+                    },
+                    isError = invalid,
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = transformation,
+                    keyboardOptions = keyboard,
                 )
+                OutlinedTextField(
+                    repeat,
+                    onValueChange = { repeat = it },
+                    label = { Text(stringResource(R.string.dashcam_wifi_password_repeat)) },
+                    supportingText = if (differs) ({ Text(stringResource(R.string.dashcam_wifi_password_not_equal)) }) else null,
+                    isError = differs,
+                    singleLine = true,
+                    visualTransformation = transformation,
+                    keyboardOptions = keyboard,
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(visible, role = Role.Checkbox) { visible = it },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = visible, onCheckedChange = null)
+                    Text(stringResource(R.string.dashcam_wifi_password_show))
+                }
                 Text(
-                    stringResource(R.string.dashcam_wifi_preserved, current.mode?.toString() ?: "–", current.frequency?.toString() ?: "–"),
+                    stringResource(R.string.dashcam_wifi_preserved, current.mode?.toString() ?: missing, current.frequency?.toString() ?: missing),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSubmit(ssid, password) }, enabled = ssid.isNotBlank() && passwordOk && changed) {
+            TextButton(onClick = { onSubmit(password) }, enabled = isValidWifiPassword(password) && repeat == password) {
                 Text(stringResource(R.string.dashcam_send))
             }
         },

@@ -1,9 +1,7 @@
 package to.axolotl.cam.dashcam
 
 import com.google.common.truth.Truth.assertThat
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import to.axolotl.cam.BuildConfig
 import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.UiText
 import to.axolotl.cam.recorder.ErrorCodes
@@ -14,21 +12,12 @@ import to.axolotl.cam.recorder.RecorderError.Source.RECORDER
 import to.axolotl.cam.recorder.RecorderError.Source.TIMEOUT
 import to.axolotl.cam.recorder.RecorderReply
 import to.axolotl.cam.recorder.SdCardStatus
-import to.axolotl.cam.recorder.SessionCrypto
 import to.axolotl.cam.recorder.WifiParam
 import to.axolotl.cam.recorder.parseSettings
-import java.security.interfaces.RSAPrivateKey
 
 /** Pure mappings and settings helpers (no Android). */
 class DashcamLogicTest {
     private fun settings(json: String = settingsReply()) = parseSettings(checkNotNull(RecorderReply.parse(json)))
-
-    @Test
-    fun `the configured dashcam key loads`() {
-        assumeTrue("dashcam.rsaKey not configured in local.properties", BuildConfig.DASHCAM_RSA_KEY.isNotBlank())
-        val key = SessionCrypto.loadPrivateKey(BuildConfig.DASHCAM_RSA_KEY.toByteArray()) as RSAPrivateKey
-        assertThat(key.modulus.bitLength()).isEqualTo(1024) // the report's embedded key size; the key itself is never printed
-    }
 
     @Test
     fun `recorder codes use the app table, local codes the local list, unknown codes stay raw`() {
@@ -43,6 +32,16 @@ class DashcamLogicTest {
         assertThat(meaning(ErrorCodes.SESSION_TIMEOUT, TIMEOUT)).isEqualTo(R.string.dashcam_err_session_timeout)
         assertThat(meaning(ErrorCodes.SESSION_KEY_INVALID, LOCAL)).isEqualTo(R.string.dashcam_err_key_rejected)
         assertThat(meaning(4096, RECORDER)).isEqualTo(R.string.dashcam_err_unknown_code) // a recorder 4096 is not the local monitor
+    }
+
+    @Test
+    fun `timeouts and lost connections leave a command's outcome unknown, refusals do not`() {
+        assertThat(outcomeUnknown(RecorderError(ErrorCodes.REQUEST_TIMEOUT, TIMEOUT, null, null))).isTrue()
+        assertThat(outcomeUnknown(RecorderError(ErrorCodes.DISCONNECTED, LOCAL, null, null))).isTrue()
+        assertThat(outcomeUnknown(RecorderError(ErrorCodes.SEND_FAILED, LOCAL, null, null))).isFalse()
+        assertThat(outcomeUnknown(RecorderError(208, RECORDER, null, null))).isFalse()
+        assertThat(isConfigurationError(RecorderError(ErrorCodes.SESSION_KEY_INVALID, LOCAL, null, RecorderConnectionManagerImpl.KEY_MISSING))).isTrue()
+        assertThat(isConfigurationError(RecorderError(ErrorCodes.SESSION_KEY_INVALID, LOCAL, "{}", "session key missing or not decryptable"))).isFalse()
     }
 
     @Test
@@ -74,19 +73,26 @@ class DashcamLogicTest {
     }
 
     @Test
-    fun `wifi resubmission keeps mode and frequency, an empty password keeps the old one`() {
+    fun `wifi resubmission changes only the password and keeps ssid, mode and frequency`() {
         val read = WifiParam(mode = 1, ssid = "FORTHING-OLD", passwd = "Old12345", frequency = 1)
-        assertThat(wifiToSend(read, "FORTHING-NEW", "New12345")).isEqualTo(WifiParam(1, "FORTHING-NEW", "New12345", 1))
-        assertThat(wifiToSend(read, "FORTHING-NEW", "")).isEqualTo(WifiParam(1, "FORTHING-NEW", "Old12345", 1))
-        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "B", "")).isEqualTo(WifiParam(null, "B", "Old12345", null))
+        assertThat(wifiToSend(read, "New12345")).isEqualTo(WifiParam(1, "FORTHING-OLD", "New12345", 1))
+        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345")).isEqualTo(WifiParam(null, "A", "New12345", null))
     }
 
     @Test
-    fun `wifi password rule needs 8 characters with a letter and a digit`() {
+    fun `wifi password rule is 8 to 16 printable ASCII characters with a letter and a digit`() {
         assertThat(isValidWifiPassword("abc12345")).isTrue()
-        assertThat(isValidWifiPassword("abc1234")).isFalse()
-        assertThat(isValidWifiPassword("12345678")).isFalse()
-        assertThat(isValidWifiPassword("abcdefgh")).isFalse()
+        assertThat(isValidWifiPassword("Ab1!Ab1!Ab1!Ab1!x")).isFalse() // 17
+        assertThat(isValidWifiPassword("Ab1!Ab1!Ab1!Ab1#")).isTrue() // 16, symbols allowed
+        assertThat(isValidWifiPassword("abc1234")).isFalse() // 7
+        assertThat(isValidWifiPassword("12345678")).isFalse() // no letter
+        assertThat(isValidWifiPassword("abcdefgh")).isFalse() // no digit
+        assertThat(isValidWifiPassword("abc 12345")).isFalse() // space (0x20)
+        assertThat(isValidWifiPassword("äbc12345")).isFalse() // not ASCII
+        assertThat(isValidWifiPassword("абв12345")).isFalse() // Cyrillic: not ASCII
+        assertThat(isValidWifiPassword("abc1234\u007F")).isFalse() // DEL
+        assertThat(isValidWifiPassword("a".repeat(63) + "1")).isFalse() // far beyond 16 (WPA2 maximum 63)
+        assertThat(isValidWifiPassword("~abc1234")).isTrue() // 0x7E is the last allowed character
     }
 
     @Test

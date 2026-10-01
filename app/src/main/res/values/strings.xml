@@ -156,7 +156,7 @@
     <string name="dashcam_sd_format_text">Formatieren löscht alle Aufnahmen und Fotos auf der Karte in der Dashcam.</string>
     <string name="dashcam_sd_format">Formatieren</string>
     <string name="dashcam_sd_formatting">Wird formatiert …</string>
-    <string name="dashcam_sd_format_done">Der Recorder hat das Formatieren bestätigt (rval 0).</string>
+    <string name="dashcam_sd_format_done">Formatieren vom Recorder angenommen (rval 0).</string>
     <string name="dashcam_sd_format_confirm_title">SD-Karte formatieren?</string>
     <string name="dashcam_sd_format_confirm_text">Alle Dateien auf der Karte in der Dashcam werden gelöscht. Bereits auf dieses Handy geladene Aufnahmen bleiben erhalten.</string>
 
@@ -200,18 +200,24 @@
     <string name="dashcam_status_mismatch">gesendet: %1$s, zurückgelesen: %2$s</string>
     <string name="dashcam_status_failed">nicht übernommen: %1$s</string>
     <string name="dashcam_status_unconfirmed">angenommen, aber nicht zurückgelesen: %1$s</string>
+    <string name="dashcam_status_unknown">Ergebnis unbekannt – neu verbinden und prüfen (%1$s)</string>
+    <string name="dashcam_status_accepted">vom Recorder angenommen (rval 0)</string>
     <string name="dashcam_wifi_current">%1$s · %2$s</string>
     <string name="dashcam_band_24">2,4 GHz</string>
     <string name="dashcam_band_5">5 GHz</string>
-    <string name="dashcam_wifi_ssid">WLAN-Name</string>
+    <string name="dashcam_wifi_ssid_readonly">WLAN-Name: %1$s (bleibt unverändert)</string>
     <string name="dashcam_wifi_password">Neues Passwort</string>
-    <string name="dashcam_wifi_password_rule">Leer lassen, um das bisherige zu behalten. Mindestens 8 Zeichen mit Buchstaben und Ziffern.</string>
-    <string name="dashcam_wifi_preserved">Modus (%1$s) und Band (%2$s) werden unverändert so gesendet, wie der Recorder sie gemeldet hat.</string>
+    <string name="dashcam_wifi_password_rule">8–16 Zeichen, Buchstaben und Ziffern</string>
+    <string name="dashcam_wifi_password_ascii">Nur Zeichen ohne Leerzeichen und Umlaute (ASCII)</string>
+    <string name="dashcam_wifi_password_repeat">Passwort wiederholen</string>
+    <string name="dashcam_wifi_password_not_equal">Die Passwörter stimmen nicht überein.</string>
+    <string name="dashcam_wifi_password_show">Passwort anzeigen</string>
+    <string name="dashcam_wifi_preserved">WLAN-Name, Modus (%1$s) und Band (%2$s) werden unverändert so gesendet, wie der Recorder sie gemeldet hat.</string>
     <string name="dashcam_wifi_password_sent">neues Passwort</string>
     <string name="dashcam_wifi_password_differs">anderes Passwort</string>
     <string name="dashcam_send">Senden</string>
     <string name="dashcam_rejoin_title">Neu mit dem WLAN verbinden</string>
-    <string name="dashcam_rejoin_text">Die Dashcam hat die Änderung angenommen. Verbinde dein Handy mit dem WLAN der Dashcam und den neuen Zugangsdaten; die Verbindung zur App muss danach neu aufgebaut werden.</string>
+    <string name="dashcam_rejoin_text">Die Dashcam verwendet jetzt möglicherweise neue Zugangsdaten. Verbinde dein Handy erneut mit ihrem WLAN und baue danach die Verbindung zur App neu auf.</string>
     <string name="dashcam_later">Später</string>
     <string name="dashcam_device_model">Modell</string>
     <string name="dashcam_device_serial">Seriennummer</string>
