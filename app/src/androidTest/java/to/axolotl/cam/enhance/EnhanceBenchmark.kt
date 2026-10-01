@@ -30,7 +30,7 @@ class EnhanceBenchmark {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
 
-    private class Candidate(val name: String, val file: String, val valueRange: Float = 1f, val overlap: Int = ML_OVERLAP)
+    private class Candidate(val name: String, val file: String, val valueRange: Float = 1f, val overlap: Int = 16)
 
     private val candidates = listOf(
         Candidate("Real-ESRGAN-General-x4v3 float (QAIHub)", "real_esrgan_general_x4v3_float.tflite"),
@@ -54,7 +54,7 @@ class EnhanceBenchmark {
     private fun f(v: Double) = String.format(Locale.US, "%.2f", v)
 
     @Test
-    fun candidates() = runBlocking {
+    fun candidates() = runBlocking<Unit> {
         val hr = TestMedia.reference(1024, 576)
         val lr4 = TestMedia.boxDown(hr, 4)
         val lr2 = TestMedia.boxDown(hr, 2)
@@ -68,14 +68,14 @@ class EnhanceBenchmark {
             Bitmap.createScaledBitmap(lr2, 1024, 576, true),
         )
         val bicubic = TileUpscaler { src, w, h, s -> Classical.resample(src, w, h, s, 0f) }
-        quality("bicubic Catmull-Rom (a=0, no denoise)", TestMedia.upscale(lr4, 4, 256, 8, bicubic), TestMedia.upscale(lr2, 2, 256, 8, bicubic))
-        quality("classical (denoise + sharpened cubic a=0.5)", TestMedia.upscale(lr4, 4, 256, 8, Classical), TestMedia.upscale(lr2, 2, 256, 8, Classical))
+        quality("bicubic Catmull-Rom (a=0, no denoise)", TestMedia.upscale(lr4, 4, CLASSICAL_TILING, bicubic), TestMedia.upscale(lr2, 2, CLASSICAL_TILING, bicubic))
+        quality("classical (denoise + sharpened cubic a=0.5)", TestMedia.upscale(lr4, 4, CLASSICAL_TILING, Classical), TestMedia.upscale(lr2, 2, CLASSICAL_TILING, Classical))
 
         val frame = TestMedia.reference(1920, 1080)
         for (scale in listOf(2, 4)) {
             val times = (0 until 3).map {
                 val t = SystemClock.elapsedRealtime()
-                TestMedia.upscale(frame, scale, CLASSICAL_TILE, CLASSICAL_OVERLAP, Classical).recycle()
+                TestMedia.upscale(frame, scale, CLASSICAL_TILING, Classical).recycle()
                 SystemClock.elapsedRealtime() - t
             }.sorted()
             log("SPEED | classical | 1080p x$scale measured ${times[1]} ms (median of 3)")
@@ -94,6 +94,7 @@ class EnhanceBenchmark {
             val loadMs = SystemClock.elapsedRealtime() - loadStart
             try {
                 val tile = model.inputSize
+                val spec = TileSpec(tile, c.overlap, margin = c.overlap / 4)
                 val px = IntArray(tile * tile) { argb(it % 255, it / tile % 255, 90) }
                 model.upscale(px, tile, tile, model.nativeScale)
                 val heapMb = (Debug.getNativeHeapAllocatedSize() - heapBefore) / 1048576.0
@@ -102,14 +103,14 @@ class EnhanceBenchmark {
                     model.upscale(px, tile, tile, model.nativeScale)
                     (System.nanoTime() - t) / 1e6
                 }.sorted()[2]
-                val tiles = planTiles(1920, 1080, tile, c.overlap).size
+                val tiles = planTiles(1920 + 2 * spec.margin, 1080 + 2 * spec.margin, tile, c.overlap).size
                 log(
                     "SPEED | ${c.name} | ${bytes.size / 1024} KiB | in ${tile}x$tile x${model.nativeScale} | load $loadMs ms" +
                         " | ${f(tileMs)} ms/tile | 1080p: $tiles tiles ≈ ${(tiles * tileMs).toLong()} ms (x4 and x2)" +
                         " | native heap +${f(heapMb)} MB",
                 )
                 if (model.nativeScale == 4) {
-                    quality(c.name, TestMedia.upscale(lr4, 4, tile, c.overlap, model), TestMedia.upscale(lr2, 2, tile, c.overlap, model))
+                    quality(c.name, TestMedia.upscale(lr4, 4, spec, model), TestMedia.upscale(lr2, 2, spec, model))
                 } else {
                     log("QUALITY | ${c.name} | native x${model.nativeScale}, not comparable at x2/x4")
                 }
@@ -121,7 +122,7 @@ class EnhanceBenchmark {
 
     /** Shipped model through the real FrameEnhancer on a full 1080p frame (validates the per-tile projection). */
     @Test
-    fun shippedModelFullFrame() = runBlocking {
+    fun shippedModelFullFrame() = runBlocking<Unit> {
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
             File(context.cacheDir, "bench-${System.nanoTime()}.preferences_pb")
         }
@@ -140,7 +141,7 @@ class EnhanceBenchmark {
 
     /** GPU classical clip path end to end (decode → GL cubic → H.264 → mux) at sizes the emulator can encode. */
     @Test
-    fun clipThroughput() = runBlocking {
+    fun clipThroughput() = runBlocking<Unit> {
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
             File(context.cacheDir, "bench-${System.nanoTime()}.preferences_pb")
         }
@@ -158,7 +159,7 @@ class EnhanceBenchmark {
     }
 
     @Test
-    fun liveProbe() = runBlocking {
+    fun liveProbe() = runBlocking<Unit> {
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
             File(context.cacheDir, "bench-${System.nanoTime()}.preferences_pb")
         }

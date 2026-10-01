@@ -3,6 +3,7 @@ package to.axolotl.cam.enhance
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -68,9 +69,11 @@ internal object ShippedModel {
     const val ASSET = "models/quicksrnetmedium_float.tflite"
 }
 
-internal const val ML_OVERLAP = 16
-internal const val CLASSICAL_TILE = 256
-internal const val CLASSICAL_OVERLAP = 8
+/** Cubic taps (2) + denoise (1) reach 3 px: with that margin tiled output equals untiled output. */
+internal val CLASSICAL_TILING = TileSpec(tile = 256, overlap = 8, margin = 3)
+
+/** CNN zero-padding artefacts measured at ≈ 2 source px from a tile edge; 4 leaves headroom. */
+internal fun SrModel.tiling() = TileSpec(tile = inputSize, overlap = 16, margin = 4)
 
 @Singleton
 class DefaultFrameEnhancer @Inject constructor(
@@ -105,13 +108,13 @@ class DefaultFrameEnhancer @Inject constructor(
         require(scale == 2 || scale == 4) { "scale must be 2 or 4" }
         require(src.width.toLong() * src.height * scale * scale <= maxOutputPixels(context)) { "frame too large" }
         val input = if (src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, false)
-        val out = Bitmap.createBitmap(src.width * scale, src.height * scale, Bitmap.Config.ARGB_8888)
+        val out = createBitmap(src.width * scale, src.height * scale)
         try {
             mutex.withLock {
                 val ml = if (engine != EnhanceEngine.CLASSICAL) model() else null
                 if (ml != null) {
                     try {
-                        upscaleTiled(BitmapPixels(input), BitmapPixels(out), scale, ml.inputSize, ML_OVERLAP, ml, onProgress)
+                        upscaleTiled(BitmapPixels(input), BitmapPixels(out), scale, ml.tiling(), ml, onProgress)
                         return@withLock EnhancedFrame(out, EnhanceEngine.ML, ShippedModel.ID)
                     } catch (e: CancellationException) {
                         throw e
@@ -119,7 +122,7 @@ class DefaultFrameEnhancer @Inject constructor(
                         Log.w(TAG, "ML enhance failed, falling back to classical: ${e.javaClass.simpleName}")
                     }
                 }
-                upscaleTiled(BitmapPixels(input), BitmapPixels(out), scale, CLASSICAL_TILE, CLASSICAL_OVERLAP, Classical, onProgress)
+                upscaleTiled(BitmapPixels(input), BitmapPixels(out), scale, CLASSICAL_TILING, Classical, onProgress)
                 EnhancedFrame(out, EnhanceEngine.CLASSICAL, null)
             }
         } catch (t: Throwable) {
@@ -137,10 +140,10 @@ class DefaultFrameEnhancer @Inject constructor(
                 val engines = listOfNotNull(EnhanceEngine.ML.takeIf { ml != null }, EnhanceEngine.CLASSICAL)
                 val stored = store.data.first()
                 // ML cost is the model run (the 2× box-downsample is negligible): measured once at 4×.
-                val mlCost = ml?.let { cost(stored, EnhanceEngine.ML, 4) { measure(it, it.inputSize, ML_OVERLAP, 4) } }
+                val mlCost = ml?.let { cost(stored, EnhanceEngine.ML, 4) { measure(it, it.tiling(), 4) } }
                 val costs = listOf(2, 4).flatMap { scale ->
                     listOfNotNull(
-                        cost(stored, EnhanceEngine.CLASSICAL, scale) { measure(Classical, CLASSICAL_TILE, CLASSICAL_OVERLAP, scale) },
+                        cost(stored, EnhanceEngine.CLASSICAL, scale) { measure(Classical, CLASSICAL_TILING, scale) },
                         mlCost?.copy(scale = scale),
                     )
                 }
@@ -163,15 +166,15 @@ class DefaultFrameEnhancer @Inject constructor(
          * ms per source megapixel: one warm-up tile, then one timed 2×2-tile image through the real tiling path.
          * ponytail: single run; take the median of several if estimates prove noisy.
          */
-        internal suspend fun measure(engine: TileUpscaler, tile: Int, overlap: Int, scale: Int): Float {
-            engine.upscale(IntArray(tile * tile), tile, tile, scale)
-            val size = 2 * tile - overlap
+        internal suspend fun measure(engine: TileUpscaler, spec: TileSpec, scale: Int): Float {
+            engine.upscale(IntArray(spec.tile * spec.tile), spec.tile, spec.tile, scale)
+            val size = 2 * spec.tile - spec.overlap - 2 * spec.margin // with the virtual border: exactly 2×2 tiles
             val pixels = IntArray(size * size) { i -> argb(i % size * 255 / size, i / size * 255 / size, (i % size xor i / size) and 0xff) }
             val src = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-            val dst = Bitmap.createBitmap(size * scale, size * scale, Bitmap.Config.ARGB_8888)
+            val dst = createBitmap(size * scale, size * scale)
             try {
                 val start = System.nanoTime()
-                upscaleTiled(BitmapPixels(src), BitmapPixels(dst), scale, tile, overlap, engine) {}
+                upscaleTiled(BitmapPixels(src), BitmapPixels(dst), scale, spec, engine) {}
                 return (System.nanoTime() - start) / 1e6f / (size * size / 1e6f)
             } finally {
                 src.recycle()
@@ -192,6 +195,8 @@ class DefaultFrameEnhancer @Inject constructor(
 internal class BitmapPixels(private val bitmap: Bitmap) : Pixels {
     override val width get() = bitmap.width
     override val height get() = bitmap.height
-    override fun read(x: Int, y: Int, w: Int, h: Int, out: IntArray) = bitmap.getPixels(out, 0, w, x, y, w, h)
-    override fun write(x: Int, y: Int, w: Int, h: Int, src: IntArray) = bitmap.setPixels(src, 0, w, x, y, w, h)
+    override fun read(x: Int, y: Int, w: Int, h: Int, out: IntArray, offset: Int, stride: Int) =
+        bitmap.getPixels(out, offset, stride, x, y, w, h)
+    override fun write(x: Int, y: Int, w: Int, h: Int, src: IntArray, offset: Int, stride: Int) =
+        bitmap.setPixels(src, offset, stride, x, y, w, h)
 }

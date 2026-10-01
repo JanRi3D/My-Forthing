@@ -8,6 +8,7 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLUtils
 import android.view.Surface
+import androidx.core.graphics.createBitmap
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -83,7 +84,7 @@ internal class GlScaler(surface: Surface) : Closeable {
         val pixels = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
         GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
-        return Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { copyPixelsFromBuffer(pixels.rewind()) }
+        return createBitmap(w, h).apply { copyPixelsFromBuffer(pixels.rewind()) }
     }
 
     /** ML path, step 2: an enhanced bitmap, bilinear-fitted to the [outW]×[outH] window. */

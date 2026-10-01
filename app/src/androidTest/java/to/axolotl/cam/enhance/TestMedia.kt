@@ -154,9 +154,9 @@ internal object TestMedia {
     }
 
     /** Upscales a whole bitmap with any tile engine (as the FrameEnhancer does). */
-    suspend fun upscale(src: Bitmap, scale: Int, tile: Int, overlap: Int, engine: TileUpscaler): Bitmap {
+    suspend fun upscale(src: Bitmap, scale: Int, spec: TileSpec, engine: TileUpscaler): Bitmap {
         val out = Bitmap.createBitmap(src.width * scale, src.height * scale, Bitmap.Config.ARGB_8888)
-        upscaleTiled(BitmapPixels(src), BitmapPixels(out), scale, tile, overlap, engine) {}
+        upscaleTiled(BitmapPixels(src), BitmapPixels(out), scale, spec, engine) {}
         return out
     }
 

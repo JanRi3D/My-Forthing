@@ -181,10 +181,10 @@ class DefaultClipUpscaler @Inject constructor(
                 EnhancedKind.UPSCALED_CLIP, stats.engine, stats.model, stats.width.toFloat() / stats.sourceWidth,
                 request.sourceMediaId, null, System.currentTimeMillis(),
             )
+            store.edit { it[clipCostKey(stats.engine)] = stats.msPerOutputMegapixelFrame }
             writeSidecar(out, info)
             moveAtomic(tmp, out)
             done = true
-            store.edit { it[clipCostKey(stats.engine)] = stats.msPerOutputMegapixelFrame }
             UpscaleResult.Done(EnhancedOutput(id, out, info), stats.width, stats.height, stats.audioCopied, out.length())
         } catch (e: UpscaleFailure) {
             Log.w(TAG, "upscale failed: ${e.error}")

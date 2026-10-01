@@ -1,6 +1,5 @@
 package to.axolotl.cam.enhance
 
-import android.graphics.Bitmap
 import android.graphics.HardwareRenderer
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -14,6 +13,7 @@ import android.hardware.HardwareBuffer
 import android.media.ImageReader
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import to.axolotl.cam.core.log.Log
@@ -98,7 +98,7 @@ class LiveUpscaleProbe @Inject constructor(private val frameEnhancer: FrameEnhan
         internal fun measureGpu(srcW: Int, srcH: Int): Float {
             val outW = srcW * 2
             val outH = srcH * 2
-            val src = Bitmap.createBitmap(srcW, srcH, Bitmap.Config.ARGB_8888).apply {
+            val src = createBitmap(srcW, srcH).apply {
                 android.graphics.Canvas(this).drawPaint(Paint().apply {
                     shader = LinearGradient(0f, 0f, srcW.toFloat(), srcH.toFloat(), 0xff203040.toInt(), 0xffe0d0c0.toInt(), Shader.TileMode.MIRROR)
                 })
