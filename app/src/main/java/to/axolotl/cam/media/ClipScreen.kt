@@ -9,7 +9,7 @@ import android.webkit.MimeTypeMap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -87,6 +87,7 @@ import to.axolotl.cam.core.ui.UiState
 import to.axolotl.cam.core.ui.StateView
 import to.axolotl.cam.dashcam.RecorderConnectionManager
 import to.axolotl.cam.dashcam.RecorderConnectionState
+import to.axolotl.cam.enhance.EnhanceEngine
 import to.axolotl.cam.enhance.EnhancementInfo
 import to.axolotl.cam.recorder.RecorderResult
 import java.io.File
@@ -95,11 +96,27 @@ import javax.inject.Inject
 /** Phase 4: "Bild verbessern" / "Clip hochskalieren" (enhance-ui) at the current playback position. */
 typealias ClipActions = @Composable (item: MediaItem, positionMs: Long) -> Unit
 
-/** Phase 4: "Kennzeichen in diesem Clip" (plates-ui). */
-typealias ClipExtras = @Composable (item: MediaItem) -> Unit
+/** Phase 4: "Kennzeichen in diesem Clip" (plates-ui); [seekTo] jumps the player (no-op for images). */
+typealias ClipExtras = @Composable (item: MediaItem, positionMs: Long, seekTo: (Long) -> Unit) -> Unit
 
-/** Phase 4: further delete targets (drive-backup: "Drive-Kopie löschen"), each with its own confirmation. */
-typealias ClipDeleteTargets = @Composable ColumnScope.(item: MediaItem, dismiss: () -> Unit) -> Unit
+/** Phase 4: drawn over the video/image area (16:9 box), e.g. plate boxes at the current position (plates-ui). */
+typealias ClipOverlay = @Composable BoxScope.(item: MediaItem, positionMs: Long) -> Unit
+
+/**
+ * One copy that can be deleted. The clip screen lists every target in its chooser and shows the confirmation itself
+ * ([title], [text], [danger] = extra acknowledgement); [onConfirm] deletes that copy only.
+ */
+data class DeleteTarget(
+    val label: String,
+    val enabled: Boolean,
+    val title: String,
+    val text: String,
+    val danger: Boolean,
+    val onConfirm: () -> Unit,
+)
+
+/** Phase 4: further delete targets (drive-backup: "Drive-Kopie löschen") as data. */
+typealias ClipDeleteTargets = @Composable (item: MediaItem) -> List<DeleteTarget>
 
 /** Shares a phone copy through [MediaFileProvider] (`files/media`, `files/screenshots`, `files/enhance`). */
 class MediaFileProvider : FileProvider()
@@ -169,6 +186,7 @@ fun ClipScreen(
     onOpen: (mediaId: String, positionMs: Long) -> Unit,
     clipActions: ClipActions,
     clipExtras: ClipExtras,
+    clipOverlay: ClipOverlay,
     clipDeleteTargets: ClipDeleteTargets,
     viewModel: ClipViewModel = hiltViewModel(),
 ) {
@@ -196,20 +214,33 @@ fun ClipScreen(
             ) {
                 var position by rememberSaveable(item.id) { mutableLongStateOf(positionMs) }
                 val file = item.localFile?.takeIf { it.isFile }
-                when {
-                    file == null -> NotOnPhone(item, viewModel)
-                    item.isVideo -> VideoPlayer(Uri.fromFile(file), position) { position = it }
-                    else -> AsyncImage(
-                        file, contentDescription = stringResource(R.string.media_image_description, item.originalFileName),
-                        contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                    )
+                val player = if (file != null && item.isVideo) rememberClipPlayer(Uri.fromFile(file), position) { position = it } else null
+                val seekTo: (Long) -> Unit = { ms ->
+                    if (player != null) {
+                        player.seekTo(ms)
+                        position = ms
+                    }
+                }
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                    when {
+                        file == null -> NotOnPhone(item, viewModel)
+                        player != null -> AndroidView(
+                            factory = { PlayerView(it).apply { this.player = player } },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        else -> AsyncImage(
+                            file, contentDescription = stringResource(R.string.media_image_description, item.originalFileName),
+                            contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    clipOverlay(item, position)
                 }
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Header(item, viewModel)
-                    Actions(item, file != null, viewModel, clipDeleteTargets)
+                    Actions(item, file != null, viewModel, clipDeleteTargets(item))
                     clipActions(item, position)
                     Relations(item, viewModel, onOpen)
-                    clipExtras(item)
+                    clipExtras(item, position, seekTo)
                 }
             }
         }
@@ -218,7 +249,7 @@ fun ClipScreen(
 
 /** Media3 player for a phone copy; reports the playback position every 250 ms and pauses when the app stops. */
 @Composable
-private fun VideoPlayer(uri: Uri, startMs: Long, onPosition: (Long) -> Unit) {
+private fun rememberClipPlayer(uri: Uri, startMs: Long, onPosition: (Long) -> Unit): ExoPlayer {
     val context = LocalContext.current
     val player = remember(uri) {
         ExoPlayer.Builder(context).build().apply {
@@ -235,17 +266,14 @@ private fun VideoPlayer(uri: Uri, startMs: Long, onPosition: (Long) -> Unit) {
             delay(250)
         }
     }
-    AndroidView(
-        factory = { PlayerView(it).apply { this.player = player } },
-        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-    )
+    return player
 }
 
 @Composable
 private fun NotOnPhone(item: MediaItem, viewModel: ClipViewModel) {
     val transfer by viewModel.transfer.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         MediaThumb(item.localThumbPath?.let(::File), placeholderFor(item.kind), Modifier.fillMaxSize())
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val t = transfer
@@ -289,7 +317,12 @@ private fun Header(item: MediaItem, viewModel: ClipViewModel) {
         }
         enhancement?.let { info ->
             Text(
-                stringResource(R.string.media_enhancement_info, info.engine.name, info.model ?: "–", info.scale, EnhancementInfo.NOTE),
+                stringResource(
+                    R.string.media_enhancement_info,
+                    stringResource(if (info.engine == EnhanceEngine.ML) R.string.media_engine_ml else R.string.media_engine_classical),
+                    info.model ?: "–",
+                    info.scale,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -299,12 +332,30 @@ private fun Header(item: MediaItem, viewModel: ClipViewModel) {
 
 /** "Teilen" and "Löschen" with explicit targets; each target has its own confirmation and none cascades. */
 @Composable
-private fun Actions(item: MediaItem, onPhone: Boolean, viewModel: ClipViewModel, clipDeleteTargets: ClipDeleteTargets) {
+private fun Actions(item: MediaItem, onPhone: Boolean, viewModel: ClipViewModel, extraTargets: List<DeleteTarget>) {
     val context = LocalContext.current
     val ready by viewModel.ready.collectAsStateWithLifecycle()
     var chooseTarget by rememberSaveable { mutableStateOf(false) }
-    var confirmLocal by rememberSaveable { mutableStateOf(false) }
-    var confirmRecorder by rememberSaveable { mutableStateOf(false) }
+    var pending by remember { mutableStateOf<DeleteTarget?>(null) }
+    val lastCopy = item.recorderPath == null && item.driveFileId == null
+    val targets = listOf(
+        DeleteTarget(
+            label = stringResource(R.string.media_delete_local),
+            enabled = item.localUri != null,
+            title = stringResource(R.string.media_delete_local_title),
+            text = pluralStringResource(if (lastCopy) R.plurals.media_delete_local_last_text else R.plurals.media_delete_local_text, 1, 1),
+            danger = lastCopy,
+            onConfirm = viewModel::deleteLocal,
+        ),
+        DeleteTarget(
+            label = stringResource(R.string.media_delete_recorder),
+            enabled = item.recorderPath != null && ready,
+            title = stringResource(R.string.media_delete_recorder_title),
+            text = pluralStringResource(R.plurals.media_delete_recorder_text, 1, 1),
+            danger = true,
+            onConfirm = viewModel::deleteOnRecorder,
+        ),
+    ) + extraTargets
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilledTonalButton(onClick = { share(context, item) }, enabled = onPhone) {
             Icon(painterResource(R.drawable.ic_media_share), contentDescription = null)
@@ -323,47 +374,29 @@ private fun Actions(item: MediaItem, onPhone: Boolean, viewModel: ClipViewModel,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.media_delete_which_text), style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = { dismiss(); confirmLocal = true }, enabled = item.localUri != null) {
-                        Text(stringResource(R.string.media_delete_local))
-                    }
-                    TextButton(onClick = { dismiss(); confirmRecorder = true }, enabled = item.recorderPath != null && ready) {
-                        Text(stringResource(R.string.media_delete_recorder))
+                    targets.forEach { target ->
+                        TextButton(onClick = { dismiss(); pending = target }, enabled = target.enabled) { Text(target.label) }
                     }
                     if (item.recorderPath != null && !ready) {
                         Text(stringResource(R.string.media_delete_recorder_offline), style = MaterialTheme.typography.bodySmall)
                     }
-                    clipDeleteTargets(item, dismiss)
                 }
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (confirmLocal) {
-        val lastCopy = item.recorderPath == null && item.driveFileId == null
+    pending?.let { target ->
         ConfirmDialog(
-            title = stringResource(R.string.media_delete_local_title),
-            text = pluralStringResource(if (lastCopy) R.plurals.media_delete_local_last_text else R.plurals.media_delete_local_text, 1, 1),
+            title = target.title,
+            text = target.text,
             confirmLabel = stringResource(R.string.media_delete),
             onConfirm = {
-                confirmLocal = false
-                viewModel.deleteLocal()
+                pending = null
+                target.onConfirm()
             },
-            onDismiss = { confirmLocal = false },
-            danger = lastCopy,
-        )
-    }
-    if (confirmRecorder) {
-        ConfirmDialog(
-            title = stringResource(R.string.media_delete_recorder_title),
-            text = pluralStringResource(R.plurals.media_delete_recorder_text, 1, 1),
-            confirmLabel = stringResource(R.string.media_delete),
-            onConfirm = {
-                confirmRecorder = false
-                viewModel.deleteOnRecorder()
-            },
-            onDismiss = { confirmRecorder = false },
-            danger = true,
+            onDismiss = { pending = null },
+            danger = target.danger,
         )
     }
 }

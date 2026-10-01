@@ -12,14 +12,16 @@ import to.axolotl.cam.core.navigation.Storage
 
 /**
  * Recordings, SD files, clip player and storage. Phase 4 attaches through the slots: [selectionActions]
- * (drive-backup "Sichern"), [clipActions] (enhance-ui), [clipExtras] (plates-ui), [clipDeleteTargets] (drive-backup).
+ * (drive-backup "Sichern"), [clipActions] (enhance-ui), [clipExtras] and [clipOverlay] (plates-ui), [clipDeleteTargets]
+ * (drive-backup).
  */
 fun NavGraphBuilder.mediaGraph(
     navController: NavController,
     selectionActions: SelectionActions = { _, _ -> },
     clipActions: ClipActions = { _, _ -> },
-    clipExtras: ClipExtras = {},
-    clipDeleteTargets: ClipDeleteTargets = { _, _ -> },
+    clipExtras: ClipExtras = { _, _, _ -> },
+    clipOverlay: ClipOverlay = { _, _ -> },
+    clipDeleteTargets: ClipDeleteTargets = { emptyList() },
 ) {
     val back: () -> Unit = { navController.navigateUp() }
     val connect: () -> Unit = { navController.navigate(Connection) { launchSingleTop = true } }
@@ -43,6 +45,7 @@ fun NavGraphBuilder.mediaGraph(
             onOpen = { id, position -> navController.navigate(Clip(id, position)) },
             clipActions = clipActions,
             clipExtras = clipExtras,
+            clipOverlay = clipOverlay,
             clipDeleteTargets = clipDeleteTargets,
         )
     }
