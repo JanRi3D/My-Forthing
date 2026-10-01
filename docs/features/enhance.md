@@ -8,7 +8,7 @@ and carries a sidecar saying so.
 
 | Path | Engine | Why |
 | --- | --- | --- |
-| Single frame ("Bild verbessern") | **ML: QuickSRNet Medium ×4** (LiteRT CPU/XNNPACK), classical fallback | Best PSNR/SSIM of all candidates on the synthetic reference, 243 KiB, ≈ 6 s per 1080p frame on the emulator (quiet host) |
+| Single frame ("Bild verbessern") | **ML: QuickSRNet Medium ×4** (LiteRT CPU/XNNPACK), classical fallback | Best PSNR/SSIM of all candidates on the synthetic reference, 244 KiB, ≈ 6 s per 1080p frame on the emulator (quiet host) |
 | Clip ("Clip hochskalieren") | **Classical on the GPU** (sharpened cubic, GLES 2 shader) by default; ML per frame selectable | ML per frame costs seconds per 1080p frame → hours per minute of video; the GPU path runs at encoder speed |
 | Live view | **Do not offer ML.** Offer the GPU sharpen effect only where `LiveUpscaleProbe` says so (Android 13+, ≤ 8 ms per 720p×2 frame) | ML ≈ 0.6–1.2 s per 360p frame on the emulator: not real time |
 
@@ -40,11 +40,11 @@ inference (interpreter arena), excluding the output bitmap (1080p×4 = 7680×432
 | **Classical (ours: denoise + sharpened cubic, a = 0.5)** | ours | – | – | ×2 0.67–0.72 s, ×4 1.4–1.5 s measured (busy 1.4–2.5 / 2.5–4.2 s) | – | 24.34 / 0.87 | 28.82 / 0.95 | **fallback, clips, live** |
 | Real-ESRGAN-General-x4v3 float (Qualcomm AI Hub) | BSD-3-Clause | 4.65 MiB | 275 / 397–946 | ≈ 50 s | +113 MB | 25.37 / 0.89 | 31.28 / 0.95 | rejected: 8× slower than QuickSRNet, lower score here |
 | Real-ESRGAN-General-x4v3 w8a8 (Qualcomm AI Hub) | BSD-3-Clause | 1.25 MiB | 294 / 429–1016 | ≈ 53 s | +46 MB | 25.26 / 0.86 | 31.20 / 0.93 | rejected (int8 not faster on x86) |
-| ESRGAN-tf2, 50×50 TFLite (Kaggle/TF Hub, captain-pool) | MIT (Kaggle `licenseName`) | 4.76 MiB | 60 / 153–163 | ≈ 72 s (1196 tiles) | +50 MB | 25.58 / 0.88 | 32.15 / 0.96 | rejected: tiny fixed input → many calls |
+| ESRGAN-tf2, 50×50 TFLite (Kaggle/TF Hub, captain-pool) | MIT per Kaggle `licenseName`; the former TF Hub listing said Apache-2.0 (unresolved, not shipped) | 4.76 MiB | 60 / 153–163 | ≈ 72 s (1196 tiles) | +50 MB | 25.58 / 0.88 | 32.15 / 0.96 | rejected: tiny fixed input → many calls |
 | XLSR float (Qualcomm AI Hub) | BSD-3-Clause | 115 KiB | 27 / 55–78 | ≈ 4.9 s | +19 MB | 25.76 / 0.89 | 32.59 / 0.97 | close second |
 | QuickSRNetSmall float (Qualcomm AI Hub) | BSD-3-Clause | 133 KiB | 27 / 58–76 | ≈ 4.8 s | +15 MB | 25.75 / 0.91 | 32.66 / 0.97 | close second |
 | QuickSRNetSmall w8a8 (Qualcomm AI Hub) | BSD-3-Clause | 42 KiB | 20 / 42–61 | ≈ 3.6 s | +8 MB | 25.25 / 0.89 | 30.89 / 0.97 | quantisation costs 0.5–1.8 dB |
-| **QuickSRNetMedium float (Qualcomm AI Hub)** | **BSD-3-Clause** | **243 KiB** | **33 / 67–72** | **≈ 5.9 s** | **+15–18 MB** | **26.30 / 0.91** | **33.38 / 0.97** | **shipped** |
+| **QuickSRNetMedium float (Qualcomm AI Hub)** | **BSD-3-Clause** | **244 KiB** | **33 / 67–72** | **≈ 5.9 s** | **+15–18 MB** | **26.30 / 0.91** | **33.38 / 0.97** | **shipped** |
 | QuickSRNetLarge float (Qualcomm AI Hub) | BSD-3-Clause | 1.67 MiB | 112 / 218–220 | ≈ 20 s | +41 MB | 25.89 / 0.91 | 32.93 / 0.97 | slower, not better |
 | SESR-M5 float (Qualcomm AI Hub) | BSD-3-Clause | 1.32 MiB | 96 / 156–193 | ≈ 17 s | +37 MB | 25.75 / 0.90 | 32.65 / 0.97 | slower, not better |
 
@@ -64,18 +64,18 @@ tensors).
 | --- | --- |
 | Model | QuickSRNet Medium ×4 (arXiv:2303.04336), weights from the AIMET Model Zoo, exported by Qualcomm AI Hub Models v0.63.0 |
 | URL | https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/quicksrnetmedium/releases/v0.63.0/quicksrnetmedium-tflite-float.zip |
-| Model card | https://huggingface.co/qualcomm/QuickSRNetMedium (`license: bsd-3-clause`) |
+| Model card | https://huggingface.co/qualcomm/QuickSRNetMedium (`license: bsd-3-clause`), revision `428a6f66e34662459586850c6905d7807095dfb4` (commit "v0.63.0", https://huggingface.co/qualcomm/QuickSRNetMedium/tree/428a6f6) |
 | Zip SHA-256 | `6b8be955281035ba916c5e4ecec4bd16b114996eead7331fe9f4d31c9a450a54` |
 | File in the app | `app/src/main/assets/models/quicksrnetmedium_float.tflite` (= `quicksrnetmedium.tflite` from the zip, unmodified, 249 452 bytes) |
 | File SHA-256 | `9310ebbad930378d24b560cd25705c1b57b778fcbcd9d2a17406ff5c1378bf1c` |
 | I/O | float32 NHWC, 1×128×128×3 in, 1×512×512×3 out, values 0…1 |
-| Licence | BSD 3-Clause (AIMET Model Zoo weights; Qualcomm AI Hub Models export), full texts in `app/src/main/assets/models/LICENSE-quicksrnetmedium.txt`. The release phase lists it with LiteRT (Apache-2.0) in the open-source notices |
+| Licence | BSD 3-Clause (AIMET Model Zoo weights; Qualcomm AI Hub Models export), full texts in `app/src/main/assets/models/LICENSE-quicksrnetmedium.txt`. LiteRT runtime notices (Apache-2.0; XNNPACK BSD-3; cpuinfo, pthreadpool BSD-2; FP16, FXdiv MIT; Abseil, FlatBuffers, ruy Apache-2.0) in `app/src/main/assets/models/NOTICE-litert.txt`; the release phase still generates the app-wide open-source notices |
 
 Check: `sha256sum app/src/main/assets/models/quicksrnetmedium_float.tflite`. Changing the file means changing
 `ShippedModel.ID` (cached measurements are keyed by it).
 
 Other downloaded candidates (not shipped; for the benchmark put them into `app/src/androidTest/assets/candidates/`,
-not committed – keep them out of git): same S3 path pattern
+which its own `.gitignore` keeps out of git): same S3 path pattern
 `…/models/<id>/releases/v0.63.0/<id>-tflite-<float|w8a8>.zip` for `real_esrgan_general_x4v3`, `xlsr`,
 `quicksrnetsmall`, `quicksrnetlarge`, `sesr_m5`; ESRGAN-tf2 from
 `https://www.kaggle.com/api/v1/models/kaggle/esrgan-tf2/tfLite/esrgan-tf2/1/download` (file `1.tflite`, SHA-256
@@ -94,8 +94,13 @@ it. Runs on `Dispatchers.Default`, one job at a time (mutex), original bitmap un
   `margin` replicated pixels; at interior edges the margin is dropped and the rest of the overlap is blended with a
   linear ramp. Result: no seams (instrumented test on a 1080p ramp ×4: max neighbour step ≤ 3 levels; JVM test:
   classical tiled output equals untiled within rounding).
-- **Memory**: source + output bitmap (native heap) plus a few tile buffers; output limited to 7680×4320 (1080p×4,
-  133 MB) or 3840×2160 on low-RAM devices (`EnhancerCapabilities.maxOutputPixels`). HARDWARE bitmaps are copied once.
+- **Memory**: source + output bitmap (native heap) plus a few tile buffers. `EnhancerCapabilities.maxOutputPixels`
+  = min(1/16 of `ActivityManager.MemoryInfo.totalMem` ÷ 4 bytes, 7680×4320 = 1080p×4, 133 MB; 3840×2160 on low-RAM
+  devices): 2 GB phones keep 1080p×4, a 1.5 GB phone gets ≈ 25 MP. HARDWARE bitmaps are copied once.
+- **Errors**: `EnhanceException(EnhanceError.TooLarge)` above that limit, `EnhanceException(EnhanceError.Memory)` when
+  an allocation fails (`OutOfMemoryError` is caught, the half-built output recycled). Results above ~100 MB (1080p×4
+  is 133 MB) cannot be drawn by a `Canvas` ("trying to draw too large bitmap"): **enhance-ui shows a downsampled
+  preview or the saved JPEG, never the full bitmap.**
 - **Fallback**: model asset missing, LiteRT load failure or an exception during ML → classical for the whole frame
   (never mixed within one image); `EnhancedFrame.engine` reports what actually ran.
 - **Cancellation**: coroutine cancellation is checked before every tile; the half-built output is recycled.
@@ -107,8 +112,9 @@ it. Runs on `Dispatchers.Default`, one job at a time (mutex), original bitmap un
 
 ### ClipUpscaler (video)
 
-`upscale(UpscaleRequest(input, target = P1440|P2160, engine = CLASSICAL, codec = H264, sourceMediaId), onProgress)`
-→ `Deferred<UpscaleResult>` (a cancellable `Job`, contract §12). Path chosen as the simplest that keeps exact
+`upscale(UpscaleRequest(input, target = P1080|P1440|P2160, sourceMediaId, engine = CLASSICAL, codec = H264),
+onProgress)` → `Deferred<UpscaleResult>` (a cancellable `Job`, contract §12). `ExportQuality.resolution` maps the
+preference (Q1080 → P1080 exists for 720p sources such as a rear camera). Path chosen as the simplest that keeps exact
 timestamps:
 
 ```
@@ -118,21 +124,32 @@ MediaExtractor ─▶ MediaCodec decoder ─▶ SurfaceTexture (OES) ─▶ GLES
 
 - Classical: one fragment shader samples the decoded frame with the same sharpened-cubic kernel (4×4 taps, no
   denoise on video) straight to the target size. ML: frame read back from an FBO, `FrameEnhancer` ×2 (×4 if the
-  target is more than twice the source), uploaded and drawn bilinear to the target size.
-- Presentation timestamps are the decoder's (`eglPresentationTimeANDROID`), so copied audio stays in sync; rotation
-  metadata is carried over (`setOrientationHint`); nothing else from the source is copied.
-- Output size: shorter side = 1440/2160, aspect kept, even sides. H.264 by default, HEVC on request (typed `Encoder`
+  target is more than twice the source), uploaded and drawn bilinear to the target size. Engines are never mixed:
+  if the model fails on a frame, the job fails (`Encoder`) instead of continuing with classical frames.
+- Presentation timestamps are the decoder's (`eglPresentationTimeANDROID`), so copied audio stays in sync.
+- Rotation: everything stays in coded orientation. The decoder is configured with `rotation-degrees = 0` (a surface
+  decoder would otherwise rotate the frame itself), the output size is computed from the coded size, and the
+  source's rotation is written once as the MP4 orientation hint (`setOrientationHint`). Tested with 90° and 180°
+  remuxed inputs for both engines. Nothing else from the source's metadata is copied.
+- Output size: shorter side = 1080/1440/2160, aspect kept, even sides; a target not above the source's shorter side
+  fails with `TargetNotLarger` (also from `estimate`). H.264 by default, HEVC on request (typed `Encoder`
   error if the device has no encoder for that size). Bitrate ≈ 0.12 bit/pixel (1440p30 ≈ 13 Mbit/s, 2160p30 ≈ 30
   Mbit/s; HEVC 60 %), clamped to the encoder's range; I-frame every second.
 - Audio: passthrough; a track MP4 cannot carry is dropped and reported (`Done.audioCopied = false`), not fatal.
 - Files: `filesDir/enhance/<uuid>.mp4.tmp` → sidecar `<uuid>.mp4.enhance.json` → atomic rename to `<uuid>.mp4`
-  (an `.mp4` never exists without its sidecar). Cancellation or failure deletes temp file and sidecar. A free-space
-  check (estimate + 20 % + 50 MB) runs before decoding.
+  (an `.mp4` never exists without its sidecar). Cancellation or failure deletes temp file and sidecar; a cancellation
+  that arrives after the rename (the caller then never sees `Done`) deletes output and sidecar too – the job either
+  delivers `Done` or leaves nothing. The first access to the directory in a process deletes what a killed process
+  left behind (files older than the process start: `*.tmp`, outputs without sidecar, sidecars without output).
+  A free-space check (allocatable bytes ≥ estimate + 20 % + 50 MB) runs before decoding.
 - Errors: `UpscaleError.Decoder` (unreadable input, no video track, decoder failure, frame timeout 2.5 s),
   `.Encoder` (no encoder for size/codec, encoder/GL failure, anything unattributed while producing frames),
-  `.Storage` (space, muxer, file I/O), `.Cancelled` (via `awaitResult()`); `detail` is technical text for logs only.
+  `.Storage` (space, muxer, file I/O), `.Memory` (`OutOfMemoryError`, or the ML frame enhancer ran out of memory),
+  `.TargetNotLarger`, `.Cancelled` (via `awaitResult()`); `detail` is technical text for logs only.
 - Threading: one dedicated thread per job (EGL is thread-bound), one job at a time (hardware codecs are scarce), jobs
   live in a process-wide scope so leaving the screen does not cancel them. `onProgress` is called on that thread.
+  Once decoding is finished the loop waits on the encoder (10 ms) instead of spinning; a cancel stops the job within
+  one frame (tested: < 3 s including the 2.5 s frame wait bound, progress < 1).
 
 Emulator throughput of the classical clip path (SwiftShader + software H.264, 120 frames incl. decode/encode/mux):
 960×540 → 1080p 33 ms/frame (busy 56), 480×270 → 1080p 28 (46), 640×360 → 720p 15 (37). The emulator's only
@@ -181,14 +198,21 @@ Every output gets `<output>.enhance.json` (written before the output is renamed 
 ```json
 { "format": 1, "kind": "ENHANCED_FRAME|UPSCALED_CLIP", "engine": "ML|CLASSICAL",
   "model": "quicksrnetmedium-x4-float-qaihub-0.63.0" | null, "scale": 4.0,
-  "sourceMediaId": "<MediaItem.id>" | null, "sourcePositionMs": 37000 | null,
+  "sourceMediaId": "<MediaItem.id>", "sourcePositionMs": 37000 | null,
   "createdAt": "2026-10-01T17:41:37.123+02:00", "reconstructed": true, "note": "rekonstruiert, kein Beweis" }
 ```
 
-`EnhancementInfo.read(file)` parses it. `saveEnhancedFrame(context, frame, scale, sourceMediaId, positionMs)` writes a
-JPEG (q 95) + sidecar for stills. No field claims verification; no source metadata (time, GPS) is copied into outputs.
-The UI phase creates `MediaItem(kind = ENHANCED_FRAME | UPSCALED_CLIP, parentId = sourceMediaId)` and may reuse
-`EnhancedOutput.id` as the item id.
+`EnhancementInfo.read(file)` parses it. The source id is required everywhere (`UpscaleRequest.sourceMediaId`,
+`saveEnhancedFrame(context, frame, scale, sourceMediaId, positionMs)`), so no output exists without its link.
+`saveEnhancedFrame` writes a JPEG (q 95) + sidecar for stills and stamps the JPEG itself (EXIF `ImageDescription`
+= "rekonstruiert, kein Beweis", `UserComment` = note, engine, model, source id, `Software` = app), so the label
+survives when the file is shared without its sidecar. MP4 outputs carry the label only in the sidecar. No field
+claims verification; no source metadata (time, GPS) is copied into outputs. The UI phase creates
+`MediaItem(kind = ENHANCED_FRAME | UPSCALED_CLIP, parentId = sourceMediaId)` and may reuse `EnhancedOutput.id` as
+the item id.
+
+**Cross-feature rule:** enhanced outputs (`ENHANCED_FRAME` / `UPSCALED_CLIP`) are never scanned for plates – generated
+detail could invent characters. plates-ui refuses them as input, and an enhanced crop is never stored as a sighting.
 
 ## Interfaces for enhance-ui
 
@@ -199,19 +223,23 @@ interface FrameEnhancer {
   suspend fun capabilities(): EnhancerCapabilities
 }
 interface ClipUpscaler {
-  fun upscale(input: Uri, target: Resolution, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult>  // contract §12 (Deferred is a Job)
+  fun upscale(input: Uri, target: Resolution, sourceMediaId: String, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult>  // contract §12 + required source id (Deferred is a Job)
   fun upscale(request: UpscaleRequest, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult>
   suspend fun estimate(request: UpscaleRequest): Result<UpscaleEstimate>
 }
 suspend fun Deferred<UpscaleResult>.awaitResult(): UpscaleResult      // cancellation → Failed(UpscaleError.Cancelled)
-suspend fun saveEnhancedFrame(context: Context, frame: EnhancedFrame, scale: Int, sourceMediaId: String?, sourcePositionMs: Long?): EnhancedOutput
+suspend fun saveEnhancedFrame(context: Context, frame: EnhancedFrame, scale: Int, sourceMediaId: String, sourcePositionMs: Long?): EnhancedOutput
+val ExportQuality.resolution: Resolution                              // Q1080 → P1080, Q1440 → P1440, Q2160 → P2160
+class EnhanceException(val error: EnhanceError)                       // EnhanceError.TooLarge | Memory (frames)
 class LiveUpscaleProbe @Inject constructor(frameEnhancer: FrameEnhancer) { suspend fun run(): LiveUpscaleDecision }
 object LiveSharpen { fun effect(scale: Float, amount: Float = 0.6f): RenderEffect? }   // null below Android 13
 ```
 
 Hilt: `EnhanceModule` binds `FrameEnhancer` → `DefaultFrameEnhancer`, `ClipUpscaler` → `DefaultClipUpscaler` (both
 singletons) and provides `@Named("enhance") DataStore<Preferences>` (`enhance_measurements`, device measurements only).
-No strings were added: German messages for `UpscaleError` / `LiveUpscaleDecision.Reason` belong to enhance-ui.
+No strings were added: German messages for `UpscaleError`, `EnhanceError` and `LiveUpscaleDecision.Reason` belong
+to enhance-ui. `FrameEnhancer.enhanceFrame` reports progress on a `Dispatchers.Default` thread, `ClipUpscaler` on its
+pipeline thread.
 
 ## Limits
 
@@ -228,9 +256,9 @@ No strings were added: German messages for `UpscaleError` / `LiveUpscaleDecision
 - 1440p/2160p need a hardware encoder for that size; older phones may only offer 1440p or neither (typed `Encoder`
   error, test `targetBeyondEncoderLimitsFailsTyped`). HEVC output depends on the device encoder.
 - `GL_MAX_TEXTURE_SIZE` bounds the ML clip path (≥ 4096 needed for ×2 of 1080p) and output frame size.
-- Jobs survive leaving the screen but not process death; long clips should run in a foreground service/WorkManager
-  in the UI phase. Progress callbacks arrive on the pipeline thread.
-- Interlaced, HDR/10-bit or variable-rotation sources are not special-cased (HDR is tone-unaware: GL reads 8-bit).
+- Jobs survive leaving the screen but not process death (leftovers are swept at the next start); long clips should
+  run in a foreground service/WorkManager in the UI phase. Progress callbacks arrive on the pipeline thread.
+- Interlaced or HDR/10-bit sources are not special-cased (HDR is tone-unaware: GL reads 8-bit).
 - Very first `capabilities()` call blocks for the one-off measurement (≈ 1 s emulator; longer on slow phones).
 
 ## Measure on a phone (owner procedure)
