@@ -55,7 +55,7 @@ class MediaRepositoryTest {
         repo.upsertFromRecorderListing(7, listOf(recorderFile("/sim/x.mp4")))
 
         val again = dao.byRecorderPath("/sim/a.mp4")!!
-        assertThat(again.id).isEqualTo(a.id)
+        assertThat(again.id).isEqualTo(a.id) // no phone or Drive copy: the row just follows the listing
         assertThat(again.recorderTime).isEqualTo("2026-10-01 12:00:05")
         assertThat(a.originalFileName).isEqualTo("a.mp4")
         assertThat(a.category).isEqualTo(MediaCategory.NORMAL)
@@ -133,11 +133,71 @@ class MediaRepositoryTest {
         repo.upsertFromRecorderListing(0, listOf(recorderFile("/sim/a.mp4"), recorderFile("/sim/c.mp4")))
         val c = dao.byRecorderPath("/sim/c.mp4")!!
 
-        repo.reconcileRecorderListing(0, setOf("/sim/a.mp4"))
+        repo.upsertFromRecorderListing(0, listOf(recorderFile("/sim/d.mp4")))
+        val queued = dao.byRecorderPath("/sim/d.mp4")!!
+
+        repo.reconcileRecorderListing(0, setOf("/sim/a.mp4")) { it == queued.id }
 
         assertThat(dao.byRecorderPath("/sim/a.mp4")).isNotNull()
         assertThat(dao.get(kept.id)!!.run { recorderPath to localUri }).isEqualTo(null to kept.localUri)
         assertThat(dao.get(c.id)).isNull()
+        assertThat(dao.get(queued.id)!!.recorderPath).isEqualTo("/sim/d.mp4") // download queued: left alone
+    }
+
+    @Test
+    fun `a reused path with another time is a new recording and the old row keeps its phone copy`() = runTest {
+        val repo = repository()
+        val old = repo.downloaded("/sim/a.mp4") // fileTime 2026-10-01 12:00:00
+
+        repo.upsertFromRecorderListing(0, listOf(recorderFile("/sim/a.mp4", time = "2027-01-01 08:00:00"))) // after a format
+
+        val now = dao.byRecorderPath("/sim/a.mp4")!!
+        assertThat(now.id).isNotEqualTo(old.id)
+        assertThat(now.run { recorderTime to localUri }).isEqualTo("2027-01-01 08:00:00" to null)
+        assertThat(dao.get(old.id)!!.run { recorderPath to localUri }).isEqualTo(null to old.localUri)
+        assertThat(old.localFile!!.isFile).isTrue()
+    }
+
+    @Test
+    fun `a file listed again re-links its detached row`() = runTest {
+        val repo = repository()
+        val old = repo.downloaded("/sim/a.mp4")
+        repo.markRecorderDeleted("/sim/a.mp4") // e.g. a listing that did not show it
+
+        repo.upsertFromRecorderListing(0, listOf(recorderFile("/sim/a.mp4")))
+
+        assertThat(dao.byRecorderPath("/sim/a.mp4")!!.id).isEqualTo(old.id)
+        assertThat(dao.recorderType(0)).hasSize(1)
+    }
+
+    @Test
+    fun `forgetting the Drive copy keeps the phone file`() = runTest {
+        val repo = repository()
+        val item = repo.downloaded("/sim/a.mp4")
+        repo.update(item.id) { it.copy(driveFileId = "d1", backupState = BackupState.DONE) }
+        repo.markRecorderDeleted("/sim/a.mp4")
+
+        repo.markDriveDeleted(item.id)
+
+        val kept = dao.get(item.id)!!
+        assertThat(kept.run { driveFileId to backupState }).isEqualTo(null to BackupState.NONE)
+        assertThat(kept.localFile!!.isFile).isTrue()
+    }
+
+    @Test
+    fun `deleting an original keeps its derived outputs`() = runTest {
+        val repo = repository()
+        val parent = repo.downloaded("/sim/e.mp4", type = 1)
+        val output = File(context.filesDir, "enhance/${UUID.randomUUID()}.jpg").apply { parentFile!!.mkdirs() }
+        jpeg(output)
+        val derived = repo.registerDerived(MediaKind.ENHANCED_FRAME, output, parent.id, 1_000, null)
+
+        repo.markRecorderDeleted("/sim/e.mp4")
+        repo.deleteLocalCopy(parent.id)
+
+        assertThat(dao.get(parent.id)).isNull()
+        assertThat(dao.get(derived.id)!!.parentId).isEqualTo(parent.id)
+        assertThat(output.isFile).isTrue()
     }
 
     @Test

@@ -64,7 +64,9 @@ class RecordingsViewModel @Inject constructor(
     val transfers: StateFlow<Map<String, TransferProgress>> = downloads.progress
     val local: StateFlow<List<MediaItem>> = repository.observeLocal().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val browsers = RecordingsTab.entries.mapNotNull { it.type }.associateWith { RecorderBrowser(it, manager, repository, viewModelScope) }
+    private val browsers = RecordingsTab.entries.mapNotNull { it.type }.associateWith { type ->
+        RecorderBrowser(type, manager, repository, viewModelScope) { id -> downloads.progress.value[id]?.state in DownloadQueue.ACTIVE }
+    }
     private var shown: Int? = null // recorder type of the visible tab
 
     private val _selection = MutableStateFlow<Set<String>>(emptySet())

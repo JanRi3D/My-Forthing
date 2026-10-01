@@ -101,6 +101,13 @@ interface MediaDao {
     @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL")
     suspend fun recorderType(type: Int): List<MediaItem>
 
+    /** A row whose recorder copy was forgotten, matching a listed file by type, name and raw time. */
+    @Query(
+        "SELECT * FROM media_item WHERE recorderPath IS NULL AND recorderType = :type AND originalFileName = :name " +
+            "AND recorderTime IS :time LIMIT 1",
+    )
+    suspend fun detached(type: Int, name: String, time: String?): MediaItem?
+
     @Query("SELECT * FROM media_item WHERE parentId = :id ORDER BY createdAt")
     fun observeChildren(id: String): Flow<List<MediaItem>>
 

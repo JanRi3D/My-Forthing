@@ -67,33 +67,46 @@ class MediaRepository @Inject constructor(
      * Gives every listed 4100 entry of [type] a row (id stable per recorder path) so it can be downloaded, opened and
      * backed up; updates thumbnail path and time when the recorder reports new ones. Entries without fileName are
      * skipped (nothing could address them).
+     *
+     * Paths can be reused (format, clock reset): a known path with another `fileTime` whose row has a phone or Drive
+     * copy is another recording, so the old row is detached (`recorderPath = null`) and a new row inserted. A path
+     * without a row re-links a detached row of the same type, name and time (the file is back on the recorder).
      */
     suspend fun upsertFromRecorderListing(type: Int, files: List<RecorderFile>) = mutex.withLock {
         db.withTransaction {
             for (file in files) {
                 val path = file.fileName ?: continue
                 val existing = dao.byRecorderPath(path)
-                if (existing == null) {
-                    dao.insert(fromListing(type, path, file))
-                } else if (existing.recorderThumbPath != file.fileThm || existing.recorderTime != file.fileTime || existing.recorderType != type) {
-                    dao.update(
-                        existing.copy(
-                            recorderType = type, category = MediaCategory.of(type), recorderThumbPath = file.fileThm,
-                            recorderTime = file.fileTime, recorderTimeEpochGuess = epochGuess(file.fileTime),
-                        ),
-                    )
+                when {
+                    existing == null -> {
+                        val detached = dao.detached(type, path.substringAfterLast('/'), file.fileTime)
+                        if (detached != null) dao.update(detached.listed(type, path, file)) else dao.insert(fromListing(type, path, file))
+                    }
+                    existing.recorderTime != null && file.fileTime != null && existing.recorderTime != file.fileTime &&
+                        (existing.localUri != null || existing.driveFileId != null) -> {
+                        dao.update(existing.copy(recorderPath = null, recorderThumbPath = null))
+                        dao.insert(fromListing(type, path, file))
+                    }
+                    existing.recorderThumbPath != file.fileThm || existing.recorderTime != file.fileTime || existing.recorderType != type ->
+                        dao.update(existing.listed(type, path, file))
                 }
             }
         }
     }
 
     /**
-     * A listing of [type] that ran to its end without a cursor problem: rows whose path was not listed are no longer
-     * on the recorder (loop overwrite, deleted elsewhere).
+     * A listing of [type] that reached the recorder's `totalFileNum`: rows whose path was not listed are no longer on
+     * the recorder (loop overwrite, deleted elsewhere). Rows for which [keep] is true (download queued or running)
+     * are left alone.
      */
-    suspend fun reconcileRecorderListing(type: Int, listed: Set<String>) {
-        dao.recorderType(type).mapNotNull { it.recorderPath }.filterNot { it in listed }.forEach { markRecorderDeleted(it) }
+    suspend fun reconcileRecorderListing(type: Int, listed: Set<String>, keep: (String) -> Boolean = { false }) {
+        dao.recorderType(type).filter { it.recorderPath !in listed && !keep(it.id) }.forEach { markRecorderDeleted(it.recorderPath!!) }
     }
+
+    private fun MediaItem.listed(type: Int, path: String, file: RecorderFile) = copy(
+        recorderType = type, category = MediaCategory.of(type), recorderPath = path, recorderThumbPath = file.fileThm,
+        recorderTime = file.fileTime, recorderTimeEpochGuess = epochGuess(file.fileTime),
+    )
 
     /**
      * Registers an output of feature/enhance-ui as its own item linked to [parentId]. The original is never modified;

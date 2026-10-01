@@ -40,11 +40,56 @@ class RecorderListingTest {
     }
 
     @Test
+    fun `a short page below the reported total asks again until an empty page`() {
+        val short = Listing().append(page("/a", "/b", total = 5), pageNum = 3)
+        assertThat(short.end).isNull() // 2 of 5: the recorder may page in smaller batches
+        assertThat(short.reachedTotal).isFalse()
+        val done = short.append(page(), pageNum = 3)
+        assertThat(done.end).isEqualTo(ListingEnd.COMPLETE)
+        assertThat(done.reachedTotal).isFalse() // ended below the total: missing files do not count as gone
+        assertThat(Listing().append(page("/a", total = 1), pageNum = 3).run { end to reachedTotal }).isEqualTo(ListingEnd.COMPLETE to true)
+        assertThat(Listing().append(page("/a"), pageNum = 3).end).isEqualTo(ListingEnd.COMPLETE) // no total reported
+    }
+
+    @Test
+    fun `a listing below the total does not forget recorder copies`() = runTest {
+        val all = SimulatedFiles.series(0, "normal", "N", ".mp4", 60, java.time.LocalDateTime.of(2026, 10, 1, 1, 0), 60, 1000)
+        var calls = 0
+        val sim = RecorderSimulator().apply {
+            // 30 per request, reports 100 files, then an empty page.
+            handlers[4100] = { calls++.let { SimulatedFiles.listReply(all, all.drop(it * 30).take(30)).replace("\"totalFileNum\":60", "\"totalFileNum\":100") } }
+        }
+        val manager = managerFor(sim).apply { setSimulator(true) }
+        manager.connect()
+        val repository = MediaRepository(context, db, manager)
+        repository.upsertFromRecorderListing(0, listOf(recorderFile("/sim/old.mp4")))
+        val browser = RecorderBrowser(0, manager, repository, backgroundScope)
+
+        browser.refresh()
+        repeat(3) {
+            eventually { !browser.state.value.loading }
+            browser.loadMore()
+        }
+        eventually { browser.state.value.listing.end != null }
+
+        assertThat(browser.state.value.listing.end).isEqualTo(ListingEnd.COMPLETE)
+        assertThat(browser.state.value.listing.files).hasSize(60)
+        assertThat(cursors(sim)).hasSize(3)
+        assertThat(db.mediaDao().byRecorderPath("/sim/old.mp4")).isNotNull() // 60 of 100 listed: no reconcile
+    }
+
+    @Test
     fun `an inclusive cursor is deduplicated and paging continues`() {
         val listing = Listing().append(page("/a", "/b", "/c"), 3).append(page("/c", "/d", "/e"), 3)
         assertThat(listing.files.map { it.fileName }).containsExactly("/a", "/b", "/c", "/d", "/e").inOrder()
         assertThat(listing.end).isNull()
         assertThat(listing.cursor).isEqualTo("/e")
+    }
+
+    @Test
+    fun `an inclusive cursor repeated alone on a short page completes`() {
+        val listing = Listing().append(page("/a", "/b", "/c"), 3).append(page("/c"), 3)
+        assertThat(listing.end).isEqualTo(ListingEnd.COMPLETE)
     }
 
     @Test

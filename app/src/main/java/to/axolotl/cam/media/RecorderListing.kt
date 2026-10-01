@@ -30,23 +30,30 @@ data class Listing(
     /** Cursor for the next request: the exact fileName of the last entry of the last page ("" = first page). */
     val cursor: String = "",
 ) {
+    /** The listing holds as many files as the recorder reported: only then may missing files count as gone. */
+    val reachedTotal: Boolean get() = totalFileNum != null && files.size >= totalFileNum
+
     /**
      * Appends one page (report "Cursor-based browsing"). Entries already listed are dropped (the recorder's cursor
-     * inclusivity is unknown) and entries without fileName are skipped. The listing ends on an empty page or one
-     * shorter than [pageNum]; it stops when the page's last fileName is missing or was listed before, which guards
-     * against a recorder that ignores or repeats the cursor.
+     * inclusivity is unknown) and entries without fileName are skipped. The listing ends on an empty page, or on one
+     * shorter than [pageNum] once `totalFileNum` is reached (or not reported); a short page below the total asks
+     * again. It stops when the page's last fileName is missing or was listed before, which guards against a recorder
+     * that ignores or repeats the cursor.
      */
     fun append(page: FileList, pageNum: Int = PAGE_SIZE): Listing {
         val before = files.mapTo(HashSet()) { it.fileName }
         val last = page.fileList.lastOrNull()?.fileName
         val seen = HashSet(before)
         val fresh = page.fileList.filter { it.fileName != null && seen.add(it.fileName) }
+        val total = page.totalFileNum ?: totalFileNum
         val end = when {
-            page.fileList.size < pageNum -> ListingEnd.COMPLETE
+            page.fileList.isEmpty() -> ListingEnd.COMPLETE
+            fresh.isEmpty() && page.fileList.size < pageNum -> ListingEnd.COMPLETE // e.g. only the inclusive cursor again
             last == null || last in before -> ListingEnd.STOPPED
+            page.fileList.size < pageNum && (total == null || files.size + fresh.size >= total) -> ListingEnd.COMPLETE
             else -> null
         }
-        return Listing(files + fresh, page.totalFileNum ?: totalFileNum, page.totalFileSize ?: totalFileSize, end, last ?: cursor)
+        return Listing(files + fresh, total, page.totalFileSize ?: totalFileSize, end, last ?: cursor)
     }
 
     companion object {
@@ -65,13 +72,15 @@ data class BrowserState(
 
 /**
  * Pages one recorder type with 4100 and registers every page in the library before showing it. [refresh] starts
- * again with an empty cursor; [loadMore] requests the next page unless the listing ended or failed.
+ * again with an empty cursor; [loadMore] requests the next page unless the listing ended or failed. [inTransfer]
+ * (media id) protects rows with a queued or running download from the end-of-listing reconcile.
  */
 class RecorderBrowser(
     val type: Int,
     private val manager: RecorderConnectionManager,
     private val repository: MediaRepository,
     private val scope: CoroutineScope,
+    private val inTransfer: (String) -> Boolean = { false },
 ) {
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
@@ -99,8 +108,8 @@ class RecorderBrowser(
                 is RecorderResult.Ok -> {
                     repository.upsertFromRecorderListing(type, result.value.fileList)
                     val listing = current.listing.append(result.value)
-                    if (listing.end == ListingEnd.COMPLETE) {
-                        repository.reconcileRecorderListing(type, listing.files.mapNotNullTo(HashSet()) { it.fileName })
+                    if (listing.end == ListingEnd.COMPLETE && listing.reachedTotal) {
+                        repository.reconcileRecorderListing(type, listing.files.mapNotNullTo(HashSet()) { it.fileName }, inTransfer)
                     }
                     _state.value = BrowserState(listing, loading = false, error = null, started = true)
                 }
