@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Axolotl Cam"
+rootProject.name = "My Forthing"
 include(":app")
 include(":recorder")

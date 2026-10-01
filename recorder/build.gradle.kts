@@ -38,7 +38,7 @@ tasks.register<JavaExec>("runSimulator") {
     group = "application"
     description = "Runs the recorder simulator on 127.0.0.1:7878 and its media HTTP server on 8080 (emulator: 10.0.2.2)."
     classpath = sourceSets["testFixtures"].runtimeClasspath
-    mainClass = "to.axolotl.cam.recorder.SimulatorTcpServerKt"
+    mainClass = "me.ri3d.cam.recorder.SimulatorTcpServerKt"
     // -PsimThrottle=<bytes per second> slows the media downloads (resume tests).
     args(rootProject.file("local.properties").absolutePath, "7878", "8080", providers.gradleProperty("simThrottle").getOrElse("0"))
 }

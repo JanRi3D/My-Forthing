@@ -1,6 +1,6 @@
 # Media (feature/media)
 
-Package `to.axolotl.cam.media`. Implements CONTRACTS §8 on top of the connection manager (§7) and `:recorder` (§6).
+Package `me.ri3d.cam.media`. Implements CONTRACTS §8 on top of the connection manager (§7) and `:recorder` (§6).
 
 | File | Contents |
 | --- | --- |
@@ -140,7 +140,7 @@ class DownloadQueue { val progress: StateFlow<Map<String, TransferProgress>>; su
 ```
 enhance-ui: register outputs with `registerDerived(ENHANCED_FRAME | UPSCALED_CLIP, output.file, sourceMediaId, positionMs,
 output.info)`; the file name UUID becomes the item id. drive-backup: `MediaItem.localFile` is the file to upload;
-`BackupQueue` can reuse the WorkManager/Hilt worker setup (`AxolotlApp` is the `Configuration.Provider`).
+`BackupQueue` can reuse the WorkManager/Hilt worker setup (`MyForthingApp` is the `Configuration.Provider`).
 
 ## Screenshot folder contract (consumer side)
 
@@ -178,7 +178,7 @@ recorder address only); keep its `192.168.42.1` entry identical to `src/main`.
 
 ## Validation
 
-Unit tests (`to.axolotl.cam.media.*`, Robolectric, [SIM] = real connection manager + `RecorderSimulator`):
+Unit tests (`me.ri3d.cam.media.*`, Robolectric, [SIM] = real connection manager + `RecorderSimulator`):
 migration 2→3 from the exported v2 schema; `Listing.append` (exact cursor, short/empty page, inclusive cursor, repeated /
 cycling / missing cursor); 120 simulated files in 3 requests with exact cursors [SIM]; cursor-ignoring recorder stopped
 after 2 requests [SIM]; failed page waits for retry [SIM]; MockWebServer downloads: 206 resume with `Range`, 200 restart,

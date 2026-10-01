@@ -19,6 +19,9 @@ val localProperties = Properties().apply {
 fun String.asBuildConfigString() = "\"" +
     replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 
+// applicationId and namespace; google-services.json must contain a client for this package.
+val appPackage = "me.ri3d.cam"
+
 // Firebase without the google-services plugin (accounts): app/google-services.json is git-ignored and only read if
 // present. Every value stays "" when the file is missing or still holds the example's PLACEHOLDER values, so Firebase
 // is never initialised and the app runs in guest mode only.
@@ -26,14 +29,14 @@ val googleServices: Any? = providers.fileContents(layout.projectDirectory.file("
     ?.let { groovy.json.JsonSlurper().parseText(it) }
 fun Any?.json(key: String): Any? = (this as? Map<*, *>)?.get(key)
 val firebaseClient = (googleServices.json("client") as? List<*>)
-    ?.firstOrNull { it.json("client_info").json("android_client_info").json("package_name") == "to.axolotl.cam" }
+    ?.firstOrNull { it.json("client_info").json("android_client_info").json("package_name") == appPackage }
 val firebaseWebClient = ((firebaseClient.json("oauth_client") as? List<*>).orEmpty() +
     (firebaseClient.json("services").json("appinvite_service").json("other_platform_oauth_client") as? List<*>).orEmpty())
     .firstOrNull { it.json("client_type") == 3 }
 fun firebaseValue(value: Any?) = (value as? String)?.takeUnless { "PLACEHOLDER" in it }.orEmpty().asBuildConfigString()
 
 android {
-    namespace = "to.axolotl.cam"
+    namespace = appPackage
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -41,7 +44,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "to.axolotl.cam"
+        applicationId = appPackage
         minSdk = 26
         targetSdk = 36
         versionCode = 1

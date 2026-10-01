@@ -1,6 +1,6 @@
 # Feature: Google Drive authorisation and REST client (`feature/drive-auth`)
 
-Package `to.axolotl.cam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
+Package `me.ri3d.cam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
 
 ## What it does
 
@@ -18,10 +18,10 @@ Without these steps "Mit Google Drive verbinden" ends with **"Google-Cloud-Konfi
 
 1. **Project**: open <https://console.cloud.google.com>, create a project or pick the existing Firebase project (a Firebase project is a Cloud project; sharing it is fine, Drive still does not use Firebase). The future web app must use **this same project** (see `DRIVE_FORMAT.md` §1).
 2. **Enable the API**: APIs & Services → Library → "Google Drive API" → Enable. (Missing → connect works, but every Drive call fails with HTTP 403 `accessNotConfigured`, shown in the app as "Die Drive API ist im Google-Cloud-Projekt der App nicht aktiviert".)
-3. **OAuth consent screen** (Google Auth Platform): app name "Axolotl Cam", support e-mail, audience **External**. Data access → Add scope `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app"; a non-sensitive scope). While the app is in **Testing**, add every Google account that should connect under Audience → Test users (max. 100).
+3. **OAuth consent screen** (Google Auth Platform): app name "My Forthing", support e-mail, audience **External**. Data access → Add scope `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app"; a non-sensitive scope). While the app is in **Testing**, add every Google account that should connect under Audience → Test users (max. 100).
    - Testing status: Google expires the grants of test users after **7 days**; the app then shows "Erneut verbinden". Publishing the app (brand verification only, `drive.file` needs no security assessment) removes the limit.
 4. **Android OAuth clients** (Clients → Create client → Android), one per signing certificate:
-   - Package name `to.axolotl.cam`.
+   - Package name `me.ri3d.cam`. Clients created for the old package name do not match; create new ones.
    - **Debug** SHA-1: `./gradlew :app:signingReport` (variant `debug`) or `keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android`. Each developer machine has its own debug keystore → one client per machine.
    - **Release** SHA-1: `keytool -list -v -keystore <upload keystore> -alias <alias>` (keystore from `keystore.properties`, outside git). If the APK is ever distributed through Google Play with Play App Signing, add a third client with the SHA-1 from Play Console → App integrity → App signing key.
 5. **Check**: install the matching build, Settings → Google Drive → connect with a test user → Google shows the `drive.file` consent → the screen shows the account e-mail and "x von y belegt · z frei".
@@ -46,9 +46,9 @@ Without these steps "Mit Google Drive verbinden" ends with **"Google-Cloud-Konfi
 - `DriveApi.ensureMonthFolder(rootId, month)` – `media/<yyyy-MM>`; month from `DriveFormat.monthFolderName(recorderTimeEpochGuess, downloadedAt ?: createdAt)`.
 - `DriveError` sealed class: `NotConnected`, `NeedsReconnect`, `InsufficientStorage`, `Offline`, `Cancelled`, `Authorization(statusCode)`, `ScopeNotGranted`, `Http(code, reason)`.
 - Connect fails unless the account e-mail can be read from Drive `about.user`: network problems and a missing e-mail → `Offline`, HTTP errors keep their reason (403 `accessNotConfigured` → "Drive API nicht aktiviert"). The grant at Google stays, so the retry is silent.
-- Format: every v1 file also carries `axo.role` (root / manifest / folder / media / sidecar) so readers can tell media from sidecars without downloading content; sidecars carry `axo.format`, `axo.role`, `axo.id`. Files without `axo.role` are not part of the format.
+- Format: every v1 file also carries `mf.role` (root / manifest / folder / media / sidecar) so readers can tell media from sidecars without downloading content; sidecars carry `mf.format`, `mf.role`, `mf.id`. Files without `mf.role` are not part of the format.
 - `delete(id)` deletes permanently (frees quota) and treats 404 as done. The backup feature should delete the sidecar too.
-- Root folder found by `axo.role=root` (preferring the current name), so a renamed root is reused.
+- Root folder found by `mf.role=root` (preferring the current name), so a renamed root is reused.
 - The account e-mail is read from Drive `about.user` because `AuthorizationResult.toGoogleSignInAccount()` is deprecated in play-services-auth 22.
 - OkHttp pinned to 5.4.0: 5.5.0 (`okhttp-android`) requires compileSdk 37.
 - `kotlinx-coroutines-play-services` (for `Task.await`) is declared explicitly, on the coroutines version line.

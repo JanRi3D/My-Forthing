@@ -2,7 +2,7 @@
 <!-- German is the default locale. Each feature appends its strings in its own block marked with the feature name. -->
 <resources>
     <!-- foundation -->
-    <string name="app_name">Axolotl Cam</string>
+    <string name="app_name">My Forthing</string>
 
     <string name="action_back">Zurück</string>
     <string name="action_cancel">Abbrechen</string>
