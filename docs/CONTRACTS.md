@@ -16,9 +16,10 @@ Binding for every agent. Producers implement exactly these shapes (improvements 
 | `app/.../backup/` | feature/drive-backup | rules, transfer queue, status |
 | `app/.../plates/` | feature/plates-core then feature/plates-ui | engine, history, UI |
 | `app/.../enhance/` | feature/enhance-core then feature/enhance-ui | models, pipelines, UI |
-| `docs/`, `.claude/` | project manager | plans, contracts, reports |
+| `docs/features/<feature>.md` | the feature's owner | setup notes, decisions, measurements, hardware-verification items for that feature |
+| `docs/` (rest), `.claude/` | project manager | plans, contracts, reports |
 
-Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gradle.kts`, `AndroidManifest.xml`, `core/navigation/Routes.kt`, `core/navigation/AxoNavHost.kt` (one registration line / slot argument per feature), `core/FeatureFlags.kt` (flip your own flag only), `core/data/AppDatabase.kt` (add entities + migration), `res/values/strings.xml`, `res/xml/data_extraction_rules.xml` (add excludes only)): owned by foundation; other agents may **append** (new deps, new routes, new entities, new strings in their own `<!-- feature -->` block) and must list every such change in their report. Android Auto Backup is disabled (`allowBackup="false"`, cloud and device-transfer excludes): local data stays on the phone, as the UI promises. Hilt: each feature provides its own `@Module` in its package; never edit another feature's module.
+Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gradle.kts`, `AndroidManifest.xml`, `core/navigation/Routes.kt`, `core/navigation/AxoNavHost.kt` (one registration line / slot argument per feature), `core/FeatureFlags.kt` (flip your own flag only), `core/data/AppDatabase.kt` (add entities + migration), `res/values/strings.xml`, `res/xml/data_extraction_rules.xml` (add excludes only), `core/settings/SettingsScreen.kt` (append one row per feature in the App section, nothing else)): owned by foundation; other agents may **append** (new deps, new routes, new entities, new strings in their own `<!-- feature -->` block) and must list every such change in their report. Android Auto Backup is disabled (`allowBackup="false"`, cloud and device-transfer excludes): local data stays on the phone, as the UI promises. Hilt: each feature provides its own `@Module` in its package; never edit another feature's module.
 
 ## 2. Naming, branding, localisation
 
@@ -182,7 +183,9 @@ interface AccountRepository {
 }
 enum class MergeStrategy { KEEP_LOCAL, KEEP_REMOTE, ASK }
 ```
-Firestore: `users/{uid}` { displayName, photoPath, preferences (AppPreferences minus device-local flags), createdAt, updatedAt }. Storage: `users/{uid}/avatar.jpg`. Migration rule: if `users/{uid}` already has data, show local vs remote and let the user choose; never overwrite silently. Signed-in users without network keep working from the cached `LocalProfile`. Firebase is initialised lazily; a missing or placeholder `google-services.json` must not crash guest mode.
+As implemented in `account/`: `AccountRepository.isConfigured`; `AccountNotConfigured` (every auth call fails with it when `app/google-services.json` is absent – Gradle parses that git-ignored file into `BuildConfig.FIREBASE_*`, no google-services plugin); `MergeConflict(local: ProfileSummary, remote: ProfileSummary)` and `LinkedToOtherAccount(accountEmail)` from `linkGuestProfile` (`ASK` surfaces the conflict, `KEEP_REMOTE` = switch accounts); `SignedIn` is reported only when the Firebase user equals `LocalProfile.linkedUid`, with `displayName` from the local profile; synced preferences are only `theme` and `exportQuality`; `accountGraph(navController)`, `AccountSettingsRow(shape, onNavigate)`, `Throwable.toAccountMessage(): UiText?` (null = cancelled); route `Account`. Firebase is never initialised for guests.
+
+Firestore: `users/{uid}` { displayName, photoPath, preferences (theme, exportQuality), createdAt, updatedAt }. Storage: `users/{uid}/avatar.jpg` (optional; without it the picture stays on the phone and is never deleted by a re-sign-in). Migration rule: if `users/{uid}` already has data, show local vs remote and let the user choose; never overwrite silently. Signed-in users without network keep working from the cached `LocalProfile`. Firebase is initialised lazily; a missing or placeholder `google-services.json` must not crash guest mode.
 
 ## 10. Drive (feature/drive-auth, `drive/`) and backup (feature/drive-backup, `backup/`)
 
@@ -220,7 +223,7 @@ Sidecar schema v1:
 ```
 `parent` and `plates` may be `null`; `confidence` may be `null`. `recorderTimeZone` stays `null` unless the recorder reports one. Incomplete backups are visible as media files without a sidecar (or sidecar `complete=false`). Discovery: `files.list` with `q="appProperties has { key='axo.format' and value='1' }"`.
 
-Backup queue: `BackupQueue` (WorkManager unique work per mediaId, constraints from `AppPreferences`), states in `MediaItem.backupState`, resumable-upload session URI persisted for restart recovery, duplicate prevention by querying `axo.id` before upload.
+Backup queue: `BackupQueue` (WorkManager unique work per mediaId, constraints from `AppPreferences`), states in `MediaItem.backupState`, resumable-upload session URI persisted for restart recovery, duplicate prevention by querying `axo.id` before upload. Rules from the drive-auth review: when `DriveAuthState.Connected.accountEmail` changes (account switch), reset every `driveFileId`/`backupState`/`driveMd5` and drop stored upload-session URIs (they can complete an upload without the auth header); `DriveApi.delete()` treats 404 as success, so never use it to infer that a file existed in the current account; `deleteOnDrive(id)` removes the sidecar together with the media file; uploads run one at a time (no folder cache/lock in `DriveApi`). As implemented in `drive/`: `DriveAuth.connect(activity, chooseAccount = false)`, `invalidate(token, revoked)`, `NeedsReconnect(reason, accountEmail?)`, `DriveApi.ensureMonthFolder(rootId, month)`, `uploadResumable(..., sessionUri, onSessionUri, onProgress)`, `DriveError` sealed hierarchy (`NotConnected, NeedsReconnect, InsufficientStorage, Offline, Cancelled, Authorization(statusCode), ScopeNotGranted, Http(code, reason)`), every v1 file carries `axo.role` (root/manifest/folder/media/sidecar), `DriveFormatReader.scan(api)` → `DriveBackupEntry(mediaId, media, sidecar) { complete }`.
 
 ## 11. Plates (feature/plates-core → feature/plates-ui, `plates/`)
 
@@ -243,7 +246,7 @@ Outputs are new `MediaItem`s (`ENHANCED_FRAME` / `UPSCALED_CLIP` with `parentId`
 
 ## 13a. Build-version rule
 
-One `kotlin` version key in `gradle/libs.versions.toml` drives `kotlin-jvm`, `kotlin-compose` and `kotlin-serialization` (currently 2.4.10, the Compose-compiler release; AGP 9.3.3 bundles KGP 2.2.10 but the plugin on the root classpath wins). kotlinx libraries must be releases built for that Kotlin line. Every AndroidX dependency must accept compileSdk 36 (`checkDebugAarMetadata`); do not raise compileSdk. Emulator (`emulator-5554`, x86_64, API 36) is shared: install with `adb install -r`, keep sessions short, treat performance numbers from it as indicative only.
+One `kotlin` version key in `gradle/libs.versions.toml` drives `kotlin-jvm`, `kotlin-compose` and `kotlin-serialization` (currently 2.4.10, the Compose-compiler release; AGP 9.3.3 bundles KGP 2.2.10 but the plugin on the root classpath wins). kotlinx libraries must be releases compatible with that Kotlin line (currently coroutines 1.10.2, serialization 1.11.0; move to serialization 1.12.0 once final and re-run the `:recorder` -204 tests). Every AndroidX dependency must accept compileSdk 36 (`checkDebugAarMetadata`); do not raise compileSdk. Emulator (`emulator-5554`, x86_64, API 36) is shared: install with `adb install -r`, keep sessions short, treat performance numbers from it as indicative only.
 
 ## 13. Testing conventions
 

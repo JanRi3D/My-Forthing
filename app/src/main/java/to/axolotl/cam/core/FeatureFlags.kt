@@ -6,7 +6,7 @@ package to.axolotl.cam.core
  */
 object FeatureFlags {
     /** Welcome / Offline-Profil account buttons, Settings → Konto (feature/accounts). */
-    const val accounts = false
+    const val accounts = true
 
     /** Home plate search bar (feature/plates-ui). */
     const val plates = false

@@ -18,6 +18,7 @@ sealed interface Route
 @Serializable data object ResetSent : Route
 @Serializable data object OfflineProfile : Route
 @Serializable data object Upgrade : Route
+@Serializable data object Account : Route
 
 // Dashcam
 @Serializable data object Home : Route
@@ -41,6 +42,7 @@ sealed interface Route
 // Backup and storage
 @Serializable data object Backup : Route
 @Serializable data object Storage : Route
+@Serializable data object DriveAccount : Route
 
 /** Home once a profile exists on this phone, otherwise onboarding. */
 fun startDestination(hasProfile: Boolean): Route = if (hasProfile) Home else Welcome
