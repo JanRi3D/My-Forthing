@@ -13,6 +13,7 @@ import android.os.ConditionVariable
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
+import android.os.storage.StorageManager
 import android.view.Surface
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -297,7 +298,12 @@ private class Transcode(
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
         val needed = estimateBytes(bitrateFor(outW, outH, fps, request.codec), source.audioTrack >= 0, source.durationUs)
-        if (tmp.parentFile!!.usableSpace < needed + needed / 5 + FREE_SPACE_MARGIN) {
+        val dir = tmp.parentFile!!
+        // Allocatable space counts cache the system may clear for us; plain usable space is the fallback.
+        val free = runCatching {
+            context.getSystemService(StorageManager::class.java).let { it.getAllocatableBytes(it.getUuidForPath(dir)) }
+        }.getOrDefault(dir.usableSpace)
+        if (free < needed + needed / 5 + FREE_SPACE_MARGIN) {
             source.release()
             throw UpscaleFailure(UpscaleError.Storage("not enough space for ≈$needed bytes"))
         }
@@ -309,17 +315,17 @@ private class Transcode(
         var inputSurface: Surface? = null
         var decoderSurface: Surface? = null
         try {
-            encoder = encoding {
-                val name = MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format)
-                    ?: throw UpscaleFailure(UpscaleError.Encoder("no ${request.codec} encoder for ${outW}x$outH@$fps"))
-                MediaCodec.createByCodecName(name).also { codec ->
-                    val bitrate = bitrateFor(outW, outH, fps, request.codec)
-                    val range = codec.codecInfo.getCapabilitiesForType(request.codec.mime).videoCapabilities?.bitrateRange
-                    format.setInteger(MediaFormat.KEY_BIT_RATE, range?.clamp(bitrate) ?: bitrate)
-                    codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                    inputSurface = codec.createInputSurface()
-                    codec.start()
-                }
+            val encoderName = encoding { MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format) }
+                ?: throw UpscaleFailure(UpscaleError.Encoder("no ${request.codec} encoder for ${outW}x$outH@$fps"))
+            // Assigned before configure so a failing configure still releases the (scarce) codec in finally.
+            encoder = encoding { MediaCodec.createByCodecName(encoderName) }
+            encoding {
+                val bitrate = bitrateFor(outW, outH, fps, request.codec)
+                val range = encoder.codecInfo.getCapabilitiesForType(request.codec.mime).videoCapabilities?.bitrateRange
+                format.setInteger(MediaFormat.KEY_BIT_RATE, range?.clamp(bitrate) ?: bitrate)
+                encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                inputSurface = encoder.createInputSurface()
+                encoder.start()
             }
             gl = encoding { GlScaler(inputSurface!!) }
             val frameReady = ConditionVariable()
@@ -328,12 +334,10 @@ private class Transcode(
                 setOnFrameAvailableListener({ frameReady.open() }, Handler(callbacks.looper))
             }
             decoderSurface = Surface(texture)
-            decoder = decoding {
-                val mime = source.format.getString(MediaFormat.KEY_MIME)!!
-                MediaCodec.createDecoderByType(mime).apply {
-                    configure(source.format, decoderSurface, null, 0)
-                    start()
-                }
+            decoder = decoding { MediaCodec.createDecoderByType(source.format.getString(MediaFormat.KEY_MIME)!!) }
+            decoding {
+                decoder.configure(source.format, decoderSurface, null, 0)
+                decoder.start()
             }
             if (source.audioTrack >= 0) {
                 audio = decoding {
@@ -436,7 +440,7 @@ private class Transcode(
             callbacks?.quitSafely()
             runCatching { gl?.close() }
             inputSurface?.release()
-            muxer?.release()
+            runCatching { muxer?.release() } // stops a started muxer, which throws without samples
             audio?.release()
             source.release()
         }

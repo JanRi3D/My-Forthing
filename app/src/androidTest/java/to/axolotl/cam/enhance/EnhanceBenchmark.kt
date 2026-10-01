@@ -139,20 +139,27 @@ class EnhanceBenchmark {
         }
     }
 
-    /** GPU classical clip path end to end (decode → GL cubic → H.264 → mux) at sizes the emulator can encode. */
+    /**
+     * GPU classical clip path end to end (decode → GL cubic → H.264 → mux). 1080p → 1440p/2160p are the real cases
+     * (they fail with `Encoder` on the emulator); the smaller ones fit the emulator's software encoder.
+     * Runner argument `enhanceClipSeconds` (default 4) lengthens the clip for battery/thermal runs on a phone.
+     */
     @Test
     fun clipThroughput() = runBlocking<Unit> {
         val store = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
             File(context.cacheDir, "bench-${System.nanoTime()}.preferences_pb")
         }
         val upscaler = DefaultClipUpscaler(context, DefaultFrameEnhancer(context, store), store)
-        for ((src, target) in listOf(Pair(960 to 540, 1080), Pair(480 to 270, 1080), Pair(640 to 360, 720))) {
+        val seconds = InstrumentationRegistry.getArguments().getString("enhanceClipSeconds")?.toDouble() ?: 4.0
+        val frames = (30 * seconds).toInt()
+        val cases = listOf(Pair(1920 to 1080, 1440), Pair(1920 to 1080, 2160), Pair(960 to 540, 1080), Pair(640 to 360, 720))
+        for ((src, target) in cases) {
             val input = File(context.cacheDir, "bench-${src.first}.mp4")
-            TestMedia.writeClip(input, src.first, src.second, 30, 4.0, audio = true)
+            TestMedia.writeClip(input, src.first, src.second, 30, seconds, audio = true)
             val t = SystemClock.elapsedRealtime()
             val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440), target) {}.awaitResult()
             val ms = SystemClock.elapsedRealtime() - t
-            log("CLIP | ${src.first}x${src.second} -> ${target}p classical | 120 frames | $ms ms | ${ms / 120.0} ms/frame | $result")
+            log("CLIP | ${src.first}x${src.second} -> ${target}p classical | $frames frames | $ms ms | ${ms / frames} ms/frame | $result")
             (result as? UpscaleResult.Done)?.output?.file?.let { it.delete(); EnhancementInfo.sidecarOf(it).delete() }
             input.delete()
         }
