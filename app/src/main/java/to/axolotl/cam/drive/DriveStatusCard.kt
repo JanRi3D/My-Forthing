@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.UiState
 import to.axolotl.cam.core.ui.UiText
+import to.axolotl.cam.core.ui.asString
 
 /**
  * Drive connection at a glance: account, state and quota. Used by the Google Drive screen and the Backup screen;
@@ -97,7 +98,7 @@ private fun Quota(quota: UiState<DriveQuota>?) {
             }
         }
         UiState.Loading -> BodyText(stringResource(R.string.drive_quota_loading))
-        is UiState.Error -> BodyText(stringResource(R.string.drive_quota_failed))
+        is UiState.Error -> BodyText(quota.message.asString())
         UiState.Empty, null -> Unit
     }
 }
@@ -117,7 +118,8 @@ fun Throwable.driveMessage(): UiText = when (this) {
     is DriveError.NeedsReconnect -> UiText.Res(R.string.drive_error_reconnect)
     is DriveError.NotConnected -> UiText.Res(R.string.drive_error_not_connected)
     is DriveError.Cancelled -> UiText.Res(R.string.drive_error_cancelled)
-    is DriveError.Http -> UiText.Res(R.string.drive_error_http, listOf(code))
+    is DriveError.Http ->
+        if (code == 403 && reason == "accessNotConfigured") UiText.Res(R.string.drive_error_api_disabled) else UiText.Res(R.string.drive_error_http, listOf(code))
     else -> UiText.Res(R.string.drive_error_unknown)
 }
 

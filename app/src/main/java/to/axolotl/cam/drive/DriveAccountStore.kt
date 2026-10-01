@@ -40,15 +40,16 @@ class DriveAccountStore(private val prefs: SharedPreferences, private val key: (
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, bytes, 0, IV_BYTES))
             driveJson.decodeFromString<StoredDriveAccount>(cipher.doFinal(bytes, IV_BYTES, bytes.size - IV_BYTES).decodeToString())
         }.onFailure {
-            Log.w(TAG, "Stored Drive connection unreadable, forgetting it", it)
+            // Only the type: a JSON error message would quote the decrypted record (e-mail).
+            Log.w(TAG, "Stored Drive connection unreadable (${it.javaClass.simpleName}), forgetting it")
             clear()
         }.getOrNull()
     }
 
     fun save(account: StoredDriveAccount) {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key()) }
-        val bytes = cipher.iv + cipher.doFinal(driveJson.encodeToString(account).encodeToByteArray())
         check(cipher.iv.size == IV_BYTES)
+        val bytes = cipher.iv + cipher.doFinal(driveJson.encodeToString(account).encodeToByteArray())
         prefs.edit { putString(PREF_KEY, Base64.encodeToString(bytes, Base64.NO_WRAP)) }
     }
 

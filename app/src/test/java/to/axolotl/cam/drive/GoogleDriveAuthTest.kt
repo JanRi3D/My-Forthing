@@ -71,6 +71,7 @@ class GoogleDriveAuthTest {
         assertThat(error).isInstanceOf(DriveError.Authorization::class.java)
         assertThat((error as DriveError.Authorization).configurationMissing).isTrue()
         assertThat(error.driveMessage()).isEqualTo(UiText.Res(R.string.drive_error_configuration, listOf(10)))
+        assertThat(DriveError.Http(403, "accessNotConfigured").driveMessage()).isEqualTo(UiText.Res(R.string.drive_error_api_disabled))
         assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
     }
 

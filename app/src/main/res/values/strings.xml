@@ -90,7 +90,6 @@
     <string name="drive_quota">%1$s von %2$s belegt · %3$s frei</string>
     <string name="drive_quota_unlimited">%1$s belegt · Speicher unbegrenzt</string>
     <string name="drive_quota_loading">Speicherplatz wird abgerufen …</string>
-    <string name="drive_quota_failed">Speicherplatz konnte nicht abgerufen werden.</string>
     <string name="drive_quota_description">Belegter Speicher in Google Drive</string>
     <string name="drive_reconnect_revoked">Der Zugriff auf Google Drive wurde widerrufen oder ist abgelaufen. Verbinde dich erneut, damit Sicherungen weiterlaufen.</string>
     <string name="drive_reconnect_consent">Google möchte, dass du den Zugriff auf Google Drive erneut bestätigst.</string>
@@ -102,7 +101,8 @@
     <string name="drive_error_reconnect">Bitte verbinde Google Drive erneut.</string>
     <string name="drive_error_not_connected">Google Drive ist nicht verbunden.</string>
     <string name="drive_error_cancelled">Abgebrochen.</string>
-    <string name="drive_error_http">Google Drive hat mit Fehler %1$d geantwortet.</string>
+    <string name="drive_error_http">Google Drive meldet einen Fehler (HTTP %1$d).</string>
+    <string name="drive_error_api_disabled">Google-Cloud-Konfiguration fehlt: Die Drive API ist im Google-Cloud-Projekt der App nicht aktiviert (HTTP 403).</string>
     <string name="drive_error_unknown">Unerwarteter Fehler bei Google Drive.</string>
     <!-- /drive -->
 </resources>
