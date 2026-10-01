@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
+import to.axolotl.cam.account.accountGraph
 import to.axolotl.cam.core.home.homeGraph
 import to.axolotl.cam.core.onboarding.onboardingGraph
 import to.axolotl.cam.core.settings.settingsGraph
@@ -46,6 +47,7 @@ fun AxoNavHost(startDestination: Route) {
                     onboardingGraph(navController)
                     homeGraph(navController)
                     settingsGraph(navController, recorderSettingsSection = null)
+                    accountGraph(navController)
                 }
                 SnackbarHost(
                     snackbarHostState,
