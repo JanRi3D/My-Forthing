@@ -3,6 +3,7 @@ package me.ri3d.cam.plates.ui
 import android.media.MediaMetadataRetriever
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -115,7 +117,7 @@ fun ClipPlates(
             ) {
                 Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        PlateChip(list.first().display)
+                        Box(Modifier.widthIn(min = 120.dp)) { PlateChip(list.first().display) }
                         Text(
                             pluralStringResource(R.plurals.plates_seen_in_clip, list.size, list.size),
                             style = MaterialTheme.typography.bodyMedium,
