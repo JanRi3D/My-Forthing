@@ -77,6 +77,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.ri3d.cam.BuildConfig
 import me.ri3d.cam.R
+import me.ri3d.cam.backup.BackupStateTag
 import me.ri3d.cam.core.ui.AxoTopBar
 import me.ri3d.cam.core.ui.ConfirmDialog
 import me.ri3d.cam.core.ui.ListGroup
@@ -314,6 +315,7 @@ private fun Header(item: MediaItem, viewModel: ClipViewModel) {
             }
             if (item.recorderPath != null) MediaTag(stringResource(R.string.media_copy_recorder))
             if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
+            BackupStateTag(item)
         }
         enhancement?.let { info ->
             Text(

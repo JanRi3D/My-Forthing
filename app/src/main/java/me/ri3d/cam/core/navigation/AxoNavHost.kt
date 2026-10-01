@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import me.ri3d.cam.account.accountGraph
+import me.ri3d.cam.backup.BackupSelectionAction
+import me.ri3d.cam.backup.backupGraph
+import me.ri3d.cam.backup.driveDeleteTargets
 import me.ri3d.cam.drive.driveGraph
 import me.ri3d.cam.core.home.homeGraph
 import me.ri3d.cam.core.onboarding.onboardingGraph
@@ -57,7 +60,12 @@ fun AxoNavHost(startDestination: Route) {
                     driveGraph(navController)
                     dashcamGraph(navController)
                     liveGraph(navController)
-                    mediaGraph(navController)
+                    mediaGraph(
+                        navController,
+                        selectionActions = { items, clear -> BackupSelectionAction(items, clear, onConnectDrive = { navController.navigate(DriveAccount) }) },
+                        clipDeleteTargets = { item -> driveDeleteTargets(item) },
+                    )
+                    backupGraph(navController)
                 }
                 SnackbarHost(
                     snackbarHostState,

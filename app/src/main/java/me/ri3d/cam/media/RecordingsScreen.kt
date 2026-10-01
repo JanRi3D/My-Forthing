@@ -76,6 +76,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ri3d.cam.R
+import me.ri3d.cam.backup.BackupStateTag
 import me.ri3d.cam.core.ui.AxoTopBar
 import me.ri3d.cam.core.ui.ConfirmDialog
 import me.ri3d.cam.core.ui.LocalSnackbarHostState
@@ -454,6 +455,7 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (item.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
                 if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
+                BackupStateTag(item)
             }
         }
         TransferControl(entry, download)
@@ -575,6 +577,7 @@ private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (item.isDerived) MediaTag(stringResource(R.string.media_reconstructed_short))
+                        BackupStateTag(item)
                     }
                 }
             }
