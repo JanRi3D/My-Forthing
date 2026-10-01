@@ -115,11 +115,15 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     // enhance
     implementation(libs.litert)
+    // dashcam (okhttp above, shared with drive)
+    implementation(project(":recorder"))
+    implementation(libs.androidx.lifecycle.process)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)
+    testImplementation(testFixtures(project(":recorder"))) // dashcam: RecorderSimulator
     testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

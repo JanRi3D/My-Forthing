@@ -27,6 +27,7 @@ sealed interface Route
 @Serializable data class Recordings(val tab: String? = null) : Route
 @Serializable data object SdCard : Route
 @Serializable data class SdFiles(val category: String) : Route
+@Serializable data object Diagnostics : Route
 
 // Settings
 @Serializable data object Settings : Route

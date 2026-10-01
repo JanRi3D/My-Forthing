@@ -21,5 +21,5 @@ object FeatureFlags {
     const val media = false
 
     /** Home → SD-Karte tile (feature/recorder-connection). */
-    const val dashcam = false
+    const val dashcam = true
 }

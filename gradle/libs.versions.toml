@@ -78,6 +78,8 @@ androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterfa
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 # enhance
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+# dashcam
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

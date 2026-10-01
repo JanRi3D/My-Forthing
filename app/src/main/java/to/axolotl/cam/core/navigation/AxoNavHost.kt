@@ -23,6 +23,9 @@ import to.axolotl.cam.core.ui.AxoMotion
 import to.axolotl.cam.core.ui.LocalReduceMotion
 import to.axolotl.cam.core.ui.LocalSnackbarHostState
 import to.axolotl.cam.core.ui.rememberReduceMotion
+import to.axolotl.cam.dashcam.DashcamHomeCard
+import to.axolotl.cam.dashcam.DashcamSettingsSection
+import to.axolotl.cam.dashcam.dashcamGraph
 
 /** The single NavHost. Features register their graph here with one line each. */
 @Composable
@@ -46,10 +49,11 @@ fun AxoNavHost(startDestination: Route) {
                     popExitTransition = { AxoMotion.exit(reduceMotion, forward = false) },
                 ) {
                     onboardingGraph(navController)
-                    homeGraph(navController)
-                    settingsGraph(navController, recorderSettingsSection = null)
+                    homeGraph(navController, dashcamCard = { DashcamHomeCard(onClick = { navController.navigate(Connection) }) })
+                    settingsGraph(navController, recorderSettingsSection = { DashcamSettingsSection(onNavigate = { navController.navigate(it) }) })
                     accountGraph(navController)
                     driveGraph(navController)
+                    dashcamGraph(navController)
                 }
                 SnackbarHost(
                     snackbarHostState,
