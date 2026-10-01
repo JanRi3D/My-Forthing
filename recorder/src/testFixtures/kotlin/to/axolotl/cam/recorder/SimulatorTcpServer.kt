@@ -25,8 +25,13 @@ import java.util.Properties
  * fictional replies. 8192 changes are applied to the scripted 4097 state so the app's readback confirms them;
  * 12288 frees the card, 12289 restores the defaults. After the first encrypted request it sends an sdStatus and a
  * recStatus notification and one manual-record event. 20485 is never answered (exercises the app's -205 path).
+ * 4100 / 4101 page and delete [files], which [SimulatorHttpServer] serves (`main` starts both).
  */
-class SimulatorTcpServer(private val keyPair: KeyPair, private val log: (String) -> Unit = ::println) {
+class SimulatorTcpServer(
+    private val keyPair: KeyPair,
+    private val files: SimulatedFiles = SimulatedFiles(),
+    private val log: (String) -> Unit = ::println,
+) {
     private val lock = Any()
     private var global = DEFAULT_GLOBAL // guarded by lock
     private var channel = DEFAULT_CHANNEL // guarded by lock
@@ -44,6 +49,8 @@ class SimulatorTcpServer(private val keyPair: KeyPair, private val log: (String)
         log("client connected: ${socket.remoteSocketAddress}")
         val sim = RecorderSimulator(keyPair = keyPair)
         sim.silentMsgIds += 20485
+        sim.handlers[4100] = files::listReply
+        sim.handlers[4101] = files::deleteReply
         sim.connect("simulator", socket.localPort, 0)
         script(sim)
         val out = socket.getOutputStream()
@@ -158,7 +165,8 @@ class SimulatorTcpServer(private val keyPair: KeyPair, private val log: (String)
 }
 
 /**
- * `./gradlew :recorder:runSimulator` → args: path of local.properties, optional port (default 7878).
+ * `./gradlew :recorder:runSimulator` → args: path of local.properties, optional port (default 7878), optional media
+ * HTTP port (default 8080), optional HTTP throttle in bytes per second (default 0 = unthrottled).
  * Reads `dashcam.rsaKey` itself (never printed). Without it, a throwaway key is generated and printed with
  * instructions; that key is a test key, not the vendor key.
  */
@@ -179,8 +187,14 @@ fun main(args: Array<String>) {
         }
     }
     val port = args.getOrNull(1)?.toIntOrNull() ?: RecorderClient.DEFAULT_PORT
-    ServerSocket(port, 50, InetAddress.getLoopbackAddress()).use { server ->
-        println("Recorder simulator listening on ${server.inetAddress.hostAddress}:$port (emulator: 10.0.2.2:$port). Ctrl+C stops it.")
-        SimulatorTcpServer(keyPair).serve(server)
+    val httpPort = args.getOrNull(2)?.toIntOrNull() ?: 8080
+    val throttle = args.getOrNull(3)?.toLongOrNull() ?: 0L
+    val files = SimulatedFiles()
+    SimulatorHttpServer(files, httpPort, throttle, log = ::println).use { http ->
+        println("Media HTTP on 127.0.0.1:${http.port} (emulator: http://10.0.2.2:${http.port})" + if (throttle > 0) ", $throttle bytes/s" else "")
+        ServerSocket(port, 50, InetAddress.getLoopbackAddress()).use { server ->
+            println("Recorder simulator listening on ${server.inetAddress.hostAddress}:$port (emulator: 10.0.2.2:$port). Ctrl+C stops it.")
+            SimulatorTcpServer(keyPair, files).serve(server)
+        }
     }
 }
