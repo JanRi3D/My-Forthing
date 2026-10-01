@@ -26,6 +26,10 @@ import me.ri3d.cam.core.ui.rememberReduceMotion
 import me.ri3d.cam.dashcam.DashcamHomeCard
 import me.ri3d.cam.dashcam.DashcamSettingsSection
 import me.ri3d.cam.dashcam.dashcamGraph
+import me.ri3d.cam.enhance.ui.EnhanceClipActions
+import me.ri3d.cam.enhance.ui.LiveSharpenControl
+import me.ri3d.cam.enhance.ui.enhanceGraph
+import me.ri3d.cam.enhance.ui.liveSharpenEffect
 import me.ri3d.cam.live.liveGraph
 import me.ri3d.cam.media.mediaGraph
 
@@ -56,8 +60,9 @@ fun AxoNavHost(startDestination: Route) {
                     accountGraph(navController)
                     driveGraph(navController)
                     dashcamGraph(navController)
-                    liveGraph(navController)
-                    mediaGraph(navController)
+                    liveGraph(navController, trailingControls = { LiveSharpenControl() }, renderEffect = { liveSharpenEffect(it) })
+                    mediaGraph(navController, clipActions = { item, position -> EnhanceClipActions(item, position) { navController.navigate(it) } })
+                    enhanceGraph(navController)
                 }
                 SnackbarHost(
                     snackbarHostState,
