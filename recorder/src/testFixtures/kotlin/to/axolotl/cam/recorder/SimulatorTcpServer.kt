@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
+import java.net.BindException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -190,11 +191,20 @@ fun main(args: Array<String>) {
     val httpPort = args.getOrNull(2)?.toIntOrNull() ?: 8080
     val throttle = args.getOrNull(3)?.toLongOrNull() ?: 0L
     val files = SimulatedFiles()
-    SimulatorHttpServer(files, httpPort, throttle, log = ::println).use { http ->
-        println("Media HTTP on 127.0.0.1:${http.port} (emulator: http://10.0.2.2:${http.port})" + if (throttle > 0) ", $throttle bytes/s" else "")
+    val http = try {
+        SimulatorHttpServer(files, httpPort, throttle, log = ::println).also {
+            println("Media HTTP on 127.0.0.1:${it.port} (emulator: http://10.0.2.2:${it.port})" + if (throttle > 0) ", $throttle bytes/s" else "")
+        }
+    } catch (e: BindException) {
+        println("Port $httpPort is busy: continuing without the media HTTP server (listings work, downloads do not).")
+        null
+    }
+    try {
         ServerSocket(port, 50, InetAddress.getLoopbackAddress()).use { server ->
             println("Recorder simulator listening on ${server.inetAddress.hostAddress}:$port (emulator: 10.0.2.2:$port). Ctrl+C stops it.")
             SimulatorTcpServer(keyPair, files).serve(server)
         }
+    } finally {
+        http?.close()
     }
 }
