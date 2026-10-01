@@ -369,7 +369,7 @@ class DownloadWorker @AssistedInject constructor(
             failed(mediaId, e)
         }
         // A retried work keeps its slot; a finished one frees it for a held download.
-        if (result !is Result.Retry) queue.promote(excluding = id)
+        if (result != Result.retry()) queue.promote(excluding = id) // Result equality is by kind
         return result
     }
 
