@@ -69,7 +69,7 @@ Package `me.ri3d.cam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive client a
   - Everything else (HTTP errors, MD5 mismatch, file read errors) counts: up to `MAX_ATTEMPTS` = 5 real failures per
     item, then `FAILED` with `backupError` (`MD5_MISMATCH`, `HTTP:<code>:<reason>`, `AUTH:<status>`, …) shown in German
     (`backupErrorText`). A counted failure drops the session URI, so the next attempt starts a fresh session.
-- **Account switch** (CONTRACTS §10): `BackupStore.account` remembers the Drive account the states belong to. When
+- **Account switch** (CONTRACTS §10): `BackupStore.account` remembers (as a SHA-256 of the e-mail) the Drive account the states belong to. When
   `Connected.accountEmail` differs (seen by the observer or by a worker that starts first), every row with Drive fields
   or a backup state is reset through `MediaRepository.markDriveDeleted` (state `NONE`, `driveFileId`/`driveMd5`
   cleared; rows with no other copy disappear, local files are never touched), all session URIs, failure counts and

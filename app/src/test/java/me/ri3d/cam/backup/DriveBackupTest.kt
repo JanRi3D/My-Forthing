@@ -201,7 +201,7 @@ class DriveBackupTest {
             assertThat(listOf(reset.backupState, reset.driveFileId, reset.driveMd5)).containsExactly(BackupState.NONE, null, null).inOrder()
             assertThat(reset.localFile!!.isFile).isTrue()
         }
-        assertThat(f.store.account).isEqualTo("b@example.com")
+        assertThat(f.store.account).doesNotContain("@") // only a hash of the e-mail is stored
         assertThat(f.backup.adoptAccount("b@example.com")).isFalse()
     }
 

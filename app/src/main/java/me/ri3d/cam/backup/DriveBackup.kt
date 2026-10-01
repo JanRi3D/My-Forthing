@@ -29,6 +29,7 @@ import me.ri3d.cam.media.MediaRepository
 import me.ri3d.cam.plates.PlateExport
 import java.io.File
 import java.net.URLConnection
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -82,7 +83,7 @@ class BackupStore @Inject constructor(@ApplicationContext context: Context) {
     /** Paused because Drive is full; cleared by the user ("Fortsetzen", "Sichern", "Jetzt prüfen") or an account switch. */
     val storageFull: StateFlow<Boolean> = _storageFull.asStateFlow()
 
-    /** Lower-case e-mail of the Drive account the backup states belong to. */
+    /** SHA-256 of the lower-case e-mail of the Drive account the backup states belong to (compared only). */
     var account: String?
         get() = prefs.getString(ACCOUNT, null)
         set(value) = prefs.edit { putString(ACCOUNT, value) }
@@ -303,7 +304,7 @@ class DriveBackup @Inject constructor(
      * and state is reset and the stored session URIs are dropped. Returns true when it reset.
      */
     suspend fun adoptAccount(email: String): Boolean = accountLock.withLock {
-        val account = email.lowercase()
+        val account = sha256(email.lowercase())
         val previous = store.account
         if (previous == account) return@withLock false
         if (previous != null) {
@@ -331,6 +332,8 @@ class DriveBackup @Inject constructor(
         fun byIdQuery(id: String) = "appProperties has { key='${DriveFormat.KEY_ID}' and value='${DriveFormat.escape(id)}' } and trashed = false"
 
         private val DriveFile.role: String? get() = appProperties[DriveFormat.KEY_ROLE]
+
+        private fun sha256(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
         private fun durationMs(file: File): Long? = runCatching {
             val retriever = MediaMetadataRetriever()

@@ -227,7 +227,7 @@ class BackupQueueTest {
 
         eventually { state(done.id) == BackupState.NONE && state(waiting.id) == BackupState.NONE && unfinished().isEmpty() }
         assertThat(runBlocking { f.item(done.id)!!.driveFileId }).isNull()
-        assertThat(f.store.account).isEqualTo("other@example.com")
+        assertThat(f.backup.adoptAccount("other@example.com")).isFalse() // already adopted
     }
 
     @Test
