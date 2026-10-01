@@ -26,11 +26,16 @@ Package `me.ri3d.cam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive client a
 - **Exclusions**: an item the user cancelled, whose Drive copy was deleted in the app, or that "Drive-Status prüfen"
   found missing in Drive is not selected automatically again; "Sichern" in the selection includes it again.
 - Network conditions → WorkManager constraints (`BackupRules.constraints`):
-  - always the phone's default network with validated internet (JobScheduler's network constraint). The process never
-    binds to the recorder Wi-Fi (no internet, never default while mobile data works), so uploads never go through it;
-  - `backupRequireInternetWifi` (default on): `NetworkRequest` Wi-Fi + `INTERNET` + `VALIDATED` (API 28+; below:
-    unmetered). While it is on, "Mobile Daten verwenden" is disabled in the UI (it could never apply);
+  - JobScheduler evaluates network constraints against the app's default network and requires validated internet.
+    The process never binds to the recorder Wi-Fi; that network has no internet, so it is never validated and never
+    satisfies the constraint, even if Android made it the default (e.g. with mobile data off);
+  - `backupRequireInternetWifi` (default on): `NetworkRequest` Wi-Fi + `INTERNET` + `VALIDATED`, with the builder's
+    default `NOT_VPN` removed so a VPN over Wi-Fi qualifies (API 28+; below: unmetered). While it is on, "Mobile Daten
+    verwenden" is disabled in the UI (it could never apply);
   - otherwise unmetered, or any connected network with `backupOnMobileData`.
+  - The worker checks the default network again before it uploads (`BackupRules.networkFits`: validated internet,
+    Wi-Fi when required, unmetered unless mobile data is allowed; a VPN reports its underlying transport) and waits
+    (`Result.retry`, uncounted) when it no longer fits.
   - A change of the conditions re-enqueues the waiting/running work with the new constraints (`REPLACE`); a running
     upload resumes from its session URI.
 - `backupIncludePlateMetadata`: sidecar `plates` = `PlateExport.forMedia(id)` mapped 1:1 when on (`[]` when nothing was
@@ -49,37 +54,49 @@ Package `me.ri3d.cam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive client a
   2. Phone copy must exist (else `FAILED` `NO_LOCAL_COPY`, Drive is not contacted).
   3. MD5 of the phone copy; `ensureRootFolder` → `ensureMonthFolder` (month of the recorder time guess, else download
      or creation time).
-  4. **Duplicate prevention**: `files.list` of all files with this `mf.id`. A media file with the same MD5 is adopted (no
-     upload; the sidecar goes next to it). Media files with another MD5 and **no sidecar** are unverified uploads of this
-     item and are deleted before uploading again. Another MD5 **with** a sidecar means Drive holds a verified other
-     version: `FAILED` `DRIVE_CONFLICT`, nothing is touched ("Drive-Kopie löschen" then allows a fresh backup).
-  5. `uploadResumable` with the persisted session URI (`onSessionUri` stores a new one; restart after process death
-     continues where Drive stopped). The session is dropped when the upload completes.
+  4. **Duplicate prevention**: `files.list` of all files with this `mf.id`. Any listed media file means its upload
+     session is used up, so the stored session is dropped. A media file with the same MD5 is adopted (no upload; the
+     sidecar goes next to it).
+     - Another MD5 **with** a sidecar and no matching file: Drive holds a verified other version → `FAILED`
+       `DRIVE_CONFLICT`, nothing is touched.
+     - Another MD5 **without** a sidecar is an unverified upload. Readers take the oldest media file per id, so these
+       are removed before any sidecar is written (also when adopting): at once if it is the upload this app recorded
+       as unverified (`unverified:<id>`, set right after `uploadResumable` returns), otherwise only when its
+       `createdTime` is more than 24 h old; a recent unknown one makes the item wait (uncounted retry).
+  5. `uploadResumable` with the persisted session URI (`onSessionUri` stores a new one together with the account hash;
+     a session of another account is ignored, also one written late by a callback after a switch; restart after
+     process death continues where Drive stopped).
   6. **Verification**: Drive `md5Checksum` must equal the phone copy's MD5. Mismatch → the uploaded file is deleted
      (the phone copy stays) and the item is retried.
   7. Only then the sidecar (`DriveSidecar`, `writeJson` – replaces an existing one of that name in the folder).
-  8. Only then `DONE` with `driveFileId` and `driveMd5` – and only if the Drive account is still the same.
+  8. The stored session is dropped (uploaded or adopted, a completed session is never reused); only then `DONE` with
+     `driveFileId` and `driveMd5`, and only if the Drive account is still the same (otherwise the reset for the new
+     account runs at once).
 - Errors:
   - `DriveError.Offline` → wait (`Result.retry`, not counted, linear backoff from 30 s), item `QUEUED`.
   - `InsufficientStorage` → **pause** everything (persisted), item stays `QUEUED`, notification "Google-Drive-Speicher
     voll", Backup screen shows "Belegt: x von y" from `about()` and "Fortsetzen".
   - `NeedsReconnect` (the auth state turned `NeedsReconnect`) / `NotConnected` → **pause**, item stays `QUEUED`;
     notification "Google Drive erneut verbinden"; the Backup screen and the "Sichern" snackbar lead to the existing
-    `DriveAccount` screen. Reconnecting resumes automatically.
+    `DriveAccount` screen. Reconnecting resumes automatically. A worker that met "not connected" right after process
+    start (the account record is still being loaded) retries when Drive reads connected by the time it returns.
   - Everything else (HTTP errors, MD5 mismatch, file read errors) counts: up to `MAX_ATTEMPTS` = 5 real failures per
     item, then `FAILED` with `backupError` (`MD5_MISMATCH`, `HTTP:<code>:<reason>`, `AUTH:<status>`, …) shown in German
-    (`backupErrorText`). A counted failure drops the session URI, so the next attempt starts a fresh session.
-- **Account switch** (CONTRACTS §10): `BackupStore.account` remembers (as a SHA-256 of the e-mail) the Drive account the states belong to. When
-  `Connected.accountEmail` differs (seen by the observer or by a worker that starts first), every row with Drive fields
-  or a backup state is reset through `MediaRepository.markDriveDeleted` (state `NONE`, `driveFileId`/`driveMd5`
-  cleared; rows with no other copy disappear, local files are never touched), all session URIs, failure counts and
-  the storage pause are dropped, and running backup work is cancelled. A session URI is therefore never used with
-  another account. Disconnect + reconnect of the same account keeps everything.
+    (`backupErrorText`). Only a rejected request (4xx other than 408/429) drops the session URI; 5xx, 429 and network
+    failures keep it, so the next attempt resumes.
+- **Account switch** (CONTRACTS §10): `BackupStore.account` remembers (as a SHA-256 of the e-mail) the Drive account
+  the states belong to. When `Connected.accountEmail` differs (seen by the observer or by a worker that starts first),
+  every row with Drive fields, a backup state or a backup error is reset through `MediaRepository.markDriveDeleted`
+  (state `NONE`, `driveFileId`/`driveMd5` cleared; rows with no other copy disappear, local files are never touched),
+  everything stored per item (session URIs, unverified uploads, completion times, failure counts, exclusions) and the
+  storage pause are dropped, and running backup work is cancelled. Disconnect + reconnect of the same account keeps
+  everything.
 - UI: Backup screen queue list with per-item state ("In der Warteschlange", "Wartet auf ein WLAN mit Internet" etc. when
   WorkManager waits for constraints or a retry, bytes + progress bar while running, German failure reason), "Abbrechen"
-  / "Erneut versuchen" / "Entfernen"; progress also as a silent foreground notification (data sync) "Sicherung:
-  <name>" with "x von y". Without the notification permission (Android 13+) uploads run silently (the permission is
-  requested by the first download).
+  / "Erneut versuchen" / "Entfernen" (TalkBack reads them with the file name); progress also as a silent foreground
+  notification (data sync) "Sicherung: <name>" with "x von y", removed when the worker ends (also when it ran without
+  foreground). Without the notification permission (Android 13+) uploads run silently (the permission is requested by
+  the first download).
 
 ## What "gesichert" means
 
@@ -92,13 +109,17 @@ header.
 ## Delete Drive copy and Drive check
 
 - **"Drive-Kopie löschen"** (`clipDeleteTargets`, danger confirmation): lists every file with this `mf.id` in the
-  current account and deletes them media first, then the sidecar (a half-done delete leaves an orphan sidecar, which
-  readers ignore; a retry finishes it), then `markDriveDeleted`. Phone and recorder copies stay; the dialog says so.
-  Enabled while connected for `DONE` items (and `DRIVE_CONFLICT` failures). The item is excluded from the automatic
-  rules first, so it is not re-uploaded at once.
+  current account and deletes the media files first. Only when they are gone is the item excluded from the automatic
+  rules, its session dropped and `markDriveDeleted` called (a failed media delete changes nothing). Then the sidecar is
+  deleted; if that fails the row keeps `backupError = SIDECAR_LEFT` (state `NONE`, no chip) and the target stays
+  offered, so the user can remove the sidecar – which may hold plate data – with another tap. Phone and recorder
+  copies stay; the dialog says so. Enabled while connected for `DONE` items, `DRIVE_CONFLICT` failures and
+  `SIDECAR_LEFT`; refused while an upload of the item is pending.
 - **"Drive-Status prüfen"**: `DriveFormatReader.scan`; every `DONE` item (snapshot taken before listing) without a
-  complete entry (media + sidecar) becomes `NONE` via `markDriveDeleted` and is excluded from the automatic rules.
+  complete entry (media + sidecar) becomes `NONE` via `markDriveDeleted`, loses its stored session and is excluded from
+  the automatic rules. Items that became `DONE` less than 5 minutes ago are skipped (Drive's listing can lag behind).
   Nothing is deleted anywhere.
+- `DRIVE_CONFLICT` text says that the verified version in Drive stays untouched; it does not ask the user to delete it.
 
 ## Interfaces (for integration)
 
@@ -110,7 +131,8 @@ mediaGraph(navController,
 backupGraph(navController)                      // route Backup
 @Composable fun BackupStateTag(item: MediaItem)  // chip, used in media/ (RecordingsScreen rows, ClipScreen header)
 
-object BackupRules { fun automatic(item, mode, parent: MediaItem?): Boolean; fun constraints(prefs): Constraints; fun hasPhoneCopy(item) }
+object BackupRules { fun automatic(item, mode, parent: MediaItem?): Boolean; fun constraints(prefs): Constraints; fun hasPhoneCopy(item)
+                     fun networkFits(caps: NetworkCapabilities?, prefs): Boolean }
 class DriveBackup { suspend fun upload(id, onProgress): BackupOutcome; suspend fun deleteOnDrive(id): Result<Unit>
                     suspend fun reconcile(): Result<Int>; suspend fun adoptAccount(email): Boolean }
 class BackupQueue { val progress: StateFlow<Map<String, BackupProgress>>; val storageFull: StateFlow<Boolean>
@@ -138,7 +160,10 @@ Shared files touched: `core/navigation/AxoNavHost.kt` (slot arguments + `backupG
   source of the queue).
 - Snackbars after "Sichern" / "Drive-Kopie löschen" run in the screen's lifecycle scope; a deletion that removes the
   last copy closes the clip screen and its snackbar may not show (the deletion itself always completes).
-- Exclusions and session URIs live in the app-private SharedPreferences `backup_queue` (Android backup is off app-wide).
+- Exclusions, session URIs (with the account hash), unverified upload ids and completion times live in the app-private
+  SharedPreferences `backup_queue` (Android backup is off app-wide), not encrypted.
+- A Drive-only item whose sidecar delete fails loses its row with the media file, so `SIDECAR_LEFT` cannot be kept:
+  that sidecar stays in Drive (readers ignore it; it can be removed in Drive).
 
 ## Needs the real Drive setup (owner)
 
@@ -160,17 +185,22 @@ Then check on a phone:
 
 ## Verification status
 
-- Unit tests (Robolectric, fake `DriveApi` in memory, `FakeDriveAuth`): `DriveBackupTest` 14 (verified upload +
-  sidecar content, resume from the persisted session URI after a restart, MD5 mismatch → unverified file deleted, no
-  sidecar, retries until `FAILED`, full Drive → paused, revoked → paused until reconnect, adoption of a matching Drive
-  file, unverified other content replaced vs verified other version = conflict, account switch reset with session URIs
-  dropped before use, plates only with the opt-in, delete Drive copy keeps phone + recorder copies, delete offline
-  changes nothing, reconciliation, missing phone copy, only queued items upload), `BackupQueueTest` 8 (WorkManager test
-  driver, SDK 33: one work at a time until all `DONE`, constraints on the work, offline retry keeps the single slot,
-  automatic rules on becoming local per mode, cancel excludes until manual "Sichern", changed conditions re-applied,
-  nothing scheduled while not connected / reconnect / full, observer-side account switch, `BackupViewModel`),
-  `BackupRulesTest` 4 (mode × kind × category × local matrix, derived items × parent state, constraints at SDK 33 and
-  the pre-28 fallback).
+- Unit tests (Robolectric, fake `DriveApi` in memory, `FakeDriveAuth`): `DriveBackupTest` 22 (verified upload +
+  sidecar content, resume from the persisted session URI after a restart, 5xx keeps / 4xx drops the session, adopting
+  a completed upload clears its session and a later backup starts a fresh one, a session of another account is never
+  used, MD5 mismatch → unverified file deleted, no sidecar, retries until `FAILED`, full Drive → paused, revoked →
+  paused until reconnect, adoption of a matching Drive file, our recorded unverified upload replaced at once, an
+  unknown recent one waits and a day-old one is replaced, verified other version = conflict, adoption also removes
+  unverified copies, failing sidecar write → queued, next attempt adopts, account switch during the transfer never
+  DONE, account switch reset with sessions and exclusions dropped, plates only with the opt-in, delete Drive copy keeps
+  phone + recorder copies and clears the session, delete offline / not connected changes nothing, half-done delete →
+  `SIDECAR_LEFT` and a second delete, reconciliation incl. listing lag, missing phone copy, only queued items upload),
+  `BackupQueueTest` 9 (WorkManager test driver, SDK 33: one work at a time until all `DONE`, constraints on the work, a
+  job on a network that no longer fits waits, offline retry keeps the single slot, automatic rules on becoming local
+  per mode, cancel excludes until manual "Sichern", changed conditions re-applied, nothing scheduled while not
+  connected / reconnect / full, observer-side account switch, `BackupViewModel`), `BackupRulesTest` 5 (mode × kind ×
+  category × local matrix, derived items × parent state, constraints at SDK 33 incl. `NOT_VPN` removed, the pre-28
+  fallback at SDK 27, `networkFits` for Wi-Fi / cellular / recorder Wi-Fi × conditions).
 - Emulator (`emulator-5554`, API 36, debug, Drive **not** connected, simulator [SIM] for two incident downloads):
   Settings row "Sicherung"; Backup screen (status card, connect button, mode radios, conditions with the disabled
   mobile-data row, plate switch, empty queue); "Sichern" in the Handy selection → "Google Drive nicht verbunden" →
