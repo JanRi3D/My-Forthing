@@ -16,7 +16,7 @@ sealed interface RecorderNotification {
     data class Event(val list: List<EventInfo>, val raw: RecorderReply) : RecorderNotification
 
     /**
-     * Axolotl Cam addition: a message whose sequence matches no pending request, e.g. a further reply to a
+     * My Forthing addition: a message whose sequence matches no pending request, e.g. a further reply to a
      * burst photo (reply multiplicity is unverified) or an unknown msgId. Kept so nothing is silently lost.
      */
     data class Unmatched(val seq: Int, val reply: RecorderReply) : RecorderNotification

@@ -21,7 +21,7 @@ object ErrorCodes {
     const val PARAM_NOT_ENOUGH = -103
     /** SessionApi's synthetic result when the session start is not answered within 5 s. Not command 4096. */
     const val SESSION_TIMEOUT = 4096
-    // Axolotl Cam additions (no vendor equivalent):
+    // My Forthing additions (no vendor equivalent):
     /** No successful keepalive for more than 10 heartbeat ticks (~11 s). */
     const val HEARTBEAT_LOST = -201
     /** Connection closed by the recorder, by the socket, or the recorder ended the session (msgId 2). */

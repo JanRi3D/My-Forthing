@@ -24,7 +24,7 @@ object CoreDataModule {
     @Provides
     @Singleton
     fun appDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "axolotl.db")
+        Room.databaseBuilder(context, AppDatabase::class.java, "myforthing.db")
             .addMigrations(*AppDatabase.MIGRATIONS)
             .build()
 

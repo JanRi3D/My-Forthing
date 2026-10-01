@@ -101,7 +101,7 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
     }
     val log = manager.diagnosticLog()
     return buildJsonObject {
-        put("format", "axolotl-cam-diagnostics/1")
+        put("format", "myforthing-diagnostics/1")
         put("capturedAt", Instant.now().toString())
         put("appVersion", BuildConfig.VERSION_NAME)
         put("androidSdk", Build.VERSION.SDK_INT)
@@ -247,7 +247,7 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
 private fun shareDiagnostics(context: Context, json: String) {
     val dir = File(context.cacheDir, "diagnostics").apply { mkdirs() }
     dir.listFiles()?.forEach { it.delete() } // only the latest capture is kept
-    val file = File(dir, "axolotl-diagnose-${Instant.now().toString().replace(':', '-')}.json").apply { writeText(json) }
+    val file = File(dir, "myforthing-diagnose-${Instant.now().toString().replace(':', '-')}.json").apply { writeText(json) }
     val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.dashcam.files", file)
     val send = Intent(Intent.ACTION_SEND)
         .setType("application/json")

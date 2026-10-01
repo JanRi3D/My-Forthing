@@ -22,7 +22,7 @@
     <!-- No Android backup: the offline profile stays on this phone. allowBackup="false" covers Android 8-11
          (so no fullBackupContent is needed); data_extraction_rules also blocks device transfer on 12+. -->
     <application
-        android:name=".AxolotlApp"
+        android:name=".MyForthingApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
@@ -30,13 +30,13 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AxolotlCam"
+        android:theme="@style/Theme.MyForthing"
         tools:ignore="DataExtractionRules">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.AxolotlCam.Starting"
+            android:theme="@style/Theme.MyForthing.Starting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -72,7 +72,7 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
-        <!-- media: WorkManager is configured by AxolotlApp (Hilt worker factory), not by its startup initializer -->
+        <!-- media: WorkManager is configured by MyForthingApp (Hilt worker factory), not by its startup initializer -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

@@ -11,6 +11,6 @@ object Branding {
     /** Root folder in the user's Google Drive (Drive format v1). */
     const val driveRootFolderName = "Axolotl Cam"
 
-    // ponytail: assumed from the package domain (me.ri3d.cam); confirm before release.
+    // TODO(owner): the owner sets the real support URL (still the old placeholder domain); terms/privacy links derive from it.
     const val supportUrl = "https://axolotl.to"
 }
