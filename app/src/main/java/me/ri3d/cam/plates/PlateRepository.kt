@@ -39,6 +39,15 @@ class PlateRepository @Inject constructor(
     /** The plate with its sightings (unordered; sort by `seenAt` or `positionMs` in the UI). */
     fun plate(id: Long): Flow<PlateWithSightings?> = dao.plate(id)
 
+    /** Sightings of one plate, newest first, with their recording's kind, category and phone copy. */
+    fun sightingRows(plateId: Long): Flow<List<SightingRow>> = dao.sightingRows(plateId)
+
+    /** Sightings in one recording, by position. */
+    fun sightingsFor(mediaId: String): Flow<List<PlateSighting>> = dao.observeForMedia(mediaId)
+
+    /** Ids of plates seen in an incident recording (media category EVENT). */
+    fun incidentPlateIds(): Flow<List<Long>> = dao.incidentPlateIds()
+
     /**
      * Stores the detections of one frame; returns how many sightings were written. A plate detected again within
      * [DEDUPE_WINDOW_MS] of its previous detection (LIVE: wall time; CLIP: position in the same clip, also across
@@ -90,6 +99,15 @@ class PlateRepository @Inject constructor(
         dao.clear()
         lastDetection.clear()
         withContext(Dispatchers.IO) { cropDir().deleteRecursively() }
+    }
+
+    /** Deletes one plate with all its sightings and crops. */
+    suspend fun delete(plateId: Long) = mutex.withLock {
+        val normalized = dao.normalizedOf(plateId) ?: return@withLock
+        val crops = dao.cropsForPlate(plateId)
+        dao.deletePlate(plateId)
+        lastDetection.keys.removeAll { it.endsWith("|$normalized") }
+        withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
     }
 
     /** Drops the in-memory dedupe state of a finished clip scan (a later rescan is deduped by the database). */
