@@ -4,9 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Process
 import android.os.SystemClock
+import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import to.axolotl.cam.core.branding.Branding
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -97,6 +99,19 @@ internal fun sweepLeftovers(dir: File, before: Long): List<String> =
         } && f.delete()
     }.map { it.name }
 
+/** Labels the JPEG itself, so the note survives when the file travels without its sidecar. */
+internal fun stampExif(jpeg: File, info: EnhancementInfo, software: String) {
+    ExifInterface(jpeg).apply {
+        setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, EnhancementInfo.NOTE)
+        setAttribute(
+            ExifInterface.TAG_USER_COMMENT,
+            "${EnhancementInfo.NOTE}; engine=${info.engine}; model=${info.model ?: "-"}; source=${info.sourceMediaId}",
+        )
+        setAttribute(ExifInterface.TAG_SOFTWARE, software)
+        saveAttributes()
+    }
+}
+
 /** Writes the sidecar for [output] atomically (temp file + rename). */
 internal fun writeSidecar(output: File, info: EnhancementInfo) {
     val sidecar = EnhancementInfo.sidecarOf(output)
@@ -131,6 +146,7 @@ suspend fun saveEnhancedFrame(
             val tmp = File(file.path + ".tmp")
             try {
                 tmp.outputStream().use { check(frame.bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)) { "JPEG encode failed" } }
+                stampExif(tmp, info, context.getString(Branding.appName))
                 writeSidecar(file, info)
                 moveAtomic(tmp, file)
             } finally {

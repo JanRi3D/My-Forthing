@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.core.graphics.createBitmap
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.exifinterface.media.ExifInterface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CancellationException
@@ -141,6 +142,9 @@ class EnhanceInstrumentedTest {
         assertEquals(37_000L, info.sourcePositionMs)
         assertEquals(saved.info.createdAt, info.createdAt)
         assertTrue(EnhancementInfo.sidecarOf(saved.file).readText().contains("\"reconstructed\":true"))
+        val exif = ExifInterface(saved.file)
+        assertEquals(EnhancementInfo.NOTE, exif.getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION))
+        assertTrue(exif.getAttribute(ExifInterface.TAG_USER_COMMENT).orEmpty().contains("source=media-1"))
         assertTrue(leftovers().isEmpty())
     }
 
