@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -153,7 +154,7 @@ class RecorderConnectionManagerImpl(
     private val lock = Any()
     private var overlay: RecorderConnectionState? = RecorderConnectionState.Disconnected // guarded; null = follow the client
     private var starting = false // guarded; between clearing the overlay and start() returning
-    private var busy = false // guarded; a connect() is running
+    private var attemptJob: Job? = null // guarded; the running connect attempt
     private var generation = 0 // guarded; bumped by connect and disconnect
     private var info: DeviceInfo? = null // guarded
     private var infoFor: SessionState.Ready? = null
@@ -195,23 +196,20 @@ class RecorderConnectionManagerImpl(
     }
 
     override suspend fun connect(ignoreSsid: Boolean) {
-        val gen = synchronized(lock) {
+        val job = synchronized(lock) {
             val s = _state.value
-            if (busy || s is RecorderConnectionState.Ready || s == RecorderConnectionState.TcpConnected ||
-                s == RecorderConnectionState.Negotiating
-            ) return
-            busy = true
-            wantConnected = true
-            ++generation
-        }
-        // Runs in the manager's scope: leaving the screen that asked for it does not cancel the connection.
-        scope.launch {
-            try {
-                attempt(gen, ignoreSsid)
-            } finally {
-                synchronized(lock) { busy = false }
+            attemptJob?.takeIf { it.isActive } ?: run {
+                if (s is RecorderConnectionState.Ready || s == RecorderConnectionState.TcpConnected ||
+                    s == RecorderConnectionState.Negotiating
+                ) return
+                wantConnected = true
+                val gen = ++generation
+                // The manager's scope: leaving the screen that asked for it does not cancel the connection.
+                scope.launch(start = CoroutineStart.LAZY) { attempt(gen, ignoreSsid) }.also { attemptJob = it }
             }
-        }.join()
+        }
+        job.start()
+        job.join()
     }
 
     private suspend fun attempt(gen: Int, ignoreSsid: Boolean) {
@@ -241,7 +239,6 @@ class RecorderConnectionManagerImpl(
             synchronized(lock) { starting = false }
             publish()
         }
-        if (gen != synchronized(lock) { generation }) client.stop() // disconnect() raced with start()
     }
 
     override suspend fun disconnect() {
@@ -250,7 +247,11 @@ class RecorderConnectionManagerImpl(
     }
 
     private suspend fun stopSession() {
-        synchronized(lock) { generation++ }
+        val running = synchronized(lock) {
+            generation++
+            attemptJob.also { attemptJob = null }
+        }
+        running?.cancelAndJoin()
         show(RecorderConnectionState.Disconnected)
         client.stop()
         synchronized(lock) {

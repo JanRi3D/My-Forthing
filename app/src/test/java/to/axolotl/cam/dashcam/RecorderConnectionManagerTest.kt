@@ -188,6 +188,21 @@ class RecorderConnectionManagerTest {
     }
 
     @Test
+    fun `disconnect cancels a pending attempt so the next connect is not swallowed`() = runTest {
+        val manager = managerFor(sim) // waits for a Wi-Fi network that never comes
+        val first = launch { manager.connect() }
+        runCurrent()
+        assertThat(manager.state.value).isEqualTo(Connecting)
+
+        manager.disconnect()
+        manager.simulator = true
+        manager.connect()
+
+        assertThat(manager.state.value).isInstanceOf(Ready::class.java)
+        assertThat(first.isCompleted).isTrue()
+    }
+
+    @Test
     fun `sdStatus and recStatus notifications are kept, unknown values raw`() = runTest {
         val manager = managerFor(sim).apply { simulator = true }
         manager.connect()
