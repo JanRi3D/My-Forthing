@@ -56,14 +56,15 @@ import to.axolotl.cam.recorder.CapabilityGroup
 import to.axolotl.cam.recorder.RecorderClient
 import to.axolotl.cam.recorder.RecorderCommand
 import to.axolotl.cam.recorder.RecorderDiagnostic
+import to.axolotl.cam.recorder.RecorderError
 import to.axolotl.cam.recorder.RecorderReply
 import to.axolotl.cam.recorder.RecorderResult
 import java.io.File
 import java.time.Instant
 import javax.inject.Inject
 
-/** Shares cacheDir/diagnostics (res/xml/dashcam_file_paths.xml); own subclass so features do not clash in the manifest. */
-class DiagnosticsFileProvider : FileProvider(R.xml.dashcam_file_paths)
+/** Shares cacheDir/diagnostics (paths in the manifest meta-data); own subclass so features do not clash in the manifest. */
+class DiagnosticsFileProvider : FileProvider()
 
 /** Read-only queries of the capture: the app path ones, then SDK-only capability queries with a short timeout. */
 private val CAPTURE: List<Pair<RecorderCommand, Long>> = listOf(
@@ -92,12 +93,7 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
                     put("rval", r.reply.rval)
                     put("reply", redactedJson(r.reply.rawJson))
                 }
-                is RecorderResult.Failed -> buildJsonObject {
-                    put("errorCode", r.error.code)
-                    put("source", r.error.source.name)
-                    put("message", r.error.message)
-                    r.error.rawJson?.let { put("reply", redactedJson(it)) }
-                }
+                is RecorderResult.Failed -> r.error.toJson()
             }
         }
     } else {
@@ -115,7 +111,8 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
             put("mobileDataEnabled", manager.mobileDataEnabled())
             put("simulator", manager.simulator)
         }
-        put("connectionState", redact(state.toString()))
+        put("connectionState", state::class.simpleName)
+        (state as? RecorderConnectionState.Error)?.let { put("connectionError", it.error.toJson()) }
         putJsonObject("session") {
             (state as? RecorderConnectionState.Ready)?.session?.let {
                 put("version", it.version)
@@ -131,6 +128,13 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
         }
         putJsonArray("frames") { log.forEach { add(it.toJson()) } }
     }
+}
+
+private fun RecorderError.toJson(): JsonObject = buildJsonObject {
+    put("errorCode", code)
+    put("source", source.name)
+    put("message", message)
+    rawJson?.let { put("reply", redactedJson(it)) }
 }
 
 private fun redactedJson(raw: String): JsonElement {

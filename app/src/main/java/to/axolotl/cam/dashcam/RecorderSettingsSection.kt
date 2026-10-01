@@ -333,7 +333,6 @@ fun RecorderSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSett
     val context = LocalContext.current
 
     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader(stringResource(R.string.dashcam_settings_title))
         when {
             !ready -> NotConnectedNotice { onNavigate(Connection) }
             settings == null && ui.loadError != null -> {

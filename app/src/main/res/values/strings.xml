@@ -165,7 +165,6 @@
     <string name="dashcam_rec_status_raw">recStatus %1$d</string>
     <string name="dashcam_rec_status_missing">recStatus ohne Wert</string>
 
-    <string name="dashcam_settings_title">Dashcam</string>
     <string name="dashcam_group_recording">Aufnahme</string>
     <string name="dashcam_group_incidents">Vorfälle</string>
     <string name="dashcam_group_camera">Kamera</string>

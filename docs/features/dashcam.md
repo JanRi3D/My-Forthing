@@ -80,8 +80,8 @@ session fields and the session reply from the frame log, raw replies of 4098, 40
 20480/20482–20485 (5 s each; errors and -205 timeouts kept), then the last 400 frame-log events. Every JSON text
 passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …) on top of the module's own
 redaction. Shared as `cacheDir/diagnostics/axolotl-diagnose-<time>.json` through `DiagnosticsFileProvider`
-(own `FileProvider` subclass, authority `${applicationId}.dashcam.files`, so other features' providers do not
-clash in the manifest).
+(own `FileProvider` subclass with the paths in its manifest meta-data, authority
+`${applicationId}.dashcam.files`, so other features' providers do not clash in the manifest).
 
 **Cleartext.** `res/xml/network_security_config.xml`: cleartext only for `192.168.42.1`; the base config forbids it.
 
@@ -124,9 +124,16 @@ Verified only against `RecorderSimulator` / the TCP simulator [SIM] or the emula
   loss, missing/invalid key, disconnect during a pending attempt (unit tests).
 - Settings change → 4097 readback → confirmed / mismatch / rejected (rval 208); Wi-Fi resubmission with mode 1 /
   frequency 1 kept and no chanNo; OSD resubmission (unit tests and emulator walkthrough).
-- SD status mapping incl. unknown values; error presentation (unit tests).
-- Real Wi-Fi path on the emulator: network request and binding, SSID "AndroidWifi" → WrongWifi, connect anyway →
-  TCP to 192.168.42.1 fails with -101 (no recorder).
+- SD status mapping incl. unknown values; error presentation; 4099 load, format 12288 ok / rval 209 (unit tests).
+- Real Wi-Fi path on the emulator (API 36): network request and binding, "unbekanntes WLAN (Berechtigung fehlt)"
+  before the permission, SSID "AndroidWifi" after it → WrongWifi with "Trotzdem verbinden"; the TCP connect to
+  192.168.42.1 fails with -101 after the traced two attempts (no recorder).
+- Emulator walkthrough against `:recorder:runSimulator` [SIM]: Connecting → Ready with "Gerät: SIMULATOR",
+  Home card (simulator, recStatus 1, "12034 frei laut Recorder"), SD card (raw 4099 values, sdStatus "Normal
+  (Status 2)"), loop length 3 → 5 "bestätigt", sound toggle "Aus · bestätigt", Wi-Fi dialog (mode 0 / band 0 kept,
+  no chanNo on the wire) → rejoin prompt, "Weitere Werte (unbestätigt)", Diagnose capture (passwd / token /
+  aescode masked, 20485 kept as -205) and the share sheet with the JSON file. App backgrounded by another
+  emulator user → ON_STOP disconnect observed in the simulator log.
 
 Needs the physical recorder (owner checklist; the Diagnose export captures most of it read-only):
 1. Wi-Fi request without INTERNET capability matches the FORTHING hotspot; socket binding works with mobile data on.

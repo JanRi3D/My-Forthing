@@ -381,10 +381,11 @@ internal fun Chevron() {
 fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val ssid by viewModel.ssid.collectAsStateWithLifecycle()
-    val simulator by viewModel.simulator.collectAsStateWithLifecycle()
     val storage by viewModel.storage.collectAsStateWithLifecycle()
     val recStatus by viewModel.recStatus.collectAsStateWithLifecycle()
     val ready = state is Ready
+    // Only the simulator session is Ready without a bound Wi-Fi network (the toggle lives on another screen).
+    val simulator = (state as? Ready)?.network == null
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),

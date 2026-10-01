@@ -42,7 +42,11 @@
             android:name=".dashcam.DiagnosticsFileProvider"
             android:authorities="${applicationId}.dashcam.files"
             android:exported="false"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/dashcam_file_paths" />
+        </provider>
     </application>
 
 </manifest>
