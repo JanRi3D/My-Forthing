@@ -71,6 +71,11 @@ class LivePlateProcessor(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val busy = AtomicBoolean(false)
+
+    @Volatile
+    private var closed = false
+
+    @Volatile
     private var job: Job? = null
     // Touched only by the processing coroutine (one at a time).
     private val recent = ArrayDeque<LongArray>() // [endedAt, durationMs]
@@ -83,10 +88,11 @@ class LivePlateProcessor(
     val stats: StateFlow<ProcessingStats> = _stats.asStateFlow()
 
     /** True if a frame submitted now would be processed: check it before grabbing a bitmap from the player. */
-    val wantsFrame: Boolean get() = !busy.get() && throttle.ready(clock())
+    val wantsFrame: Boolean get() = !closed && !busy.get() && throttle.ready(clock())
 
-    /** Returns false (frame dropped) while busy or throttled. */
+    /** Returns false (frame dropped) while busy or throttled, and silently after [close]. */
     fun submit(frame: Frame): Boolean {
+        if (closed) return false
         if (!throttle.ready(clock()) || !busy.compareAndSet(false, true)) {
             _stats.update { it.copy(dropped = it.dropped + 1) }
             return false
@@ -114,6 +120,7 @@ class LivePlateProcessor(
 
     /** Stops processing and releases the recognizer. */
     fun close() {
+        closed = true
         job?.cancel()
         recognizer.close()
         _detections.value = emptyList()

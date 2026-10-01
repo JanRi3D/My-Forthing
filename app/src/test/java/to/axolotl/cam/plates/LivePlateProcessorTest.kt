@@ -83,5 +83,10 @@ class LivePlateProcessorTest {
         processor.close()
         assertThat(recognizer.closed).isTrue()
         assertThat(processor.detections.value).isEmpty()
+        now = 10_000
+        assertThat(processor.wantsFrame).isFalse()
+        assertThat(processor.submit(frame)).isFalse() // after close: dropped silently, not counted
+        assertThat(processor.stats.value.dropped).isEqualTo(2)
+        assertThat(recognizer.calls).isEqualTo(2)
     }
 }

@@ -1,10 +1,14 @@
 package to.axolotl.cam.plates
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.RectF
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -34,7 +38,7 @@ class ClipPlateScanner @Inject constructor(
     /**
      * Cancellable between frames (cancel the calling coroutine; sightings written so far stay). [clipStartMs] is
      * the wall-clock time of position 0 when known; sightings then carry the time the plate was on the road,
-     * otherwise the scan time.
+     * otherwise the scan time. Boxes are in video pixels; the last progress has fraction 1.0.
      */
     suspend fun scan(
         uri: Uri,
@@ -56,28 +60,33 @@ class ClipPlateScanner @Inject constructor(
             retriever.setDataSource(context, uri)
             val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 ?: error("clip has no duration")
+            val videoWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
             // ponytail: OPTION_CLOSEST decodes from the previous key frame for every sample; at 2 fps that is about
             // one full decode of the clip. Switch to a sequential MediaCodec decode if higher fps is needed.
             var position = 0L
             while (position < durationMs) {
                 ensureActive()
                 val t0 = now()
-                val frame = retriever.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
+                val frame = retriever.frameAt(position * 1000, videoWidth)
                 val t1 = now()
+                val toVideo = if (frame != null && videoWidth > frame.width) videoWidth.toFloat() / frame.width else 1f
                 val found = frame?.let { recognizer.recognize(it, position) }.orEmpty()
+                    .map { if (toVideo == 1f) it else it.copy(box = it.box.times(toVideo)) }
                 recognizeMs += now() - t1
                 decodeMs += t1 - t0
                 frames++
                 if (found.isNotEmpty()) {
                     plates += found.map { it.normalized }
                     written += repository.recordSightings(
-                        found, SightingSource.CLIP, mediaId, position, frame, seenAt = clipStartMs?.plus(position) ?: System.currentTimeMillis(),
+                        found, SightingSource.CLIP, mediaId, position, frame,
+                        seenAt = clipStartMs?.plus(position) ?: System.currentTimeMillis(), frameScale = 1f / toVideo,
                     )
                 }
                 frame?.recycle()
                 onProgress(ScanProgress(position, durationMs, found))
                 position += 1000L / fps
             }
+            onProgress(ScanProgress(durationMs, durationMs, emptyList()))
             ScanSummary(
                 clipDurationMs = durationMs,
                 framesScanned = frames,
@@ -90,8 +99,23 @@ class ClipPlateScanner @Inject constructor(
         } finally {
             retriever.release()
             recognizer.close()
+            withContext(NonCancellable) { repository.forgetClip(mediaId) }
         }
     }
 
+    /** Decodes straight to OCR width on API 27+ (less memory and copying); full size on API 26. */
+    private fun MediaMetadataRetriever.frameAt(timeUs: Long, videoWidth: Int): Bitmap? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 && videoWidth > DECODE_WIDTH) {
+            getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST, DECODE_WIDTH, DECODE_WIDTH)
+        } else {
+            getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+        }
+
+    private fun RectF.times(f: Float) = RectF(left * f, top * f, right * f, bottom * f)
+
     private fun now() = System.nanoTime() / 1_000_000
+
+    private companion object {
+        const val DECODE_WIDTH = 1280 // = MlKitPlateRecognizer default OCR width
+    }
 }
