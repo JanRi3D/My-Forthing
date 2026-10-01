@@ -102,6 +102,7 @@ class BackupQueue @Inject constructor(
     fun start() = synchronized(this) {
         if (!started) {
             started = true
+            Log.d(LOG_TAG, "automatic backup rules started")
             scope.launch { observe() }
         }
     }
@@ -240,6 +241,7 @@ class BackupQueue @Inject constructor(
         const val KEY_BYTES = "bytes"
         const val KEY_TOTAL = "total"
         private const val BACKOFF_SECONDS = 30L
+        private const val LOG_TAG = "BackupQueue"
 
         fun workName(mediaId: String) = "backup-$mediaId"
 

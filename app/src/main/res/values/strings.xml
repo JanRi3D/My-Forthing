@@ -677,6 +677,7 @@
     </plurals>
     <string name="backup_connect_title">Google Drive nicht verbunden</string>
     <string name="backup_connect_text">Verbinde Google Drive, um Dateien zu sichern.</string>
+    <string name="backup_connect">Verbinden</string>
     <string name="backup_delete_drive">Drive-Kopie löschen</string>
     <string name="backup_delete_drive_title">Drive-Kopie löschen?</string>
     <string name="backup_delete_drive_text">Die Datei und ihre Begleitdatei werden aus deinem Google Drive gelöscht. Die Kopien auf diesem Handy und auf der Dashcam bleiben. Automatisch wird diese Datei danach nicht wieder gesichert.</string>

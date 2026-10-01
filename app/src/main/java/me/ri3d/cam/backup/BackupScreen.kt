@@ -403,7 +403,7 @@ fun BackupSelectionAction(items: List<MediaItem>, clearSelection: () -> Unit, on
                     askConnect = false
                     clearSelection()
                     onConnectDrive()
-                }) { Text(stringResource(R.string.drive_connect)) }
+                }) { Text(stringResource(R.string.backup_connect)) }
             },
             dismissButton = { TextButton(onClick = { askConnect = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
