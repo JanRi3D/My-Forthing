@@ -5,9 +5,15 @@ enum class PlateFormat { GERMAN, GENERIC }
 /**
  * A plate found in OCR text. [display] is the reading as seen (uppercase, separators unified) with `?` in every
  * position the OCR could not read with confidence or that only fits the format after an O↔0 / I↔1 / B↔8 swap;
- * [normalized] is the OCR's own uppercase alphanumerics and is never corrected.
+ * [normalized] is the OCR's own uppercase alphanumerics and is never corrected. [glyphDropped]: an unreadable glyph
+ * was taken as the seal and left out, so the reading carries no confidence either.
  */
-data class PlateMatch(val display: String, val normalized: String, val format: PlateFormat) {
+data class PlateMatch(
+    val display: String,
+    val normalized: String,
+    val format: PlateFormat,
+    val glyphDropped: Boolean = false,
+) {
     val uncertain: Boolean get() = '?' in display
 }
 
@@ -16,8 +22,6 @@ data class PlateMatch(val display: String, val normalized: String, val format: P
  * has `?` for glyphs the OCR scored too low, `raw` keeps the OCR's guess for them (used for [PlateMatch.normalized]).
  */
 object PlateText {
-    // German format as specified (separators optional), '?' standing for one unreadable character.
-    private val german = Regex("^[A-ZÄÖÜ?]{1,3}[- ]?[A-Z?]{1,2}[- ]?[0-9?]{1,4}[HE]?$")
     private val swaps = mapOf('O' to '0', '0' to 'O', 'I' to '1', '1' to 'I', 'B' to '8', '8' to 'B')
     private const val DASHES = "-‐‑‒–—"
 
@@ -33,17 +37,17 @@ object PlateText {
 
     /**
      * Best plate reading, or null. Plates are uppercase, so a confidently read lowercase letter rejects the text.
-     * Order: German (an unreadable glyph between city code and letters is taken as the seal first), German after
-     * swaps (marked), generic EU (only without unreadable glyphs).
+     * Order: German (an unreadable non-letter glyph between city code and letters is first taken as the seal),
+     * German after swaps (marked), generic EU (only without unreadable glyphs).
      */
     fun match(shown: String, raw: String): PlateMatch? {
         require(shown.length == raw.length) { "shown and raw must be aligned" }
         if (shown.any { it != '?' && it.isLowerCase() }) return null
         val (s, r) = clean(shown, raw)
         if (s.isEmpty()) return null
-        for (p in sealCandidates(s)) {
+        for (p in sealCandidates(s, r)) {
             val (s2, r2) = clean(s.replaceRange(p, p + 1, " "), r.replaceRange(p, p + 1, " "))
-            german(s2, r2)?.let { return it }
+            german(s2, r2)?.let { return it.copy(glyphDropped = true) }
         }
         german(s, r)?.let { return it }
         if ('?' !in s && isGeneric(s)) return PlateMatch(s, normalize(r), PlateFormat.GENERIC)
@@ -99,11 +103,12 @@ object PlateText {
     }
 
     /**
-     * Unreadable glyphs that may be the seal (registration/inspection stickers between city code and letters,
-     * which OCR reads as "8", "S", "&" …): only letters (or unreadable glyphs) before it, a letter right after it.
+     * Unreadable glyphs that may be the seal (registration/inspection stickers between city code and letters):
+     * only letters (or unreadable glyphs) before it, a letter right after it, and an OCR guess that is not a letter
+     * (seals come out as "8", "3", "&" …). An unreadable glyph guessed as a letter may be a real letter and stays.
      */
-    private fun sealCandidates(s: String) = s.indices.filter { p ->
-        s[p] == '?' && p > 0 && s.substring(0, p).none { it.isDigit() } &&
+    private fun sealCandidates(s: String, r: String) = s.indices.filter { p ->
+        s[p] == '?' && p > 0 && !r[p].isLetter() && s.substring(0, p).none { it.isDigit() } &&
             s.substring(p + 1).firstOrNull { it != ' ' && it != '-' }?.isLetter() == true
     }
 
@@ -115,11 +120,34 @@ object PlateText {
         return PlateMatch(s.mapIndexed { i, c -> if (i in swapped) '?' else c }.joinToString(""), normalize(r), PlateFormat.GERMAN)
     }
 
+    /**
+     * German layout: district code (official list, see [GERMAN_DISTRICT_CODES]), a visible boundary (separator, or
+     * an unreadable glyph between letters: the seal), 1–2 letters, optional separator, 1–4 digits with at least one
+     * read digit, optional H/E; at most 8 characters before the suffix. A joined "BMK 4821" is not accepted as
+     * text ("BUS 42", "RAST 500" read the same way); the recognizer turns a seal merged into a glyph into a separator.
+     */
     private fun isGerman(s: String): Boolean {
-        if (!german.matches(s)) return false
-        val chars = s.filter { it != ' ' && it != '-' }
-        val core = if (chars.last() in "HE" && chars[chars.length - 2].let { it.isDigit() || it == '?' }) chars.dropLast(1) else chars
-        return core.length <= 8 // official limit: 8 characters plus an optional H/E suffix
+        val core = if (s.length > 1 && s.last() in "HE" && s[s.length - 2].let { it.isDigit() || it == '?' }) s.dropLast(1) else s
+        if (core.count { it != ' ' && it != '-' } > 8) return false
+        return (1..minOf(4, core.length)).any { d ->
+            val digits = core.takeLast(d)
+            digits.all { it.isDigit() || it == '?' } && digits.any { it.isDigit() } &&
+                hasDistrictAndLetters(core.dropLast(d).removeSuffix(" ").removeSuffix("-"))
+        }
+    }
+
+    private fun hasDistrictAndLetters(head: String) = head.indices.any { i ->
+        val boundary = head[i] == ' ' || head[i] == '-' ||
+            (head[i] == '?' && head.getOrNull(i - 1)?.isLetter() == true && head.getOrNull(i + 1)?.isLetter() == true)
+        val district = head.substring(0, i)
+        val letters = head.substring(i + 1)
+        boundary && letters.length in 1..2 && letters.all { it in 'A'..'Z' || it == '?' } && isDistrict(district)
+    }
+
+    private fun isDistrict(code: String): Boolean = when {
+        code.length !in 1..3 || code.any { !it.isLetter() && it != '?' } -> false
+        '?' !in code -> code in GERMAN_DISTRICT_CODES
+        else -> GERMAN_DISTRICT_CODES.any { known -> known.length == code.length && known.indices.all { code[it] == '?' || code[it] == known[it] } }
     }
 
     /**
@@ -152,13 +180,14 @@ object PlateText {
     }
 
     /**
-     * Generic EU fallback: 2–3 blocks, letters and digits, 5–9 characters. Letter-only blocks are limited to
-     * 3 characters (no EU format has longer letter groups), which rejects words such as "TEMPO 30".
+     * Generic EU fallback: 2–3 blocks, letters and digits, 5–9 characters, two-block readings at least 7 (the
+     * two-block EU formats PL, I, E, UK all have 7, which rejects "BUS 42", "IN 2023"). Letter-only blocks are
+     * limited to 3 characters (no EU format has longer letter groups), which rejects words such as "TEMPO 30".
      */
     private fun isGeneric(s: String): Boolean {
         val blocks = s.split(' ', '-')
         val n = normalize(s)
-        return blocks.size in 2..3 && n.length in 5..9 &&
+        return blocks.size in 2..3 && n.length in (if (blocks.size == 2) 7 else 5)..9 &&
             n.any { it.isLetter() } && n.any { it.isDigit() } &&
             blocks.none { block -> block.length > 3 && block.all { it.isLetter() } }
     }
