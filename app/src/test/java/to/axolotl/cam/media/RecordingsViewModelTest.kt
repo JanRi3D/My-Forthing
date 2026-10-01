@@ -76,7 +76,7 @@ class RecordingsViewModelTest {
         eventually { vm.browser(1).value.listing.end == ListingEnd.COMPLETE }
         val entries = vm.entries(1).first()
         assertThat(entries.map { it.file.fileName }).isEqualTo(files.entries(1).map { it.fileName })
-        assertThat(entries.all { it.item?.category == MediaCategory.EVENT }).isTrue()
+        assertThat(entries.all { it.item.category == MediaCategory.EVENT }).isTrue()
         assertThat(vm.browser(0).value.started).isFalse() // other tabs wait until shown
 
         vm.show(RecordingsTab.NORMAL)
@@ -120,7 +120,7 @@ class RecordingsViewModelTest {
         manager.connect()
         vm.show(RecordingsTab.NORMAL)
         eventually { vm.browser(0).value.listing.end == ListingEnd.COMPLETE }
-        val ids = vm.entries(0).first().take(2).map { it.item!!.id }
+        val ids = vm.entries(0).first().take(2).map { it.item.id }
         ids.forEach(vm::toggle)
         assertThat(vm.selection.value).containsExactlyElementsIn(ids)
 
@@ -135,6 +135,10 @@ class RecordingsViewModelTest {
         assertThat(vm.notices.first()).isEqualTo(MediaNotice.DeletedOnRecorder(2))
         assertThat(vm.browser(0).value.listing.files.map { it.fileName }).containsExactly(files.entries(0).single().fileName)
         assertThat(ids.map { db.mediaDao().get(it) }).containsExactly(null, null) // no other copy: rows gone
+
+        // Deleted elsewhere (clip screen): the listed entry disappears without a new listing.
+        MediaRepository(context, db, manager).markRecorderDeleted(files.entries(0).single().fileName)
+        assertThat(vm.entries(0).first()).isEmpty()
     }
 
     @Test

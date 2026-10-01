@@ -41,8 +41,8 @@ enum class RecordingsTab(val type: Int?, @StringRes val label: Int) {
     }
 }
 
-/** One listed recorder file, its library row (null until registered) and its download. */
-data class RecorderEntry(val file: RecorderFile, val item: MediaItem?, val transfer: TransferProgress?)
+/** One listed recorder file, its library row and its download. */
+data class RecorderEntry(val file: RecorderFile, val item: MediaItem, val transfer: TransferProgress?)
 
 /** One-shot results shown as snackbar. */
 sealed interface MediaNotice {
@@ -90,11 +90,15 @@ class RecordingsViewModel @Inject constructor(
 
     fun browser(type: Int): StateFlow<BrowserState> = browsers.getValue(type).state
 
-    /** The listing of [type] joined with library rows (by recorder path) and transfers. */
+    /**
+     * The listing of [type] joined with library rows (by recorder path) and transfers. Every page is registered
+     * before it is shown, so a listed file without a row was deleted on the recorder meanwhile (e.g. from the clip
+     * screen) and is left out.
+     */
     fun entries(type: Int): Flow<List<RecorderEntry>> =
         combine(browsers.getValue(type).state, repository.observeRecorderType(type), transfers) { state, items, transfers ->
             val byPath = items.associateBy { it.recorderPath }
-            state.listing.files.map { file -> byPath[file.fileName].let { RecorderEntry(file, it, it?.let { i -> transfers[i.id] }) } }
+            state.listing.files.mapNotNull { file -> byPath[file.fileName]?.let { RecorderEntry(file, it, transfers[it.id]) } }
         }
 
     /** The tab became visible: its type is listed once per session (refresh and notifications list it again). */

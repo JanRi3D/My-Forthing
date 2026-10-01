@@ -31,6 +31,7 @@ import to.axolotl.cam.dashcam.outcomeUnknown
 import to.axolotl.cam.recorder.RecorderError
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Image over a tinted placeholder icon; the icon stays visible while loading and when loading fails. */
 @Composable
@@ -71,7 +72,9 @@ fun NotConnectedCard(onConnect: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /** "17:41:08" from the raw recorder time; the raw text when it has another shape. */
-fun recorderClock(raw: String?): String? = MediaRepository.parseRecorderTime(raw)?.toLocalTime()?.toString() ?: raw
+fun recorderClock(raw: String?): String? = MediaRepository.parseRecorderTime(raw)?.let(CLOCK::format) ?: raw
+
+private val CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss")
 
 /** Day of a recorder time (read in the phone's zone) or of a phone timestamp; null when unknown. */
 fun dayOf(item: MediaItem?, raw: String?): LocalDate? =

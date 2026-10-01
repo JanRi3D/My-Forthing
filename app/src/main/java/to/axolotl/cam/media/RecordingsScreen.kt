@@ -411,18 +411,14 @@ private fun DayHeader(text: String) {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-private fun Modifier.selectable(item: MediaItem?, selection: Set<String>, onTap: (MediaItem) -> Unit, onToggle: (String) -> Unit, openLabel: String, selectLabel: String) =
-    if (item == null) {
-        this
-    } else {
-        semantics { if (selection.isNotEmpty()) selected = item.id in selection }
-            .combinedClickable(
-                onClickLabel = openLabel,
-                onLongClickLabel = selectLabel,
-                onLongClick = { onToggle(item.id) },
-                onClick = { onTap(item) },
-            )
-    }
+private fun Modifier.selectable(item: MediaItem, selection: Set<String>, onTap: (MediaItem) -> Unit, onToggle: (String) -> Unit, openLabel: String, selectLabel: String) =
+    semantics { if (selection.isNotEmpty()) selected = item.id in selection }
+        .combinedClickable(
+            onClickLabel = openLabel,
+            onLongClickLabel = selectLabel,
+            onLongClick = { onToggle(item.id) },
+            onClick = { onTap(item) },
+        )
 
 @Composable
 private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit, download: (Collection<String>) -> Unit) {
@@ -439,7 +435,7 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
     ) {
         Box {
             MediaThumb(
-                entry.file.fileThm?.let(viewModel.http::url), placeholderFor(item?.kind ?: MediaRepository.kindOf(entry.file.fileName.orEmpty())),
+                entry.file.fileThm?.let(viewModel.http::url), placeholderFor(item.kind),
                 Modifier.size(width = 96.dp, height = 54.dp).clip(MaterialTheme.shapes.small), viewModel.http.imageLoader,
             )
             SelectionMark(item, selection, Modifier.align(Alignment.TopStart))
@@ -448,8 +444,8 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
             Text(recorderClock(entry.file.fileTime) ?: "–", style = MaterialTheme.typography.titleMedium)
             Text(entry.file.fileName.orEmpty().substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (item?.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
-                if (item?.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
+                if (item.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
+                if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
             }
         }
         TransferControl(entry, download)
@@ -478,7 +474,7 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
         Box(Modifier.align(Alignment.TopEnd)) {
             val transfer = entry.transfer
             when {
-                item?.localUri != null -> Icon(
+                item.localUri != null -> Icon(
                     painterResource(R.drawable.ic_phone), stringResource(R.string.media_on_phone),
                     Modifier.padding(4.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape).padding(4.dp).size(16.dp),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -490,8 +486,8 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
 }
 
 @Composable
-private fun SelectionMark(item: MediaItem?, selection: Set<String>, modifier: Modifier) {
-    if (selection.isEmpty() || item == null) return
+private fun SelectionMark(item: MediaItem, selection: Set<String>, modifier: Modifier) {
+    if (selection.isEmpty()) return
     Icon(
         painterResource(if (item.id in selection) R.drawable.ic_media_selected else R.drawable.ic_media_unselected),
         contentDescription = null,
@@ -503,7 +499,7 @@ private fun SelectionMark(item: MediaItem?, selection: Set<String>, modifier: Mo
 /** Download button, running transfer, or "auf dem Handy". 48 dp in every state. */
 @Composable
 private fun TransferControl(entry: RecorderEntry, download: (Collection<String>) -> Unit) {
-    val item = entry.item ?: return
+    val item = entry.item
     val transfer = entry.transfer
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         when {
