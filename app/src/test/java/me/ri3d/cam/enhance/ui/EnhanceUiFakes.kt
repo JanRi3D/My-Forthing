@@ -1,7 +1,10 @@
 package me.ri3d.cam.enhance.ui
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Resources
 import android.graphics.Bitmap
+import me.ri3d.cam.core.branding.Branding
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import me.ri3d.cam.enhance.ClipUpscaler
@@ -50,7 +53,27 @@ class FakeFrameEnhancer(var caps: EnhancerCapabilities = caps()) : FrameEnhancer
         return EnhancedFrame(Bitmap.createScaledBitmap(src, src.width * scale, src.height * scale, false), used, "test-model".takeIf { used == EnhanceEngine.ML })
     }
 
-    override suspend fun capabilities(): EnhancerCapabilities = caps.also { capabilityCalls++ }
+    var capabilitiesError: Exception? = null
+
+    override suspend fun capabilities(): EnhancerCapabilities {
+        capabilityCalls++
+        capabilitiesError?.let { throw it }
+        return caps
+    }
+}
+
+/**
+ * These Robolectric tests run without the app's resources; `saveEnhancedFrame` reads the app name (EXIF "Software"),
+ * so this context answers that one string.
+ */
+@Suppress("DEPRECATION") // the Resources constructor; fine for a test double
+fun withAppName(base: Context): Context = object : ContextWrapper(base) {
+    private val res = object : Resources(base.assets, base.resources.displayMetrics, base.resources.configuration) {
+        override fun getString(id: Int): String = if (id == Branding.appName) "My Forthing" else super.getString(id)
+    }
+
+    override fun getResources(): Resources = res
+    override fun getApplicationContext(): Context = this
 }
 
 /**

@@ -2,11 +2,14 @@ package me.ri3d.cam.enhance.ui
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
@@ -17,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowMediaMetadataRetriever
 import me.ri3d.cam.R
@@ -25,6 +29,7 @@ import me.ri3d.cam.enhance.EngineCost
 import me.ri3d.cam.enhance.EnhanceEngine
 import me.ri3d.cam.enhance.EnhanceError
 import me.ri3d.cam.enhance.EnhanceException
+import me.ri3d.cam.enhance.EnhancementInfo
 import me.ri3d.cam.media.MediaItem
 import me.ri3d.cam.media.MediaKind
 import me.ri3d.cam.media.MediaRepository
@@ -33,10 +38,11 @@ import me.ri3d.cam.media.memoryDb
 import me.ri3d.cam.recorder.RecorderSimulator
 import java.io.File
 
-/** Enhance flow with a fake [me.ri3d.cam.enhance.FrameEnhancer]: source frame, options, estimate, fallback, typed errors, cancel. */
+/** Enhance flow with a fake [me.ri3d.cam.enhance.FrameEnhancer]: source frame, options, estimate, fallback, typed errors, cancel, save. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35]) // enhanceDir() calls Process.getStartElapsedRealtime(), missing from Robolectric's SDK 36 jar
 class EnhanceViewModelTest {
     private val context = RuntimeEnvironment.getApplication()
     private val db = memoryDb(context)
@@ -61,13 +67,67 @@ class EnhanceViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repository = MediaRepository(context, db, managerFor(RecorderSimulator()).apply { setSimulator(true) })
         db.mediaDao().insert(item)
-        val vm = EnhanceViewModel(SavedStateHandle(mapOf("mediaId" to item.id, "positionMs" to positionMs)), context, repository, enhancer)
+        val vm = EnhanceViewModel(SavedStateHandle(mapOf("mediaId" to item.id, "positionMs" to positionMs)), withAppName(context), repository, enhancer)
         eventually { !vm.state.value.loading }
         return Setup(vm, repository, item)
     }
 
-    // Saving (saveEnhancedFrame → registerDerived) needs the app's resources (EXIF "Software" = app name), which these
-    // Robolectric tests run without: it is covered on the emulator (see docs/features/enhance.md, UI → Validation).
+    private fun enhanceFiles() = File(context.filesDir, "enhance").list().orEmpty().toList()
+
+    @Test
+    fun `saving writes a labelled JPEG and a derived item linked to the original at its position`() = runTest {
+        val clip = File(context.filesDir, "media/v/clip.mp4").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(10)) }
+        ShadowMediaMetadataRetriever.addFrame(clip.path, 37_000_000L, Bitmap.createBitmap(48, 27, Bitmap.Config.ARGB_8888))
+        val s = setup(localItem(MediaKind.ORIGINAL_VIDEO, clip), positionMs = 37_000)
+        val originalBytes = clip.readBytes()
+        s.vm.enhance()
+        eventually { s.vm.state.value.result != null }
+
+        var savedId: String? = null
+        backgroundScope.launch(Dispatchers.Unconfined) { savedId = s.vm.saved.first() }
+        s.vm.save()
+        eventually { savedId != null }
+
+        val saved = s.repository.get(savedId!!)!!
+        assertThat(saved.kind).isEqualTo(MediaKind.ENHANCED_FRAME)
+        assertThat(saved.parentId).isEqualTo(s.item.id)
+        assertThat(saved.parentPositionMs).isEqualTo(37_000)
+        val file = saved.localFile!!
+        assertThat(file.nameWithoutExtension).isEqualTo(saved.id)
+        val info = EnhancementInfo.read(file)!!
+        assertThat(info.sourceMediaId).isEqualTo(s.item.id)
+        assertThat(info.engine).isEqualTo(EnhanceEngine.ML)
+        assertThat(ExifInterface(file).getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION)).isEqualTo("rekonstruiert, kein Beweis")
+        assertThat(clip.readBytes()).isEqualTo(originalBytes)
+        assertThat(s.vm.state.value.saving).isFalse()
+    }
+
+    @Test
+    fun `a save whose registration fails leaves no file behind`() = runTest {
+        val s = setup()
+        s.vm.enhance()
+        eventually { s.vm.state.value.result != null }
+        db.openHelper.writableDatabase.execSQL("DROP TABLE media_item") // registerDerived fails after the JPEG + sidecar exist
+        s.vm.save()
+        eventually { s.vm.state.value.error == R.string.enhance_error_save }
+        assertThat(s.vm.state.value.saving).isFalse()
+        assertThat(enhanceFiles()).isEmpty()
+    }
+
+    @Test
+    fun `outputs are never enhanced again`() = runTest {
+        val s = setup(localItem(MediaKind.ENHANCED_FRAME, photo()))
+        assertThat(s.vm.state.value.loadError).isEqualTo(R.string.enhance_error_derived)
+        assertThat(enhancer.capabilityCalls).isEqualTo(0)
+    }
+
+    @Test
+    fun `failing capabilities fall back to classical`() = runTest {
+        enhancer.capabilitiesError = IllegalStateException("benchmark failed")
+        val s = setup()
+        assertThat(s.vm.state.value.loadError).isNull()
+        assertThat(s.vm.state.value.engines).containsExactly(EnhanceEngine.CLASSICAL)
+    }
 
     @Test
     fun `a photo is enhanced on the defaults, the original untouched`() = runTest {

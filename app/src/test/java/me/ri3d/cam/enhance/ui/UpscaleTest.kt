@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.SavedStateHandle
 import androidx.work.Configuration
+import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -34,13 +35,14 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.MediaCodecInfoBuilder
 import org.robolectric.shadows.ShadowMediaCodecList
 import org.robolectric.shadows.ShadowMediaExtractor
 import org.robolectric.shadows.util.DataSource
 import me.ri3d.cam.R
 import me.ri3d.cam.core.data.PreferencesRepository
-import me.ri3d.cam.core.ui.UiText
+import me.ri3d.cam.core.model.ExportQuality
 import me.ri3d.cam.dashcam.managerFor
 import me.ri3d.cam.enhance.EnhanceEngine
 import me.ri3d.cam.enhance.Resolution
@@ -54,13 +56,16 @@ import me.ri3d.cam.media.eventually
 import me.ri3d.cam.media.memoryDb
 import me.ri3d.cam.recorder.RecorderSimulator
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Upscale screen logic (target filtering by TargetNotLarger and encoder capability, estimate display, engines) and the
- * WorkManager job with a fake [me.ri3d.cam.enhance.ClipUpscaler] (progress, cancel, done → derived item, failures).
+ * Upscale screen logic (target filtering by TargetNotLarger, encoder size and frame rate, the Android 15 time limit,
+ * export-quality default, engines) and the WorkManager job with a fake [me.ri3d.cam.enhance.ClipUpscaler] (progress,
+ * cancel, done → derived item, failures, adoption after a restart). Pure display rules: [EnhanceUiLogicTest].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35]) // Android 15 time limit applies; enhanceDir() needs Process.getStartElapsedRealtime (not in Robolectric's 36 jar)
 class UpscaleTest {
     @get:Rule
     val tmp = TemporaryFolder()
@@ -71,83 +76,133 @@ class UpscaleTest {
     private val enhancer = FakeFrameEnhancer()
     private val jobs = UpscaleJobs(context)
     private lateinit var repository: MediaRepository
-    private val factory = object : WorkerFactory() {
+
+    /** doWork calls still running; every test waits for them, so none touches a later test's WorkManager. */
+    private val running = AtomicInteger()
+    private val direct = object : WorkerFactory() {
         override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
             UpscaleWorker(appContext, workerParameters, upscaler, repository)
+    }
+    private val recorded = object : WorkerFactory() {
+        override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker {
+            val worker = UpscaleWorker(appContext, workerParameters, upscaler, repository)
+            return object : CoroutineWorker(appContext, workerParameters) {
+                override suspend fun doWork(): Result {
+                    running.incrementAndGet()
+                    try {
+                        return worker.doWork()
+                    } finally {
+                        running.decrementAndGet()
+                    }
+                }
+            }
+        }
     }
 
     @Before
     fun setUp() {
-        val config = Configuration.Builder().setExecutor(SynchronousExecutor()).setTaskExecutor(SynchronousExecutor()).setWorkerFactory(factory).build()
+        val config = Configuration.Builder().setExecutor(SynchronousExecutor()).setTaskExecutor(SynchronousExecutor()).setWorkerFactory(recorded).build()
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
     }
 
     @After
     fun tearDown() {
-        // Workers still waiting on a fake job would touch WorkManager's database after the next test replaced it.
-        val workManager = WorkManager.getInstance(context)
-        workManager.cancelAllWork().result.get()
-        val end = System.currentTimeMillis() + 5_000
-        while (System.currentTimeMillis() < end &&
-            (upscaler.handedOut.any { it.isActive } || workManager.getWorkInfosForUniqueWork(UpscaleJobs.WORK).get().any { !it.state.isFinished })
-        ) {
+        WorkManager.getInstance(context).cancelAllWork().result.get()
+        val end = System.currentTimeMillis() + 10_000
+        while (running.get() > 0) {
+            check(System.currentTimeMillis() < end) { "upscale workers did not finish" }
             Thread.sleep(10)
         }
-        Thread.sleep(200) // the cancelled worker's own bookkeeping on its thread
         Dispatchers.resetMain()
         db.close()
         listOf("media", "enhance", "thumbs").forEach { File(context.filesDir, it).deleteRecursively() }
     }
 
-    /** A 1080p30, 60 s clip on the phone (as MediaExtractor reports it). */
-    private suspend fun TestScope.clip(name: String = "clip"): MediaItem {
+    /** A 1080p, 60 s clip on the phone (as MediaExtractor reports it). */
+    private suspend fun TestScope.clip(name: String = "clip", fps: Int = 30, kind: MediaKind = MediaKind.ORIGINAL_VIDEO): MediaItem {
         if (!::repository.isInitialized) repository = MediaRepository(context, db, managerFor(RecorderSimulator()).apply { setSimulator(true) })
         val file = File(context.filesDir, "media/$name/$name.mp4").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(1000)) }
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 1920, 1080).apply {
             setLong(MediaFormat.KEY_DURATION, 60_000_000L)
-            setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+            setInteger(MediaFormat.KEY_FRAME_RATE, fps)
         }
         ShadowMediaExtractor.addTrack(DataSource.toDataSource(file.path), format, ByteArray(0))
-        return localItem(MediaKind.ORIGINAL_VIDEO, file).also { db.mediaDao().insert(it) }
+        return localItem(kind, file).also { db.mediaDao().insert(it) }
     }
 
-    /** An H.264 encoder up to level 5 (22 080 macroblocks per frame): 2560×1440 fits, 3840×2160 does not. */
-    private fun level5Encoder() {
+    /**
+     * An H.264 encoder up to [level]. Level 5: 22 080 macroblocks per frame and 589 824 per second, so 2560×1440 fits
+     * at 30 fps but not at 60, and 3840×2160 never. Level 5.2: 36 864 per frame, 2 073 600 per second (4K60).
+     */
+    private fun encoder(level: Int = CodecProfileLevel.AVCLevel5) {
         val format = MediaFormat().apply { setString(MediaFormat.KEY_MIME, MediaFormat.MIMETYPE_VIDEO_AVC) }
         val caps = MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
             .setMediaFormat(format)
             .setIsEncoder(true)
-            .setProfileLevels(arrayOf(CodecProfileLevel().apply { profile = CodecProfileLevel.AVCProfileHigh; level = CodecProfileLevel.AVCLevel5 }))
+            .setProfileLevels(arrayOf(CodecProfileLevel().apply { profile = CodecProfileLevel.AVCProfileHigh; this.level = level }))
             .setColorFormats(intArrayOf(CodecCapabilities.COLOR_FormatSurface))
             .build()
         ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.avc.encoder").setIsEncoder(true).setCapabilities(caps).build())
     }
 
-    private suspend fun TestScope.viewModel(item: MediaItem): UpscaleViewModel {
+    private suspend fun TestScope.viewModel(item: MediaItem, quality: ExportQuality = ExportQuality.Q1440): UpscaleViewModel {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val prefs = PreferencesRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "${item.id}.preferences_pb") })
+        prefs.update { it.copy(exportQuality = quality) }
         val vm = UpscaleViewModel(SavedStateHandle(mapOf("mediaId" to item.id)), repository, upscaler, enhancer, jobs, prefs)
         eventually { !vm.state.value.loading }
         return vm
     }
 
-    private suspend fun job() = jobs.current.first()
+    private fun worker(item: MediaItem, attempts: Int = 0, enqueuedAt: Long = 0) = TestListenableWorkerBuilder.from(context, UpscaleWorker::class.java)
+        .setInputData(
+            workDataOf(
+                UpscaleWorker.KEY_ID to item.id, UpscaleWorker.KEY_TARGET to "P1440", UpscaleWorker.KEY_ENGINE to "CLASSICAL",
+                UpscaleWorker.KEY_ENQUEUED_AT to enqueuedAt,
+            ),
+        )
+        .setRunAttemptCount(attempts)
+        .setWorkerFactory(direct)
+        .build()
+
+    private fun failure(kind: UpscaleFailureKind) = ListenableWorker.Result.failure(workDataOf(UpscaleWorker.KEY_ERROR to kind.name))
 
     @Test
     fun `targets not larger than the source are left out, targets without an encoder are disabled`() = runTest {
-        level5Encoder()
+        encoder()
         val vm = viewModel(clip())
         val s = vm.state.value
         assertThat(s.source).isEqualTo(ClipFacts(1920, 1080, 60_000, 30, 1000))
         assertThat(s.options.map { it.target }).containsExactly(Resolution.P1440, Resolution.P2160).inOrder()
         assertThat(s.options.map { it.encoder }).containsExactly(true, false).inOrder()
         assertThat(s.options.map { it.width to it.height }).containsExactly(2560 to 1440, 3840 to 2160).inOrder()
-        assertThat(s.target).isEqualTo(Resolution.P1440) // the export-quality default
         assertThat(s.canStart).isTrue()
 
         vm.setTarget(Resolution.P2160)
         testScheduler.runCurrent()
         assertThat(vm.state.value.canStart).isFalse()
+    }
+
+    @Test
+    fun `the encoder check includes the frame rate`() = runTest {
+        encoder()
+        val vm = viewModel(clip(fps = 60))
+        assertThat(vm.state.value.source!!.fps).isEqualTo(60)
+        assertThat(vm.state.value.options.map { it.encoder }).containsExactly(false, false).inOrder() // 1440p60 > level 5
+        assertThat(vm.state.value.canStart).isFalse()
+    }
+
+    @Test
+    fun `the export quality preselects its target when the phone can encode it, else the first that works`() = runTest {
+        encoder(CodecProfileLevel.AVCLevel52)
+        assertThat(viewModel(clip("a"), ExportQuality.Q2160).state.value.target).isEqualTo(Resolution.P2160)
+        assertThat(viewModel(clip("b"), ExportQuality.Q1440).state.value.target).isEqualTo(Resolution.P1440)
+    }
+
+    @Test
+    fun `a preferred target the phone cannot encode falls back to one it can`() = runTest {
+        encoder() // level 5: no 4K
+        assertThat(viewModel(clip(), ExportQuality.Q2160).state.value.target).isEqualTo(Resolution.P1440)
     }
 
     @Test
@@ -159,25 +214,18 @@ class UpscaleTest {
     }
 
     @Test
-    fun `size is always shown, time only when measured, the encoder reason otherwise`() {
-        val measured = UpscaleOption(Resolution.P1440, 2560, 1440, encoder = true, bytes = 98_000_000, etaMs = 240_000)
-        assertThat(optionTextRes(measured)).isEqualTo(R.string.upscale_option_size_time)
-        assertThat(optionTextRes(measured.copy(etaMs = null))).isEqualTo(R.string.upscale_option_size)
-        assertThat(optionTextRes(measured.copy(encoder = false))).isEqualTo(R.string.upscale_no_encoder)
-        assertThat(duration(3 * 3_600_000L + 29 * 60_000L + 1)).isEqualTo(UiText.Res(R.string.enhance_duration_hours, listOf(3, 30)))
-        assertThat(duration(59_500)).isEqualTo(UiText.Res(R.string.enhance_duration_minutes, listOf(1)))
-        assertThat(duration(1)).isEqualTo(UiText.Res(R.string.enhance_duration_seconds, listOf(1)))
-    }
-
-    @Test
-    fun `the ML engine is offered only with the model, and its estimate is its own`() = runTest {
-        level5Encoder()
-        upscaler.etaMs = mapOf(EnhanceEngine.ML to 7_200_000L)
+    fun `the ML engine is offered only with the model, with its own estimate and the Android 15 time limit`() = runTest {
+        encoder()
+        upscaler.etaMs = mapOf(EnhanceEngine.ML to 6 * 3_600_000L)
         val vm = viewModel(clip())
         eventually { vm.state.value.mlAvailable }
         assertThat(vm.state.value.options.first().etaMs).isNull()
+        assertThat(vm.state.value.options.first().tooLong).isFalse()
+
         vm.setEngine(EnhanceEngine.ML)
-        eventually { vm.state.value.options.first().etaMs == 7_200_000L }
+        eventually { vm.state.value.options.first().etaMs == 6 * 3_600_000L }
+        assertThat(vm.state.value.options.first().tooLong).isTrue() // 6 h > the 5 h budget for dataSync work
+        assertThat(vm.state.value.canStart).isFalse()
 
         enhancer.caps = caps(engines = listOf(EnhanceEngine.CLASSICAL))
         val other = viewModel(clip("other"))
@@ -187,8 +235,17 @@ class UpscaleTest {
     }
 
     @Test
+    fun `outputs are never upscaled`() = runTest {
+        encoder()
+        val vm = viewModel(clip(kind = MediaKind.UPSCALED_CLIP))
+        assertThat(vm.state.value.loadError).isEqualTo(R.string.upscale_failure_not_original)
+        assertThat(worker(clip("w", kind = MediaKind.UPSCALED_CLIP)).doWork()).isEqualTo(failure(UpscaleFailureKind.NOT_ORIGINAL))
+        assertThat(upscaler.requests).isEmpty()
+    }
+
+    @Test
     fun `the job reports progress, survives as work and registers the clip when done`() = runTest {
-        level5Encoder()
+        encoder()
         val item = clip()
         val vm = viewModel(item)
         upscaler.progress = UpscaleProgress(0.5f, 60_000, 50_000_000)
@@ -215,20 +272,37 @@ class UpscaleTest {
 
     @Test
     fun `cancel stops the pipeline`() = runTest {
-        level5Encoder()
+        encoder()
         val vm = viewModel(clip())
         vm.start()
         eventually { upscaler.last != null && vm.state.value.job?.state == WorkInfo.State.RUNNING }
 
         vm.cancel()
         eventually { vm.state.value.job?.state == WorkInfo.State.CANCELLED }
-        eventually { upscaler.last!!.isCancelled }
+        eventually { upscaler.last!!.isCancelled && running.get() == 0 }
         assertThat(vm.state.value.canStart).isTrue()
     }
 
     @Test
+    fun `a clip finished just as the work is cancelled is registered, not orphaned`() = runTest {
+        encoder()
+        val item = clip()
+        val vm = viewModel(item)
+        val done = CompletableDeferred<UpscaleResult>()
+        upscaler.job = { done }
+        vm.start()
+        eventually { vm.state.value.job?.state == WorkInfo.State.RUNNING }
+
+        val result = upscaledOutput(context, item.id)
+        done.complete(result) // the pipeline finished …
+        vm.cancel() // … and the cancel arrives at the same moment: whichever wins, the clip is in the library
+        eventually { running.get() == 0 }
+        assertThat(repository.get(result.output.id)?.parentId).isEqualTo(item.id)
+    }
+
+    @Test
     fun `typed failures reach the screen and an ML failure offers classical`() = runTest {
-        level5Encoder()
+        encoder()
         val vm = viewModel(clip())
         upscaler.job = { CompletableDeferred(UpscaleResult.Failed(UpscaleError.Memory("ML frame"))) }
         vm.setEngine(EnhanceEngine.ML)
@@ -246,21 +320,8 @@ class UpscaleTest {
     }
 
     @Test
-    fun `every pipeline error maps to its German reason`() {
-        val kinds = listOf(
-            UpscaleError.Decoder(null), UpscaleError.Encoder(null), UpscaleError.Storage(null), UpscaleError.Memory(null),
-            UpscaleError.TargetNotLarger(null), UpscaleError.Cancelled,
-        ).map(UpscaleFailureKind::of)
-        assertThat(kinds).containsExactly(
-            UpscaleFailureKind.DECODER, UpscaleFailureKind.ENCODER, UpscaleFailureKind.STORAGE, UpscaleFailureKind.MEMORY,
-            UpscaleFailureKind.TARGET_NOT_LARGER, UpscaleFailureKind.CANCELLED,
-        ).inOrder()
-        assertThat(kinds.map { it.text }.toSet()).hasSize(kinds.size)
-    }
-
-    @Test
     fun `only one upscale runs at a time`() = runTest {
-        level5Encoder()
+        encoder()
         val first = viewModel(clip("a"))
         first.start()
         eventually { first.state.value.job?.active == true }
@@ -272,7 +333,32 @@ class UpscaleTest {
         assertThat(second.state.value.canStart).isFalse()
         jobs.start(b.id, Resolution.P1440, EnhanceEngine.CLASSICAL) // KEEP: no second work while the first runs
         testScheduler.runCurrent()
-        assertThat(job()!!.mediaId).isEqualTo(first.state.value.job!!.mediaId)
+        assertThat(jobs.current.first()!!.mediaId).isEqualTo(first.state.value.job!!.mediaId)
+        assertThat(upscaler.requests).hasSize(1)
+    }
+
+    @Test
+    fun `a restarted work adopts the clip its earlier attempt finished instead of running again`() = runTest {
+        val item = clip()
+        val enqueuedAt = System.currentTimeMillis() - 1_000
+        val finished = upscaledOutput(context, item.id) // left behind by a killed process, not registered
+
+        val result = worker(item, attempts = 1, enqueuedAt = enqueuedAt).doWork()
+
+        assertThat(result).isEqualTo(ListenableWorker.Result.success(workDataOf(UpscaleWorker.KEY_OUTPUT_ID to finished.output.id)))
+        assertThat(repository.get(finished.output.id)!!.parentId).isEqualTo(item.id)
+        assertThat(upscaler.requests).isEmpty()
+    }
+
+    @Test
+    fun `an older output of the same clip is not adopted`() = runTest {
+        val item = clip()
+        upscaledOutput(context, item.id) // from an earlier, separate upscale
+        upscaler.job = { CompletableDeferred(UpscaleResult.Failed(UpscaleError.Encoder(null))) }
+
+        val result = worker(item, attempts = 1, enqueuedAt = System.currentTimeMillis() + 60_000).doWork()
+
+        assertThat(result).isEqualTo(failure(UpscaleFailureKind.ENCODER))
         assertThat(upscaler.requests).hasSize(1)
     }
 
@@ -280,15 +366,8 @@ class UpscaleTest {
     fun `a vanished source or repeated system stops fail typed`() = runTest {
         val item = clip()
         item.localFile!!.delete()
-        fun worker(attempts: Int) = TestListenableWorkerBuilder.from(context, UpscaleWorker::class.java)
-            .setInputData(workDataOf(UpscaleWorker.KEY_ID to item.id, UpscaleWorker.KEY_TARGET to "P1440", UpscaleWorker.KEY_ENGINE to "CLASSICAL"))
-            .setRunAttemptCount(attempts)
-            .setWorkerFactory(factory)
-            .build()
-
-        assertThat(worker(0).doWork()).isEqualTo(ListenableWorker.Result.failure(workDataOf(UpscaleWorker.KEY_ERROR to "SOURCE_GONE")))
-        assertThat(worker(UpscaleWorker.MAX_ATTEMPTS).doWork())
-            .isEqualTo(ListenableWorker.Result.failure(workDataOf(UpscaleWorker.KEY_ERROR to "INTERRUPTED")))
+        assertThat(worker(item).doWork()).isEqualTo(failure(UpscaleFailureKind.SOURCE_GONE))
+        assertThat(worker(item, attempts = UpscaleWorker.MAX_ATTEMPTS).doWork()).isEqualTo(failure(UpscaleFailureKind.INTERRUPTED))
         assertThat(upscaler.requests).isEmpty()
     }
 }
