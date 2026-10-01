@@ -1,3 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German is the default locale. Each feature appends its strings in its own block marked with the feature name. -->
 <resources>
+    <!-- foundation -->
     <string name="app_name">Axolotl Cam</string>
+
+    <string name="action_back">Zurück</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_retry">Erneut versuchen</string>
+    <string name="state_view_loading">Wird geladen …</string>
+    <string name="state_view_empty">Hier ist noch nichts.</string>
+    <string name="confirm_danger_acknowledge">Mir ist klar, dass sich das nicht rückgängig machen lässt.</string>
+
+    <string name="welcome_subtitle">Live-Ansicht, Aufnahmen und Einstellungen für deine Dashcam.</string>
+    <string name="welcome_create_account">Konto erstellen</string>
+    <string name="welcome_sign_in">Anmelden</string>
+    <string name="welcome_continue_offline">Ohne Konto fortfahren</string>
+
+    <string name="offline_title">Ohne Konto nutzen</string>
+    <string name="offline_subtitle">Dein Profil bleibt nur auf diesem Handy. Keine E-Mail, kein Passwort.</string>
+    <string name="offline_name_label">Profilname</string>
+    <string name="offline_name_placeholder">z. B. Mein Auto</string>
+    <string name="offline_picture_label">Profilbild</string>
+    <string name="offline_picture_hint">Optional. Bleibt auf diesem Handy.</string>
+    <string name="offline_picture_pick">Bild auswählen</string>
+    <string name="offline_picture_change">Bild ändern</string>
+    <string name="offline_picture_remove">Entfernen</string>
+    <string name="offline_local_title">Bleibt auf diesem Handy</string>
+    <string name="offline_local_text">Wenn du die App löschst, werden auch dieses Profil und seine Einstellungen gelöscht.</string>
+    <string name="offline_no_internet_title">Kein Internet nötig</string>
+    <string name="offline_no_internet_text">Verwalte deine Dashcam, ohne online zu gehen.</string>
+    <string name="offline_go_online_title">Jederzeit online gehen</string>
+    <string name="offline_go_online_text">Füge später eine E-Mail hinzu. Dein Profil und deine Einstellungen kommen mit.</string>
+    <string name="offline_create">Offline-Profil erstellen</string>
+    <string name="offline_account_instead">Lieber ein Konto?</string>
+    <string name="offline_error_save">Das Profil konnte nicht gespeichert werden.</string>
+
+    <string name="home_search_plates">Kennzeichen suchen</string>
+    <string name="home_profile">Profil</string>
+    <string name="home_dashcam_title">Meine Dashcam</string>
+    <string name="home_dashcam_disconnected">Nicht verbunden</string>
+    <string name="home_dashcam_disconnected_hint">Verbinde dein Handy mit dem WLAN der Dashcam.</string>
+    <string name="home_tile_live">Live-Ansicht</string>
+    <string name="home_tile_live_text">Ansehen, Screenshots, Kennzeichen</string>
+    <string name="home_tile_recordings">Aufnahmen</string>
+    <string name="home_tile_recordings_text">Loop, Fotos, Vorfälle</string>
+    <string name="home_tile_sd_card">SD-Karte</string>
+    <string name="home_tile_sd_card_text">Speicher und Rohdateien</string>
+    <string name="home_tile_settings">Einstellungen</string>
+    <string name="home_tile_settings_text">Kamera, App, Darstellung</string>
+    <string name="home_tile_unavailable">Noch nicht verfügbar</string>
+
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_account">Konto</string>
+    <string name="settings_account_offline">Offline-Profil · Online-Konto hinzufügen</string>
+    <string name="settings_appearance">Darstellung</string>
+    <string name="settings_backup">Sicherung</string>
+    <string name="settings_backup_text">Google Drive</string>
+
+    <string name="theme_material_you">Material You</string>
+    <string name="theme_black">Schwarz</string>
+    <string name="appearance_title">Darstellung</string>
+    <string name="appearance_section_theme">Design</string>
+    <string name="appearance_material_you_text">Farben aus deinem Hintergrundbild. Folgt dem hellen und dunklen Modus deines Handys.</string>
+    <string name="appearance_black_text">Schwarz und Weiß mit der Systemschrift. Immer dunkel.</string>
+    <string name="appearance_info_material_you">Android wählt die Farben aus deinem Hintergrundbild. Ändere das Hintergrundbild, um die Farben der App zu ändern. Auf Handys ohne Hintergrundfarben nutzt %1$s Blau.</string>
+    <string name="appearance_info_black">Die ganze App wechselt zu Schwarz und Weiß. Deine Auswahl wird auf diesem Handy gespeichert.</string>
+    <!-- /foundation -->
 </resources>
