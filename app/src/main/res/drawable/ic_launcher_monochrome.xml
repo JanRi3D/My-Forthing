@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon silhouette of ic_launcher_foreground: eyes and lens are cut out (evenOdd). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M37,43L26,35M35,50L23,49M37,57L26,63M71,43L82,35M73,50L85,49M71,57L82,63"
+        android:strokeWidth="5.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,34C66.5,34 75,41 75,50C75,53 74,56 72,58.5L40,58.5C38,56 33,53 33,50C33,41 41.5,34 54,34ZM42.5,47a2.8,2.8 0,1 0,5.6 0a2.8,2.8 0,1 0,-5.6 0ZM59.9,47a2.8,2.8 0,1 0,5.6 0a2.8,2.8 0,1 0,-5.6 0Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M44,60h20a4,4 0,0 1,4 4v8a4,4 0,0 1,-4 4h-20a4,4 0,0 1,-4 -4v-8a4,4 0,0 1,4 -4ZM48.5,68a5.5,5.5 0,1 0,11 0a5.5,5.5 0,1 0,-11 0Z" />
+</vector>
