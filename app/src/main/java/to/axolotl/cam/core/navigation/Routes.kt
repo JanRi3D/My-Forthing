@@ -18,6 +18,7 @@ sealed interface Route
 @Serializable data object ResetSent : Route
 @Serializable data object OfflineProfile : Route
 @Serializable data object Upgrade : Route
+@Serializable data object Account : Route
 
 // Dashcam
 @Serializable data object Home : Route

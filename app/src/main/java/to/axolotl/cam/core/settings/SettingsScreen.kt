@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import to.axolotl.cam.R
+import to.axolotl.cam.account.AccountSettingsRow
 import to.axolotl.cam.core.FeatureFlags
 import to.axolotl.cam.core.data.PreferencesRepository
 import to.axolotl.cam.core.log.Log
@@ -35,7 +36,6 @@ import to.axolotl.cam.core.navigation.Appearance
 import to.axolotl.cam.core.navigation.Backup
 import to.axolotl.cam.core.navigation.DriveAccount
 import to.axolotl.cam.core.navigation.Route
-import to.axolotl.cam.core.navigation.Upgrade
 import to.axolotl.cam.core.ui.AxoTopBar
 import to.axolotl.cam.core.ui.ListGroup
 import to.axolotl.cam.core.ui.ListRow
@@ -64,16 +64,7 @@ fun SettingsScreen(
             ListGroup(
                 buildList {
                     if (FeatureFlags.accounts) {
-                        add { shape ->
-                            ListRow(
-                                stringResource(R.string.settings_account),
-                                supporting = stringResource(R.string.settings_account_offline),
-                                icon = R.drawable.ic_account,
-                                shape = shape,
-                                onClick = { onNavigate(Upgrade) },
-                                trailing = { Chevron() },
-                            )
-                        }
+                        add { shape -> AccountSettingsRow(shape, onNavigate) }
                     }
                     add { shape ->
                         ListRow(

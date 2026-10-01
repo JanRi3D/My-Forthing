@@ -105,4 +105,112 @@
     <string name="drive_error_api_disabled">Google-Cloud-Konfiguration fehlt: Die Drive API ist im Google-Cloud-Projekt der App nicht aktiviert (HTTP 403).</string>
     <string name="drive_error_unknown">Unerwarteter Fehler bei Google Drive.</string>
     <!-- /drive -->
+
+    <!-- accounts -->
+    <!-- Language of Firebase verification and reset mails; change together with a translation. -->
+    <string name="account_mail_language" translatable="false">de</string>
+    <string name="account_not_configured">Konto-Dienst ist in dieser Installation nicht eingerichtet.</string>
+    <string name="account_not_configured_hint">Ohne Konto kannst du die App wie gewohnt nutzen.</string>
+    <string name="account_default_profile_name">Mein Profil</string>
+    <string name="account_email">E-Mail</string>
+    <string name="account_email_placeholder">du@beispiel.de</string>
+    <string name="account_password">Passwort</string>
+    <string name="account_password_placeholder">Dein Passwort</string>
+    <string name="account_password_new_placeholder">Passwort wählen</string>
+    <string name="account_password_hint">Mindestens 8 Zeichen</string>
+    <string name="account_password_show">Passwort anzeigen</string>
+    <string name="account_password_hide">Passwort verbergen</string>
+    <string name="account_or">oder</string>
+    <string name="account_continue_google">Mit Google fortfahren</string>
+    <string name="account_step">Schritt %1$d von %2$d</string>
+    <string name="account_open_mail">Mail-App öffnen</string>
+    <string name="account_resend">Erneut senden</string>
+    <string name="account_resend_in">Erneut senden in %1$d:%2$02d</string>
+    <string name="account_link_sent">Link gesendet.</string>
+
+    <string name="sign_in_title">Willkommen zurück</string>
+    <string name="sign_in_subtitle">Melde dich bei deinem %1$s-Konto an.</string>
+    <string name="sign_in_forgot">Passwort vergessen?</string>
+    <string name="sign_in_new_here">Neu hier?</string>
+    <string name="sign_in_use_offline">Offline nutzen</string>
+
+    <string name="create_title">Erstelle dein Konto</string>
+    <string name="create_subtitle">Registriere dich mit Google oder mit deiner E-Mail-Adresse.</string>
+    <string name="create_terms">Ich stimme den Nutzungsbedingungen und der Datenschutzerklärung zu.</string>
+    <string name="create_terms_link">Nutzungsbedingungen</string>
+    <string name="create_privacy_link">Datenschutzerklärung</string>
+    <string name="create_already">Bereits ein Konto?</string>
+
+    <string name="verify_title">E-Mail bestätigen</string>
+    <string name="verify_text">Wir haben einen Bestätigungslink an %1$s gesendet. Öffne den Link, um dein Konto zu bestätigen.</string>
+    <string name="verify_confirmed">Ich habe bestätigt</string>
+    <string name="verify_later">Später bestätigen</string>
+    <string name="verify_not_yet">Noch nicht bestätigt. Öffne den Link in der Mail und versuche es dann noch einmal.</string>
+
+    <string name="forgot_title">Passwort zurücksetzen</string>
+    <string name="forgot_text">Gib die E-Mail-Adresse deines Kontos ein. Wir schicken dir einen Link, mit dem du ein neues Passwort festlegst.</string>
+    <string name="forgot_send">Link senden</string>
+    <string name="forgot_remembered">Wieder eingefallen?</string>
+
+    <string name="reset_sent_title">Schau in dein Postfach</string>
+    <string name="reset_sent_text">Falls es ein Konto für %1$s gibt, haben wir dir einen Link zum Zurücksetzen des Passworts geschickt.</string>
+    <string name="reset_sent_back">Zurück zur Anmeldung</string>
+    <string name="reset_sent_missing">Nichts angekommen?</string>
+
+    <string name="upgrade_profile_label">Offline-Profil</string>
+    <string name="upgrade_title">Online-Konto hinzufügen</string>
+    <string name="upgrade_text">Dein Profil und deine App-Einstellungen ziehen in das Konto um. Die Einstellungen der Dashcam bleiben in der Dashcam.</string>
+    <string name="upgrade_create">Konto erstellen und verknüpfen</string>
+    <string name="upgrade_or">oder verknüpfen mit</string>
+    <string name="upgrade_existing">Bereits ein Konto?</string>
+    <string name="upgrade_sign_in">Anmelden und verknüpfen</string>
+
+    <string name="merge_title">Welches Profil behalten?</string>
+    <string name="merge_text">Dein Konto hat schon ein Profil. Wähle, welches du behältst. Name, Bild und App-Einstellungen des anderen werden ersetzt.</string>
+    <string name="merge_local">Dieses Handy</string>
+    <string name="merge_remote">Konto</string>
+    <string name="merge_created">Erstellt am %1$s</string>
+    <string name="merge_updated">Zuletzt geändert am %1$s</string>
+    <string name="merge_keep">Behalten</string>
+
+    <string name="other_account_title">Anderes Konto</string>
+    <string name="other_account_text">Das Profil auf diesem Handy gehört zu einem anderen Konto. Wenn du wechselst, nutzt dieses Handy ab jetzt das Profil von %1$s. Hat dieses Konto noch kein Profil, zieht das Profil dieses Handys dorthin um. Das andere Konto bleibt unverändert.</string>
+    <string name="other_account_fallback">diesem Konto</string>
+    <string name="other_account_switch">Wechseln</string>
+
+    <string name="account_name_save">Speichern</string>
+    <string name="account_email_verified">E-Mail bestätigt</string>
+    <string name="account_email_unverified">E-Mail nicht bestätigt</string>
+    <string name="account_email_verify_action">Bestätigungslink senden</string>
+    <string name="account_online">Online</string>
+    <string name="account_online_text">Profil und Einstellungen werden synchronisiert.</string>
+    <string name="account_offline">Offline</string>
+    <string name="account_offline_text">Alles funktioniert weiter. Änderungen werden synchronisiert, sobald du wieder online bist.</string>
+    <string name="account_synced_title">Was synchronisiert wird</string>
+    <string name="account_synced_text">Profilname, Profilbild, Design und Exportqualität. Kennzeichen-, Hochskalierungs- und Sicherungsoptionen bleiben auf diesem Handy, die Dashcam-Einstellungen in der Dashcam.</string>
+    <string name="account_drive_title">Google Drive</string>
+    <string name="account_drive_text">Die Sicherung in Google Drive ist unabhängig von diesem Konto und wird separat verbunden.</string>
+    <string name="account_sign_out">Abmelden</string>
+    <string name="account_sign_out_title">Abmelden?</string>
+    <string name="account_sign_out_text">Dein Profil bleibt auf diesem Handy. Änderungen werden erst nach der nächsten Anmeldung wieder synchronisiert.</string>
+    <string name="settings_account_signed_out">Abgemeldet · Anmelden</string>
+
+    <string name="account_error_generic">Das hat nicht geklappt. Bitte versuche es noch einmal.</string>
+    <string name="account_error_network">Keine Internetverbindung. Versuche es noch einmal, wenn du online bist.</string>
+    <string name="account_error_too_many">Zu viele Versuche. Bitte warte einen Moment.</string>
+    <string name="account_error_invalid_email">Diese E-Mail-Adresse ist ungültig.</string>
+    <string name="account_error_wrong_credentials">E-Mail-Adresse oder Passwort ist falsch.</string>
+    <string name="account_error_user_disabled">Dieses Konto wurde gesperrt.</string>
+    <string name="account_error_email_in_use">Für diese E-Mail-Adresse gibt es schon ein Konto. Melde dich stattdessen an.</string>
+    <string name="account_error_other_method">Diese E-Mail-Adresse ist schon mit einer anderen Anmeldemethode verknüpft.</string>
+    <string name="account_error_weak_password">Dieses Passwort ist zu schwach. Wähle ein längeres.</string>
+    <string name="account_error_sign_in_again">Bitte melde dich noch einmal an.</string>
+    <string name="account_error_method_disabled">Diese Anmeldemethode ist für die App nicht freigeschaltet.</string>
+    <string name="account_error_no_google_account">Auf diesem Handy wurde kein Google-Konto gefunden.</string>
+    <string name="account_error_no_mail_app">Keine Mail-App gefunden.</string>
+    <string name="account_error_email_format">Gib eine gültige E-Mail-Adresse ein.</string>
+    <string name="account_error_password_empty">Gib dein Passwort ein.</string>
+    <string name="account_error_password_short">Das Passwort braucht mindestens 8 Zeichen.</string>
+    <string name="account_error_terms">Bitte stimme den Nutzungsbedingungen zu.</string>
+    <!-- /accounts -->
 </resources>
