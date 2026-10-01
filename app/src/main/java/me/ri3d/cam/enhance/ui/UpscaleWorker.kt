@@ -26,6 +26,8 @@ import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -39,14 +41,18 @@ import me.ri3d.cam.R
 import me.ri3d.cam.core.log.Log
 import me.ri3d.cam.enhance.ClipUpscaler
 import me.ri3d.cam.enhance.EnhanceEngine
+import me.ri3d.cam.enhance.EnhancedKind
+import me.ri3d.cam.enhance.EnhancementInfo
 import me.ri3d.cam.enhance.Resolution
 import me.ri3d.cam.enhance.UpscaleError
 import me.ri3d.cam.enhance.UpscaleProgress
 import me.ri3d.cam.enhance.UpscaleRequest
 import me.ri3d.cam.enhance.UpscaleResult
 import me.ri3d.cam.enhance.awaitResult
+import me.ri3d.cam.enhance.enhanceDir
 import me.ri3d.cam.media.MediaKind
 import me.ri3d.cam.media.MediaRepository
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,7 +66,8 @@ enum class UpscaleFailureKind(@StringRes val text: Int) {
     TARGET_NOT_LARGER(R.string.upscale_failure_target_not_larger),
     CANCELLED(R.string.upscale_cancelled),
     SOURCE_GONE(R.string.upscale_failure_source_gone),
-    INTERRUPTED(R.string.upscale_failure_interrupted);
+    INTERRUPTED(R.string.upscale_failure_interrupted),
+    NOT_ORIGINAL(R.string.upscale_failure_not_original);
 
     companion object {
         fun of(error: UpscaleError) = when (error) {
@@ -100,7 +107,12 @@ class UpscaleJobs @Inject constructor(@ApplicationContext private val context: C
     /** Does nothing while another upscale is pending or running (KEEP); a finished one is replaced. */
     fun start(mediaId: String, target: Resolution, engine: EnhanceEngine) {
         val request = OneTimeWorkRequestBuilder<UpscaleWorker>()
-            .setInputData(workDataOf(UpscaleWorker.KEY_ID to mediaId, UpscaleWorker.KEY_TARGET to target.name, UpscaleWorker.KEY_ENGINE to engine.name))
+            .setInputData(
+                workDataOf(
+                    UpscaleWorker.KEY_ID to mediaId, UpscaleWorker.KEY_TARGET to target.name, UpscaleWorker.KEY_ENGINE to engine.name,
+                    UpscaleWorker.KEY_ENQUEUED_AT to System.currentTimeMillis(),
+                ),
+            )
             .addTag(TAG_ID + mediaId).addTag(TAG_TARGET + target.name).addTag(TAG_ENGINE + engine.name)
             .build()
         workManager.enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, request)
@@ -152,42 +164,77 @@ class UpscaleWorker @AssistedInject constructor(
     private val repository: MediaRepository,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = try {
+        upscale()
+    } finally {
+        // When setForeground was not allowed (background restart) the progress notification is ours to remove.
+        runCatching { NotificationManagerCompat.from(applicationContext).cancel(NOTIFICATION_RUNNING) }
+    }
+
+    private suspend fun upscale(): Result {
         val mediaId = inputData.getString(KEY_ID) ?: return Result.failure()
         val target = Resolution.entries.firstOrNull { it.name == inputData.getString(KEY_TARGET) } ?: return Result.failure()
         val engine = EnhanceEngine.entries.firstOrNull { it.name == inputData.getString(KEY_ENGINE) } ?: EnhanceEngine.CLASSICAL
         if (runAttemptCount >= MAX_ATTEMPTS) return failed(UpscaleFailureKind.INTERRUPTED)
-        val file = repository.get(mediaId)?.localFile?.takeIf { it.isFile } ?: return failed(UpscaleFailureKind.SOURCE_GONE)
+        val item = repository.get(mediaId)
+        if (item != null && item.kind != MediaKind.ORIGINAL_VIDEO) return failed(UpscaleFailureKind.NOT_ORIGINAL)
+        val file = item?.localFile?.takeIf { it.isFile } ?: return failed(UpscaleFailureKind.SOURCE_GONE)
+        // A restart after process death: an earlier attempt may have finished the clip but not registered it.
+        if (runAttemptCount > 0) unregisteredOutput(mediaId)?.let { (output, info) -> return done(mediaId, output, info) }
         // Not allowed when started from the background on Android 12+: then it runs as normal work.
         runCatching { setForeground(foregroundInfo(null)) }
 
         val progress = MutableStateFlow<UpscaleProgress?>(null) // written on the pipeline thread
         val job = upscaler.upscale(UpscaleRequest(Uri.fromFile(file), target, mediaId, engine)) { progress.value = it }
-        val result = coroutineScope {
-            val reporter = launch {
-                progress.filterNotNull().collect { p ->
-                    setProgress(progressData(p))
-                    notifySafely(NOTIFICATION_RUNNING) { running(p) }
-                    delay(PROGRESS_INTERVAL_MS)
+        val result = try {
+            coroutineScope {
+                val reporter = launch {
+                    progress.filterNotNull().collect { p ->
+                        setProgress(progressData(p))
+                        notifySafely(NOTIFICATION_RUNNING) { running(p) }
+                        delay(PROGRESS_INTERVAL_MS)
+                    }
+                }
+                try {
+                    job.awaitResult()
+                } finally {
+                    reporter.cancel()
                 }
             }
-            try {
-                job.awaitResult()
-            } finally {
-                reporter.cancel()
-                job.cancel() // a cancelled work stops the pipeline; no-op once the job has completed
+        } catch (e: CancellationException) {
+            // Cancelling the work stops the pipeline. If it had just finished, the clip exists: register it, not orphan it.
+            job.cancel()
+            withContext(NonCancellable) {
+                job.join()
+                if (!job.isCancelled) (runCatching { job.await() }.getOrNull() as? UpscaleResult.Done)?.let { register(mediaId, it.output.file, it.output.info) }
             }
+            throw e
         }
         return when (result) {
-            is UpscaleResult.Done -> {
-                // The file exists now: register it even if the work is cancelled this very moment.
-                val item = withContext(NonCancellable) {
-                    repository.registerDerived(MediaKind.UPSCALED_CLIP, result.output.file, mediaId, null, result.output.info)
-                }
-                notifySafely(NOTIFICATION_FINISHED) { finished(R.string.upscale_notification_done, applicationContext.getString(R.string.upscale_notification_done_text)) }
-                Result.success(workDataOf(KEY_OUTPUT_ID to item.id))
-            }
+            is UpscaleResult.Done -> done(mediaId, result.output.file, result.output.info)
             is UpscaleResult.Failed -> failed(UpscaleFailureKind.of(result.error))
+        }
+    }
+
+    private suspend fun done(mediaId: String, output: File, info: EnhancementInfo): Result {
+        val item = register(mediaId, output, info)
+        notifySafely(NOTIFICATION_FINISHED) { finished(R.string.upscale_notification_done, applicationContext.getString(R.string.upscale_notification_done_text)) }
+        return Result.success(workDataOf(KEY_OUTPUT_ID to item.id))
+    }
+
+    /** The file exists: registered even if the work is cancelled this very moment (idempotent per file UUID). */
+    private suspend fun register(mediaId: String, output: File, info: EnhancementInfo) = withContext(NonCancellable) {
+        repository.registerDerived(MediaKind.UPSCALED_CLIP, output, mediaId, null, info)
+    }
+
+    /** A clip of [mediaId] finished by an earlier attempt of this work (created after it was enqueued), not in the library. */
+    private suspend fun unregisteredOutput(mediaId: String): Pair<File, EnhancementInfo>? = withContext(Dispatchers.IO) {
+        val enqueuedAt = inputData.getLong(KEY_ENQUEUED_AT, Long.MAX_VALUE)
+        enhanceDir(applicationContext).listFiles { f -> f.name.endsWith(".mp4") }.orEmpty().firstNotNullOfOrNull { f ->
+            EnhancementInfo.read(f)
+                ?.takeIf { it.kind == EnhancedKind.UPSCALED_CLIP && it.sourceMediaId == mediaId && it.createdAt >= enqueuedAt }
+                ?.takeIf { repository.get(f.nameWithoutExtension) == null }
+                ?.let { f to it }
         }
     }
 
@@ -264,6 +311,7 @@ class UpscaleWorker @AssistedInject constructor(
         const val KEY_ID = "mediaId"
         const val KEY_TARGET = "target"
         const val KEY_ENGINE = "engine"
+        const val KEY_ENQUEUED_AT = "enqueuedAt"
         const val KEY_FRACTION = "fraction"
         const val KEY_ETA = "eta"
         const val KEY_BYTES = "bytes"
