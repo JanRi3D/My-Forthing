@@ -2,8 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- dashcam: control socket, media HTTP and Wi-Fi binding to the recorder network (requestNetwork). -->
+    <!-- drive: Google Drive REST -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- accounts: androidx.credentials declares these for passkey/biometric prompts; the app only uses Google ID tokens. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
+    <!-- dashcam: control socket and media HTTP (INTERNET above), Wi-Fi binding to the recorder network (requestNetwork). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
