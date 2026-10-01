@@ -34,8 +34,9 @@ exifinterface = "1.4.2"
 mlkitTextRecognition = "16.0.1"
 # enhance: LiteRT classic Interpreter API (CPU/XNNPACK); 2.x adds GPU/NPU but merges foreground-service permissions
 litert = "1.4.2"
-# media: Media3 1.11 is the last line accepting compileSdk 36; WorkManager download queue with Hilt workers
+# live + media: Media3 1.11 is the last line accepting compileSdk 36 (RTSP live view; media player)
 media3 = "1.11.1"
+# media: WorkManager download queue with Hilt workers
 work = "2.12.0"
 
 [libraries]
@@ -82,7 +83,6 @@ mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition"
 # enhance
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
 # media
-androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
@@ -91,6 +91,9 @@ androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref 
 androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltAndroidx" }
 # dashcam
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
+# live
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-exoplayer-rtsp = { group = "androidx.media3", name = "media3-exoplayer-rtsp", version.ref = "media3" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

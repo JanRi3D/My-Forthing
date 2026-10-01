@@ -15,7 +15,7 @@ object FeatureFlags {
     const val backup = false
 
     /** Home → Live-Ansicht tile (feature/live-view). */
-    const val live = false
+    const val live = true
 
     /** Home → Aufnahmen tile (feature/media). */
     const val media = true

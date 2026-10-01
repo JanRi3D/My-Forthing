@@ -26,6 +26,7 @@ import to.axolotl.cam.core.ui.rememberReduceMotion
 import to.axolotl.cam.dashcam.DashcamHomeCard
 import to.axolotl.cam.dashcam.DashcamSettingsSection
 import to.axolotl.cam.dashcam.dashcamGraph
+import to.axolotl.cam.live.liveGraph
 import to.axolotl.cam.media.mediaGraph
 
 /** The single NavHost. Features register their graph here with one line each. */
@@ -55,6 +56,7 @@ fun AxoNavHost(startDestination: Route) {
                     accountGraph(navController)
                     driveGraph(navController)
                     dashcamGraph(navController)
+                    liveGraph(navController)
                     mediaGraph(navController)
                 }
                 SnackbarHost(
