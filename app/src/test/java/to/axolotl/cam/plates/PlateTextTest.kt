@@ -18,8 +18,36 @@ class PlateTextTest {
             assertThat(match?.format).isEqualTo(PlateFormat.GERMAN)
             assertThat(match?.uncertain).isFalse()
         }
-        assertThat(PlateText.match("b mk 4821")).isEqualTo(PlateMatch("B MK 4821", "BMK4821", PlateFormat.GERMAN))
-        assertThat(PlateText.match("B – MK  4821.")?.display).isEqualTo("B-MK 4821")
+        assertThat(PlateText.match("B – MK  4821.")).isEqualTo(PlateMatch("B-MK 4821", "BMK4821", PlateFormat.GERMAN))
+    }
+
+    @Test
+    fun `confidently read lowercase letters are not a plate`() {
+        listOf("b mk 4821", "Tempo 30", "seit 1952", "max. 2 Std.", "Tel. 0800", "km 125,5").forEach {
+            assertThat(PlateText.match(it)).isNull()
+        }
+        assertThat(PlateText.match("? MK 4821", "s MK 4821")?.normalized).isEqualTo("SMK4821") // unsure: allowed
+    }
+
+    @Test
+    fun `an unreadable glyph between city code and letters is the seal`() {
+        assertThat(PlateText.match("B?MK 4821", "B8MK 4821")).isEqualTo(PlateMatch("B MK 4821", "BMK4821", PlateFormat.GERMAN))
+        assertThat(PlateText.match("HD?UV 2201", "HD&UV 2201")?.display).isEqualTo("HD UV 2201")
+        // Real first letter unreadable, then the seal: the letter stays marked, the OCR guess stays in normalized.
+        assertThat(PlateText.match("??KL 318", "sSKL 318")).isEqualTo(PlateMatch("? KL 318", "SKL318", PlateFormat.GERMAN))
+        // Not between letters: an unreadable digit is never dropped.
+        assertThat(PlateText.match("B MK ?821", "B MK 4821")).isEqualTo(PlateMatch("B MK ?821", "BMK4821", PlateFormat.GERMAN))
+        // At most two unreadable or swapped characters.
+        assertThat(PlateText.match("B MK ???1", "B MK 4821")).isNull()
+        // Generic plates do not accept unreadable glyphs.
+        assertThat(PlateText.match("AB-1?3-CD", "AB-123-CD")).isNull()
+    }
+
+    @Test
+    fun `find drops the seal glyph at the end of the city element`() {
+        val found = PlateText.find(listOf("TF?", "GH", "64"), listOf("TF8", "GH", "64")).single()
+        assertThat(found.match).isEqualTo(PlateMatch("TF GH 64", "TFGH64", PlateFormat.GERMAN))
+        assertThat(found.first to found.last).isEqualTo(0 to 2)
     }
 
     @Test
@@ -54,7 +82,7 @@ class PlateTextTest {
 
     @Test
     fun `street text is rejected`() {
-        listOf("STOP", "A 7", "B 27", "Ausfahrt 12", "Parken 2 Std", "Einbahnstraße", "50", "Tel 0800 123456", "")
+        listOf("STOP", "A 7", "B 27", "AUSFAHRT 12", "PARKEN 2 STD", "EINBAHNSTRASSE", "50", "TEL 0800 123456", "")
             .forEach { assertThat(PlateText.match(it)).isNull() }
     }
 
@@ -69,7 +97,7 @@ class PlateTextTest {
 
     @Test
     fun `find returns several plates of one line in order`() {
-        val found = PlateText.find(listOf("B-MK", "4821", "und", "HH-JK", "553"))
+        val found = PlateText.find(listOf("B-MK", "4821", "UND", "HH-JK", "553"))
         assertThat(found.map { it.match.normalized }).containsExactly("BMK4821", "HHJK553").inOrder()
     }
 

@@ -3,6 +3,7 @@ package to.axolotl.cam.plates
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
+import androidx.core.graphics.scale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -104,7 +105,7 @@ class PlateRepository @Inject constructor(
         if (r.width() <= 0 || r.height() <= 0) return@withContext null
         val cut = Bitmap.createBitmap(frame, r.left, r.top, r.width(), r.height())
         val small = if (cut.width > CROP_MAX_WIDTH) {
-            Bitmap.createScaledBitmap(cut, CROP_MAX_WIDTH, cut.height * CROP_MAX_WIDTH / cut.width, true)
+            cut.scale(CROP_MAX_WIDTH, cut.height * CROP_MAX_WIDTH / cut.width)
         } else {
             cut
         }

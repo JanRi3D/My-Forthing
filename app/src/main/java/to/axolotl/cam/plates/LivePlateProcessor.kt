@@ -38,8 +38,12 @@ class AdaptiveThrottle(
         require(budget > 0f && budget <= 1f) { "budget must be in (0, 1]" }
     }
 
+    // Read by the submitting thread, written by the processing coroutine.
+    @Volatile
     var avgMs = 0f
         private set
+
+    @Volatile
     private var nextAt = Long.MIN_VALUE
 
     fun ready(now: Long = clock()) = now >= nextAt
