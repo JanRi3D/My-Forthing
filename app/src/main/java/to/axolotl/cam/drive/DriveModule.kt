@@ -6,6 +6,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
@@ -33,9 +36,11 @@ object DriveModule {
         authorizer = PlayDriveAuthorizer(context, http, DriveRestApi.GOOGLE_APIS),
         store = DriveAccountStore(
             context.getSharedPreferences(DriveAccountStore.PREFS_NAME, Context.MODE_PRIVATE),
-            DriveAccountStore::keystoreKey,
+            key = DriveAccountStore::keystoreKey,
+            dropKey = DriveAccountStore::deleteKeystoreKey,
         ),
         reasonText = { context.getString(it.text) },
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )
 
     @Provides

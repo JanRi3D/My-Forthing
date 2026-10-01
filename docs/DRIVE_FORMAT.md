@@ -23,7 +23,8 @@ Normative description of what the Android app writes to the user's Google Drive,
 - The root folder name comes from `Branding.driveRootFolderName` ("Axolotl Cam"). The user may rename or move it; the app identifies it by `axo.role=root` (preferring the one with the current name, else the oldest). A trashed root is ignored and a new one is created.
 - Month folder `yyyy-MM`: the month of the recorder time (`recorderTimeEpochGuess`, the recorder wall clock parsed in the phone's zone), else of the download time (derived files: creation time). Informational only – **readers must not rely on folder placement**; use the queries in §5.
 - `<mediaId>` is the app's stable UUID v4 (`MediaItem.id`). `<ext>` is the lower-cased extension of the recorder file name (`MP4` → `mp4`), else derived from the MIME type (`video/mp4` → `mp4`, `image/jpeg` → `jpg`, `image/png` → `png`, otherwise `bin`).
-- Manifest `axolotlcam.json`: `{"format":1,"app":"to.axolotl.cam","createdAt":"2026-10-01T12:00:00+02:00"}` (`createdAt` = when the root was set up, ISO-8601 with offset).
+- Manifest `axolotlcam.json`: `{"format":1,"app":"to.axolotl.cam","createdAt":"2026-10-01T12:00:00.317+02:00"}` (`createdAt` = when the root was set up).
+- **Timestamps** (`createdAt`, `downloadedAt`, `backup.completedAt`) are ISO-8601 with offset as `DriveFormat.isoTimestamp` writes them: milliseconds appear when non-zero, with trailing zeros dropped (`2026-10-01T12:03:00.123+02:00`, `…:03.9+02:00`, else `2026-10-01T12:03:00+02:00`), and UTC is written as `Z`. Parse them with a full ISO-8601 parser (`new Date(…)` / `Temporal.Instant.from` both work). `recorderTime` is different: see §4.
 
 ## 3. appProperties
 
@@ -36,7 +37,7 @@ Normative description of what the Android app writes to the user's Google Drive,
 | `axo.category` | media | `NORMAL`, `EVENT`, `USER`, `UNKNOWN` |
 | `axo.parent` | media, optional | UUID of the source item of an `ENHANCED_FRAME` / `UPSCALED_CLIP` |
 
-All values are strings (Drive limit: key + value ≤ 124 bytes UTF-8). A file with `axo.kind` but no `axo.role` is treated as media.
+All values are strings (Drive limit: key + value ≤ 124 bytes UTF-8).
 
 ## 4. Sidecar `<mediaId>.json` (schema v1)
 
@@ -53,7 +54,7 @@ Written **only after** the media upload has been verified (Drive `md5Checksum` e
 | `recorderPath` | string | yes | full path on the recorder, e.g. `/mnt/sd/EVENT/…MP4`; null for app-made files |
 | `recorderTime` | string | yes | recorder wall-clock time `yyyy-MM-dd HH:mm:ss`, **time zone unknown** – display as-is, do not convert |
 | `recorderTimeZone` | string | yes | always null in v1 (the recorder reports no zone) |
-| `downloadedAt` | string | yes | ISO-8601 with offset, when the phone downloaded it from the recorder; null for app-made files |
+| `downloadedAt` | string | yes | ISO-8601 with offset (milliseconds optional), when the phone downloaded it from the recorder; null for app-made files |
 | `sizeBytes` | int | no | bytes of the media file |
 | `md5` | string | no | lower-case hex MD5 of the media file (= Drive `md5Checksum`) |
 | `mime` | string | no | e.g. `video/mp4`, `image/jpeg` |
@@ -66,17 +67,17 @@ Written **only after** the media upload has been verified (Drive `md5Checksum` e
 | `plates[].confidence` | number | yes | 0–1, only when the recogniser returned one |
 | `plates[].box` | int[4] | yes | `[left, top, right, bottom]` in pixels of the decoded frame |
 | `backup.complete` | bool | no | `true` when written by the app (the sidecar only exists after verification) |
-| `backup.completedAt` | string | yes | ISO-8601 with offset |
+| `backup.completedAt` | string | yes | ISO-8601 with offset (milliseconds optional) |
 
 Example (incident clip with plates):
 
 ```json
 {"format":1,"id":"7f9c1d2e-5b1a-4c3e-9a63-2f0e8c1b4d55","kind":"ORIGINAL_VIDEO","category":"EVENT","recorderType":1,
  "originalFileName":"20261001173614_0012.MP4","recorderPath":"/mnt/sd/EVENT/20261001173614_0012.MP4",
- "recorderTime":"2026-10-01 17:36:14","recorderTimeZone":null,"downloadedAt":"2026-10-01T18:02:11+02:00",
+ "recorderTime":"2026-10-01 17:36:14","recorderTimeZone":null,"downloadedAt":"2026-10-01T18:02:11.482+02:00",
  "sizeBytes":45088768,"md5":"9e107d9d372bb6826bd81d3542a419d6","mime":"video/mp4","durationMs":30000,"parent":null,
  "plates":[{"text":"B-MK 4821","normalized":"BMK4821","positionMs":12000,"confidence":0.93,"box":[812,604,1044,668]}],
- "backup":{"complete":true,"completedAt":"2026-10-01T18:05:40+02:00"}}
+ "backup":{"complete":true,"completedAt":"2026-10-01T18:05:40.067+02:00"}}
 ```
 
 Example (enhanced frame taken from that clip at 0:12, plate metadata off):
@@ -86,7 +87,7 @@ Example (enhanced frame taken from that clip at 0:12, plate metadata off):
  "originalFileName":"enhanced_20261001173614_0012_12000.jpg","recorderPath":null,"recorderTime":null,"recorderTimeZone":null,
  "downloadedAt":null,"sizeBytes":812345,"md5":"e4d909c290d0fb1ca068ffaddf22cbd0","mime":"image/jpeg","durationMs":null,
  "parent":{"id":"7f9c1d2e-5b1a-4c3e-9a63-2f0e8c1b4d55","positionMs":12000},"plates":null,
- "backup":{"complete":true,"completedAt":"2026-10-01T18:20:03+02:00"}}
+ "backup":{"complete":true,"completedAt":"2026-10-01T18:20:03.9+02:00"}}
 ```
 
 The media file's appProperties for the second example: `axo.format=1, axo.role=media, axo.id=0b6f…2f70, axo.kind=ENHANCED_FRAME, axo.category=EVENT, axo.parent=7f9c…4d55`.
@@ -105,6 +106,12 @@ Always add `trashed = false`, `spaces=drive`, `pageSize=1000`, and follow `nextP
 | Root folder | `mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='axo.role' and value='root' } and trashed = false` |
 
 Sidecar content: `GET https://www.googleapis.com/drive/v3/files/<sidecarId>?alt=media`. Media bytes: the same with the media id; send the token in the `Authorization: Bearer` header (Range requests work for seeking). Thumbnails and video resolution come from Drive itself (`thumbnailLink`, `videoMediaMetadata.width/height/durationMillis`), not from the sidecar.
+
+**Playing videos in a browser.** A plain `<video src="…?alt=media">` cannot send the `Authorization` header, and access tokens must not be put into URLs (they end up in history, logs and referrers). Options, in order of preference:
+- A **Service Worker** that intercepts requests to a same-origin path (e.g. `/media/<fileId>`), forwards them with `fetch` to `https://www.googleapis.com/drive/v3/files/<fileId>?alt=media` adding `Authorization: Bearer <token>` and passing the browser's `Range` header through, and returns the 206 response; the `<video>` element then streams and seeks normally.
+- **Media Source Extensions**: fetch byte ranges yourself and append them to a `SourceBuffer` (needs fragmented MP4 or a demuxer; more work).
+- A **Blob** for small files (photos, short clips): `fetch` with the header, then `URL.createObjectURL(await response.blob())`; downloads the whole file first.
+CORS on `www.googleapis.com` allows these authorised `fetch` calls from the web app's origin. `thumbnailLink` also needs the token (fetch it with the header and show it as a Blob URL); it is short-lived, so re-list instead of caching it.
 
 Mapping for the web artboards (`docs/design/Web*.dc.html`): tabs Loop / Photos / Incidents = `category` `NORMAL` / `USER` (`kind=ORIGINAL_PHOTO`) / `EVENT` ("LOCKED"); day grouping and clip times from `recorderTime` (fallback `downloadedAt`); length from `durationMs`; size from `sizeBytes`; "File" from `recorderPath`; resolution from `videoMediaMetadata`.
 

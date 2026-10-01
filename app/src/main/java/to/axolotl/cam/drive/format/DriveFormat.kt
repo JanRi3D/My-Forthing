@@ -142,7 +142,5 @@ object DriveFormatReader {
             }
             .sortedBy { it.mediaId }
 
-    /** `axo.role`; files from writers that omitted it count as media when they carry `axo.kind`. */
-    private val DriveFile.role: String?
-        get() = appProperties[DriveFormat.KEY_ROLE] ?: DriveFormat.ROLE_MEDIA.takeIf { DriveFormat.KEY_KIND in appProperties }
+    private val DriveFile.role: String? get() = appProperties[DriveFormat.KEY_ROLE]
 }

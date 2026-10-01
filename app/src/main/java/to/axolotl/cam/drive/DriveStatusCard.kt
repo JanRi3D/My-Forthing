@@ -27,15 +27,13 @@ import to.axolotl.cam.core.ui.UiText
 import to.axolotl.cam.core.ui.asString
 
 /**
- * Drive connection at a glance: account, state and quota. Used by the Google Drive screen and the Backup screen;
- * [action] renders below (e.g. a connect button).
+ * Drive connection at a glance: account, state and quota. Used by the Google Drive screen and the Backup screen.
  */
 @Composable
 fun DriveStatusCard(
     state: DriveAuthState,
     quota: UiState<DriveQuota>?,
     modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null,
 ) {
     Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -59,7 +57,6 @@ fun DriveStatusCard(
                 is DriveAuthState.NeedsReconnect -> BodyText(state.reason)
                 is DriveAuthState.Connected -> Quota(quota)
             }
-            action?.invoke()
         }
     }
 }

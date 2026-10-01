@@ -139,10 +139,13 @@ class DriveRestApi(
                 }
                 reply.code == RESUME_INCOMPLETE -> {
                     val next = reply.nextOffset()
-                    if (start != null && next <= start) {
-                        if (++failures >= maxAttempts) throw DriveError.Http(reply.code, "upload makes no progress")
-                    } else {
-                        failures = 0
+                    when {
+                        start == null -> Unit // a status answer neither proves nor disproves progress
+                        next > start -> failures = 0 // the chunk (or part of it) arrived
+                        else -> {
+                            if (++failures >= maxAttempts) throw DriveError.Http(reply.code, "upload makes no progress")
+                            delay(backoffMs(failures))
+                        }
                     }
                     offset = next
                     onProgress(next, total)
@@ -236,7 +239,8 @@ class DriveRestApi(
     private suspend fun send(retryTransient: Boolean = true, build: Request.Builder.() -> Unit): Reply {
         var refreshed = false
         var attempt = 0
-        while (true) {
+        // Bounded: one token refresh plus maxAttempts - 1 transient retries.
+        repeat(maxAttempts + 1) {
             val token = auth.accessToken().getOrThrow()
             val request = Request.Builder().apply(build).header("Authorization", "Bearer $token").build()
             val reply = try {
@@ -258,6 +262,7 @@ class DriveRestApi(
                 else -> return reply
             }
         }
+        throw DriveError.Http(-1, "too many attempts")
     }
 
     /** 1 s, 2 s, 4 s, 8 s, 16 s plus up to 0.5 s jitter. */
@@ -321,13 +326,7 @@ class DriveRestApi(
 private class Reply(val code: Int, val body: String, val headers: Headers) {
     val isSuccessful get() = code in 200..299
 
-    /** First `error.errors[].reason` of a Drive error body. */
-    val reason: String? by lazy {
-        runCatching {
-            driveJson.parseToJsonElement(body).jsonObject["error"]!!.jsonObject["errors"]!!.jsonArray[0]
-                .jsonObject["reason"]!!.jsonPrimitive.content
-        }.getOrNull()
-    }
+    val reason: String? by lazy { driveErrorReason(body) }
 
     val isTransient get() = code == 429 || code >= 500 || (code == 403 && reason in RATE_LIMIT_REASONS)
 
@@ -342,6 +341,12 @@ private class Reply(val code: Int, val body: String, val headers: Headers) {
         val RATE_LIMIT_REASONS = setOf("userRateLimitExceeded", "rateLimitExceeded")
     }
 }
+
+/** First `error.errors[].reason` of a Drive error body, e.g. `storageQuotaExceeded` or `accessNotConfigured`. */
+internal fun driveErrorReason(body: String): String? = runCatching {
+    driveJson.parseToJsonElement(body).jsonObject["error"]!!.jsonObject["errors"]!!.jsonArray[0]
+        .jsonObject["reason"]!!.jsonPrimitive.content
+}.getOrNull()
 
 /** Runs [block]; [DriveError]s and parse errors become `Result.failure`, cancellation propagates. */
 private suspend fun <T> drive(block: suspend () -> T): Result<T> = try {

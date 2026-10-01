@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.coil.compose)
     // drive
     implementation(libs.play.services.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 

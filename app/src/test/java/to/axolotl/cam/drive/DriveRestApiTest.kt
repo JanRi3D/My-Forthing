@@ -3,6 +3,7 @@ package to.axolotl.cam.drive
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
@@ -23,7 +24,7 @@ class DriveRestApiTest {
     val tmp = TemporaryFolder()
 
     private val server = MockWebServer()
-    private val auth = FakeDriveAuth("t1", "t2")
+    private val auth = FakeDriveAuth("t1", "t2", "t3")
     private lateinit var api: DriveRestApi
 
     @Before
@@ -107,11 +108,106 @@ class DriveRestApiTest {
 
     @Test
     fun `a second 401 asks the user to reconnect`() = runTest {
-        server.enqueue(MockResponse.Builder().code(401).build())
-        server.enqueue(MockResponse.Builder().code(401).build())
+        server.dispatcher = answer { MockResponse.Builder().code(401).build() }
 
         assertThat(api.about().exceptionOrNull()).isInstanceOf(DriveError.NeedsReconnect::class.java)
         assertThat(auth.invalidated).containsExactly("t1" to false, "t2" to true).inOrder()
+        assertThat(server.requestCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `the token refresh allowance is per call`() = runTest {
+        repeat(2) {
+            server.enqueue(MockResponse.Builder().code(401).build())
+            server.enqueue(MockResponse.Builder().code(200).body("""{"storageQuota":{"usage":"1"}}""").build())
+        }
+
+        assertThat(api.about().getOrThrow()).isEqualTo(DriveQuota(limit = null, usage = 1))
+        assertThat(api.about().getOrThrow()).isEqualTo(DriveQuota(limit = null, usage = 1))
+        assertThat(auth.invalidated).containsExactly("t1" to false, "t2" to false).inOrder()
+        assertThat(server.requestCount).isEqualTo(4)
+    }
+
+    @Test
+    fun `failing chunks give up after maxAttempts`() = runTest {
+        val file = tmp.newFile("big.mp4").apply { writeBytes(ByteArray(600 * 1024)) }
+        server.dispatcher = answer { request ->
+            when {
+                request.method == "POST" -> MockResponse.Builder().code(200).setHeader("Location", server.url("/upload/s").toString()).build()
+                request.headers["Content-Range"]!!.startsWith("bytes */") -> resumeIncomplete(lastByte = CHUNK - 1)
+                else -> MockResponse.Builder().code(503).build()
+            }
+        }
+
+        val result = api.uploadResumable(file, "big.mp4", "video/mp4", "p", emptyMap(), null) { _, _ -> }
+
+        assertThat((result.exceptionOrNull() as DriveError.Http).code).isEqualTo(503)
+        assertThat(server.requestCount).isAtMost(1 + 2 * MAX_ATTEMPTS)
+    }
+
+    @Test
+    fun `a 308 confirming part of a chunk continues from there`() = runTest {
+        val bytes = Random(2).nextBytes(600 * 1024)
+        val file = tmp.newFile("a.mp4").apply { writeBytes(bytes) }
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Location", server.url("/upload/s").toString()).build())
+        server.enqueue(resumeIncomplete(lastByte = 99_999))
+        server.enqueue(MockResponse.Builder().code(200).body("""{"id":"f","md5Checksum":"m"}""").build())
+
+        api.uploadResumable(file, "a.mp4", "video/mp4", "p", emptyMap(), null) { _, _ -> }.getOrThrow()
+
+        server.takeRequest()
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes 0-${CHUNK - 1}/${bytes.size}")
+        val next = server.takeRequest()
+        assertThat(next.headers["Content-Range"]).isEqualTo("bytes 100000-${100_000 + CHUNK - 1}/${bytes.size}")
+        assertThat(next.body!!.toByteArray()).isEqualTo(bytes.copyOfRange(100_000, 100_000 + CHUNK.toInt()))
+    }
+
+    @Test
+    fun `a 308 without Range means nothing was stored`() = runTest {
+        val file = tmp.newFile("a.jpg").apply { writeBytes(ByteArray(10)) }
+        server.enqueue(MockResponse.Builder().code(308).build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"id":"f","md5Checksum":"m"}""").build())
+
+        api.uploadResumable(file, "a.jpg", "image/jpeg", "p", emptyMap(), server.url("/upload/s").toString()) { _, _ -> }.getOrThrow()
+
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes */10")
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes 0-9/10")
+    }
+
+    @Test
+    fun `a 5xx on a chunk asks the session before continuing`() = runTest {
+        val file = tmp.newFile("a.mp4").apply { writeBytes(ByteArray(300 * 1024)) }
+        val total = 300 * 1024
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Location", server.url("/upload/s").toString()).build())
+        server.enqueue(MockResponse.Builder().code(503).build())
+        server.enqueue(resumeIncomplete(lastByte = CHUNK - 1)) // Drive kept the chunk despite the 503
+        server.enqueue(MockResponse.Builder().code(200).body("""{"id":"f","md5Checksum":"m"}""").build())
+
+        api.uploadResumable(file, "a.mp4", "video/mp4", "p", emptyMap(), null) { _, _ -> }.getOrThrow()
+
+        server.takeRequest()
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes 0-${CHUNK - 1}/$total")
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes */$total")
+        assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes $CHUNK-${total - 1}/$total")
+        assertThat(server.requestCount).isEqualTo(4)
+    }
+
+    @Test
+    fun `a 401 on a chunk refreshes the token and re-sends the chunk`() = runTest {
+        val file = tmp.newFile("a.jpg").apply { writeBytes("0123456789".toByteArray()) }
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Location", server.url("/upload/s").toString()).build())
+        server.enqueue(MockResponse.Builder().code(401).build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"id":"f","md5Checksum":"m"}""").build())
+
+        assertThat(api.uploadResumable(file, "a.jpg", "image/jpeg", "p", emptyMap(), null) { _, _ -> }.getOrThrow().id).isEqualTo("f")
+
+        server.takeRequest()
+        assertThat(server.takeRequest().headers["Authorization"]).isEqualTo("Bearer t1")
+        val resent = server.takeRequest()
+        assertThat(resent.headers["Authorization"]).isEqualTo("Bearer t2")
+        assertThat(resent.headers["Content-Range"]).isEqualTo("bytes 0-9/10")
+        assertThat(resent.body!!.utf8()).isEqualTo("0123456789")
+        assertThat(auth.invalidated).containsExactly("t1" to false)
     }
 
     @Test
@@ -188,6 +284,10 @@ class DriveRestApiTest {
         assertThat(api.about().exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
     }
 
+    private fun answer(response: (RecordedRequest) -> MockResponse) = object : Dispatcher() {
+        override fun dispatch(request: RecordedRequest) = response(request)
+    }
+
     private fun resumeIncomplete(lastByte: Long) =
         MockResponse.Builder().code(308).setHeader("Range", "bytes=0-$lastByte").build()
 
@@ -195,6 +295,7 @@ class DriveRestApiTest {
 
     private companion object {
         const val CHUNK = 256L * 1024
+        const val MAX_ATTEMPTS = 5 // DriveRestApi default
     }
 }
 

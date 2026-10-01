@@ -9,25 +9,42 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Status
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import to.axolotl.cam.R
 import to.axolotl.cam.core.ui.UiText
 import java.io.IOException
+import java.security.GeneralSecurityException
 import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class GoogleDriveAuthTest {
     private val context = RuntimeEnvironment.getApplication()
-    private val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
-    private val store = DriveAccountStore(context.getSharedPreferences("drive_test", Context.MODE_PRIVATE)) { key }
+    private val prefs = context.getSharedPreferences("drive_test", Context.MODE_PRIVATE)
+    private var key: SecretKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+    private var keyDropped = false
+    private val store = DriveAccountStore(prefs, key = { key }, dropKey = { keyDropped = true })
     private val authorizer = FakeAuthorizer()
     private val pendingIntent = PendingIntent.getActivity(context, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
+    private var now = 1_000L
 
-    private fun newAuth() = GoogleDriveAuth(authorizer, store, reasonText = { it.name }, clock = { 1_000 })
+    /** Unconfined: the stored record is loaded synchronously, so the state is final right after construction. */
+    private fun TestScope.newAuth() = GoogleDriveAuth(
+        authorizer, store, reasonText = { it.name }, scope = backgroundScope,
+        io = UnconfinedTestDispatcher(testScheduler), clock = { now },
+    )
 
     private val granted = Authorization.Granted("t1", setOf(DRIVE_FILE_SCOPE))
     private val noConsentScreen: suspend (PendingIntent) -> ActivityResult = { error("no consent screen expected") }
@@ -96,6 +113,36 @@ class GoogleDriveAuthTest {
     }
 
     @Test
+    fun `an unreadable account e-mail fails the connect instead of connecting half`() = runTest {
+        authorizer.emailError = DriveError.Offline(IOException("no network"))
+        val auth = newAuth()
+
+        assertThat(auth.connectWith(false, noConsentScreen).exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(store.load()).isNull()
+    }
+
+    @Test
+    fun `unexpected failures become a Result, never a crash`() = runTest {
+        authorizer.authorize = { _, _ -> Authorization.NeedsUi(pendingIntent) }
+        val notAComponentActivity = Robolectric.buildActivity(Activity::class.java).get()
+
+        assertThat(newAuth().connect(notAComponentActivity).exceptionOrNull()).isInstanceOf(ClassCastException::class.java)
+    }
+
+    @Test
+    fun `a failing Keystore keeps the connection in memory`() = runTest {
+        val brokenStore = DriveAccountStore(prefs, key = { throw GeneralSecurityException("keystore") })
+        val auth = GoogleDriveAuth(
+            authorizer, brokenStore, { it.name }, backgroundScope, UnconfinedTestDispatcher(testScheduler), { now },
+        )
+
+        assertThat(auth.connectWith(false, noConsentScreen).isSuccess).isTrue()
+        assertThat(auth.state.value).isInstanceOf(DriveAuthState.Connected::class.java)
+        assertThat(brokenStore.load()).isNull()
+    }
+
+    @Test
     fun `accessToken re-authorises silently for the stored account`() = runTest {
         val auth = connected()
         authorizer.authorize = { _, _ -> Authorization.Granted("fresh", setOf(DRIVE_FILE_SCOPE)) }
@@ -136,16 +183,31 @@ class GoogleDriveAuthTest {
     @Test
     fun `a 401 after refresh marks the access revoked, reconnecting restores it`() = runTest {
         val auth = connected()
-
-        auth.invalidate("t1")
+        val t1 = auth.accessToken().getOrThrow()
+        auth.invalidate(t1)
         assertThat(auth.state.value).isInstanceOf(DriveAuthState.Connected::class.java)
-        auth.invalidate("t2", revoked = true)
+        authorizer.authorize = { _, _ -> Authorization.Granted("t2", setOf(DRIVE_FILE_SCOPE)) }
+        val t2 = auth.accessToken().getOrThrow()
+
+        auth.invalidate(t2, revoked = true)
+
         assertThat(auth.state.value).isEqualTo(DriveAuthState.NeedsReconnect(ReconnectReason.REVOKED.name, "a@example.com"))
         assertThat(authorizer.calls).containsAtLeast("clear t1", "clear t2").inOrder()
-
         assertThat(auth.connectWith(false, noConsentScreen).isSuccess).isTrue()
         assertThat(auth.state.value).isInstanceOf(DriveAuthState.Connected::class.java)
         assertThat(authorizer.calls.last { it.startsWith("authorize") }).isEqualTo("authorize a@example.com false")
+    }
+
+    @Test
+    fun `a late 401 from before a reconnect does not flag the new connection`() = runTest {
+        val auth = connected()
+        val stale = auth.accessToken().getOrThrow()
+        now = 2_000
+        auth.connectWith(false, noConsentScreen).getOrThrow()
+
+        auth.invalidate(stale, revoked = true)
+
+        assertThat(auth.state.value).isInstanceOf(DriveAuthState.Connected::class.java)
     }
 
     @Test
@@ -163,32 +225,54 @@ class GoogleDriveAuthTest {
     }
 
     @Test
-    fun `disconnect revokes and forgets, even offline`() = runTest {
+    fun `disconnect forgets locally first and finishes the revoke even when cancelled`() = runTest {
         val auth = connected()
-        authorizer.revokeError = IOException("offline")
+        val revokeGate = CompletableDeferred<Unit>()
+        authorizer.revoke = { revokeGate.await() }
+
+        val job = launch { auth.disconnect() }
+        runCurrent()
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(store.load()).isNull()
+        assertThat(authorizer.calls).contains("revoke a@example.com")
+
+        job.cancel()
+        revokeGate.complete(Unit)
+        job.join()
+        assertThat(authorizer.revoked).containsExactly("a@example.com")
+        assertThat(newAuth().state.value).isEqualTo(DriveAuthState.NotConnected)
+    }
+
+    @Test
+    fun `disconnect offline still forgets`() = runTest {
+        val auth = connected()
+        authorizer.revoke = { throw IOException("offline") }
 
         auth.disconnect()
 
-        assertThat(authorizer.calls).contains("revoke a@example.com")
         assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
         assertThat(newAuth().state.value).isEqualTo(DriveAuthState.NotConnected)
     }
 
     @Test
-    fun `an unreadable stored record is dropped`() {
-        context.getSharedPreferences("drive_test", Context.MODE_PRIVATE).edit().putString("account", "garbage").commit()
-        assertThat(store.load()).isNull()
+    fun `an unreadable stored record is dropped together with its key`() = runTest {
+        prefs.edit().putString("account", "garbage").commit()
+
         assertThat(newAuth().state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(keyDropped).isTrue()
+        assertThat(prefs.contains("account")).isFalse()
     }
 
-    private suspend fun connected(): GoogleDriveAuth = newAuth().also { it.connectWith(false, noConsentScreen).getOrThrow() }
+    private suspend fun TestScope.connected(): GoogleDriveAuth = newAuth().also { it.connectWith(false, noConsentScreen).getOrThrow() }
 
     private inner class FakeAuthorizer : DriveAuthorizer {
         var authorize: suspend (String?, Boolean) -> Authorization = { _, _ -> granted }
         var fromIntent: (Intent) -> Authorization = { error("no consent result expected") }
-        var email: String? = "a@example.com"
-        var revokeError: Exception? = null
+        var revoke: suspend () -> Unit = {}
+        var email = "a@example.com"
+        var emailError: Exception? = null
         val calls = mutableListOf<String>()
+        val revoked = mutableListOf<String>()
 
         override suspend fun authorize(accountEmail: String?, chooseAccount: Boolean): Authorization {
             calls += "authorize $accountEmail $chooseAccount"
@@ -203,9 +287,10 @@ class GoogleDriveAuthTest {
 
         override suspend fun revoke(accountEmail: String) {
             calls += "revoke $accountEmail"
-            revokeError?.let { throw it }
+            revoke.invoke()
+            revoked += accountEmail
         }
 
-        override suspend fun accountEmail(token: String) = email
+        override suspend fun accountEmail(token: String): String = emailError?.let { throw it } ?: email
     }
 }

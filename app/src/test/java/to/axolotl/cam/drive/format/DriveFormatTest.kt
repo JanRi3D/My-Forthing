@@ -79,6 +79,8 @@ class DriveFormatTest {
         )
         assertThat(DriveFormat.mediaAppProperties("id", "UPSCALED_CLIP", "NORMAL", "p")).containsEntry("axo.parent", "p")
         assertThat(DriveFormat.isoTimestamp(1_790_848_980_000, ZoneId.of("Europe/Berlin"))).isEqualTo("2026-10-01T12:03:00+02:00")
+        assertThat(DriveFormat.isoTimestamp(1_790_848_980_123, ZoneId.of("Europe/Berlin"))).isEqualTo("2026-10-01T12:03:00.123+02:00")
+        assertThat(DriveFormat.isoTimestamp(1_790_848_980_900, ZoneOffset.UTC)).isEqualTo("2026-10-01T10:03:00.9Z")
     }
 
     @Test
@@ -113,7 +115,6 @@ class DriveFormatTest {
             file("s3", DriveFormat.sidecarAppProperties("c")), // media deleted by the user in Drive
             file("m4new", DriveFormat.mediaAppProperties("d", "ORIGINAL_VIDEO", "EVENT", null), "2026-10-02T00:00:00Z"),
             file("m4old", DriveFormat.mediaAppProperties("d", "ORIGINAL_VIDEO", "EVENT", null), "2026-10-01T00:00:00Z"),
-            file("legacy", mapOf("axo.format" to "1", "axo.id" to "e", "axo.kind" to "SCREENSHOT")), // no axo.role
             file("root", DriveFormat.roleAppProperties(DriveFormat.ROLE_ROOT)),
             file("manifest", DriveFormat.roleAppProperties(DriveFormat.ROLE_MANIFEST)),
             file("v2", mapOf("axo.format" to "2", "axo.role" to "media", "axo.id" to "f")),
@@ -121,12 +122,11 @@ class DriveFormatTest {
 
         val entries = DriveFormatReader.pair(files).associateBy { it.mediaId }
 
-        assertThat(entries.keys).containsExactly("a", "b", "c", "d", "e").inOrder()
+        assertThat(entries.keys).containsExactly("a", "b", "c", "d").inOrder()
         assertThat(entries.getValue("a").complete).isTrue()
         assertThat(entries.getValue("b").complete).isFalse()
         assertThat(entries.getValue("c").media).isNull()
         assertThat(entries.getValue("c").complete).isFalse()
         assertThat(entries.getValue("d").media!!.id).isEqualTo("m4old")
-        assertThat(entries.getValue("e").media!!.id).isEqualTo("legacy")
     }
 }

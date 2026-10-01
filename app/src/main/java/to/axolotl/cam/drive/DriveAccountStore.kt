@@ -28,9 +28,14 @@ enum class ReconnectReason { REVOKED, CONSENT_REQUIRED }
 /**
  * [StoredDriveAccount] as AES-256-GCM ciphertext (IV ‖ ciphertext, Base64) in SharedPreferences, keyed by a
  * non-exportable Android Keystore key. androidx.security-crypto (EncryptedSharedPreferences) is deprecated, hence
- * the direct Keystore use. An unreadable record (e.g. Keystore reset) is dropped: the user simply connects again.
+ * the direct Keystore use. An unreadable record (e.g. Keystore reset) is dropped together with the key, so the next
+ * save creates a fresh key; the user simply connects again. Keystore work is slow: call from a background thread.
  */
-class DriveAccountStore(private val prefs: SharedPreferences, private val key: () -> SecretKey) {
+class DriveAccountStore(
+    private val prefs: SharedPreferences,
+    private val key: () -> SecretKey,
+    private val dropKey: () -> Unit = {},
+) {
 
     fun load(): StoredDriveAccount? {
         val blob = prefs.getString(PREF_KEY, null) ?: return null
@@ -43,15 +48,17 @@ class DriveAccountStore(private val prefs: SharedPreferences, private val key: (
             // Only the type: a JSON error message would quote the decrypted record (e-mail).
             Log.w(TAG, "Stored Drive connection unreadable (${it.javaClass.simpleName}), forgetting it")
             clear()
+            runCatching(dropKey).onFailure { e -> Log.w(TAG, "Deleting the Keystore key failed (${e.javaClass.simpleName})") }
         }.getOrNull()
     }
 
-    fun save(account: StoredDriveAccount) {
+    /** False when the Keystore failed; the caller keeps its in-memory state, the old record stays on disk. */
+    fun save(account: StoredDriveAccount): Boolean = runCatching {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key()) }
         check(cipher.iv.size == IV_BYTES)
         val bytes = cipher.iv + cipher.doFinal(driveJson.encodeToString(account).encodeToByteArray())
         prefs.edit { putString(PREF_KEY, Base64.encodeToString(bytes, Base64.NO_WRAP)) }
-    }
+    }.onFailure { Log.w(TAG, "Saving the Drive connection failed (${it.javaClass.simpleName})") }.isSuccess
 
     fun clear() = prefs.edit { remove(PREF_KEY) }
 
@@ -77,6 +84,10 @@ class DriveAccountStore(private val prefs: SharedPreferences, private val key: (
                         .build(),
                 )
             }.generateKey()
+        }
+
+        fun deleteKeystoreKey() {
+            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(KEY_ALIAS)
         }
     }
 }

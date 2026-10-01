@@ -28,11 +28,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -126,12 +128,9 @@ fun DriveAccountScreen(onBack: () -> Unit, viewModel: DriveAccountViewModel = hi
                 is DriveAuthState.Connected -> ListGroup(
                     listOf(
                         { shape ->
-                            ListRow(
-                                stringResource(R.string.drive_switch_account),
-                                supporting = stringResource(R.string.drive_switch_account_text),
-                                shape = shape,
-                                onClick = { if (!ui.busy) connect(true) },
-                            )
+                            ActionRow(R.string.drive_switch_account, R.string.drive_switch_account_text, shape, enabled = !ui.busy) {
+                                connect(true)
+                            }
                         },
                         { shape -> DisconnectRow(shape, enabled = !ui.busy) { confirmDisconnect = true } },
                     ),
@@ -161,13 +160,22 @@ private fun InfoRow(@StringRes title: Int, text: String, shape: Shape) {
 
 @Composable
 private fun DisconnectRow(shape: Shape, enabled: Boolean, onClick: () -> Unit) {
+    ActionRow(R.string.drive_disconnect, R.string.drive_disconnect_text, shape, enabled, onClick)
+}
+
+/** While [enabled] is false the row is dimmed, not clickable and announced as disabled. */
+@Composable
+private fun ActionRow(@StringRes title: Int, @StringRes text: Int, shape: Shape, enabled: Boolean, onClick: () -> Unit) {
     ListRow(
-        stringResource(R.string.drive_disconnect),
-        supporting = stringResource(R.string.drive_disconnect_text),
+        stringResource(title),
+        modifier = if (enabled) Modifier else Modifier.alpha(DISABLED_ALPHA).semantics { disabled() },
+        supporting = stringResource(text),
         shape = shape,
-        onClick = { if (enabled) onClick() },
+        onClick = onClick.takeIf { enabled },
     )
 }
+
+private const val DISABLED_ALPHA = 0.38f
 
 @Composable
 private fun WideButton(@StringRes label: Int, enabled: Boolean, onClick: () -> Unit) {
