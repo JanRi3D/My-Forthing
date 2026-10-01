@@ -113,6 +113,8 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     // plates
     implementation(libs.mlkit.text.recognition)
+    // enhance
+    implementation(libs.litert)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

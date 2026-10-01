@@ -1,0 +1,66 @@
+quicksrnetmedium_float.tflite
+=============================
+
+Model:      QuickSRNet Medium, 4x single-image super-resolution (NHWC float32, input 1x128x128x3, output 1x512x512x3, values 0..1)
+Paper:      QuickSRNet: Plain Single-Image Super-Resolution Architecture for Faster Inference on Mobile Platforms, arXiv:2303.04336
+Weights:    AIMET Model Zoo (https://github.com/quic/aimet-model-zoo, aimet_zoo_torch/quicksrnet), BSD 3-Clause License (below)
+Export:     Qualcomm AI Hub Models v0.63.0, pre-exported TFLite "float" asset
+            https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/quicksrnetmedium/releases/v0.63.0/quicksrnetmedium-tflite-float.zip
+            (model card https://huggingface.co/qualcomm/QuickSRNetMedium, "license: bsd-3-clause",
+             revision 428a6f66e34662459586850c6905d7807095dfb4 = commit "v0.63.0";
+             Qualcomm AI Hub Models repository licence: BSD 3-Clause, below)
+SHA-256:    9310ebbad930378d24b560cd25705c1b57b778fcbcd9d2a17406ff5c1378bf1c  quicksrnetmedium_float.tflite
+            6b8be955281035ba916c5e4ecec4bd16b114996eead7331fe9f4d31c9a450a54  quicksrnetmedium-tflite-float.zip
+The file is shipped unmodified (renamed from quicksrnetmedium.tflite).
+
+Its output is a reconstruction ("rekonstruiert, kein Beweis"), never evidence.
+
+
+AIMET Model Zoo licence (https://github.com/quic/aimet-model-zoo/blob/develop/LICENSE.md)
+-----------------------------------------------------------------------------------------
+
+BSD 3-Clause License
+
+Copyright (c) 2018, the respective contributors, as shown by the AUTHORS file.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Qualcomm AI Hub Models licence (https://github.com/qualcomm/ai-hub-models/blob/main/LICENSE)
+--------------------------------------------------------------------------------------------
+
+Copyright 2025 Qualcomm Technologies, Inc. and/or its subsidiaries.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
