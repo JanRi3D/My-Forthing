@@ -30,6 +30,7 @@ data class PlateDetection(
 )
 
 interface PlateRecognizer {
+    /** [frame] must be a software bitmap (not `Bitmap.Config.HARDWARE`); it is not modified or recycled. */
     suspend fun recognize(frame: Bitmap, timestampMs: Long): List<PlateDetection>
     fun close()
 }

@@ -15,7 +15,10 @@ import to.axolotl.cam.core.log.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToLong
 
-/** A live frame; the processor does not recycle [bitmap], so hand over a fresh (or no longer used) one. */
+/**
+ * A live frame: a software ARGB_8888 bitmap (e.g. `TextureView.getBitmap()` or a PixelCopy target; not HARDWARE).
+ * The processor does not recycle [bitmap], so hand over a fresh (or no longer used) one.
+ */
 class Frame(val bitmap: Bitmap, val timestampMs: Long)
 
 /** Measured over the last [LivePlateProcessor.STATS_WINDOW_MS]: frames processed per second, mean ms per frame, busy share of wall time. */
