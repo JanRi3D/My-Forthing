@@ -153,3 +153,63 @@ Needs a USB-debuggable phone and the debug + test APKs (`./gradlew :app:assemble
 - Real dashcam footage evaluation (recall, `?` rate, false positives), especially the seal rule (how often real seals are guessed as letters), the wide-glyph seal gap and night/IR.
 - Decide on ML Kit usage metrics (keep, or remove the transport services from the merged manifest).
 - Release: `abiFilters` arm64-v8a/armeabi-v7a or an AAB (41 MB of OCR libraries across four ABIs otherwise).
+
+## UI (feature/plates-ui)
+
+Package `me.ri3d.cam.plates.ui`. `FeatureFlags.plates = true` (the note at the top of this file describes the state before this phase): the Home search bar opens `Plates()`, Settings → App has the row "Kennzeichenerkennung".
+
+| File | Contents |
+| --- | --- |
+| `PlatesGraph.kt` | `platesGraph(navController)`: routes `Plates(query)`, `PlateDetail(plateId)`, `PlatesSettings` (new route) |
+| `LivePlates.kt` | `LivePlatesViewModel`, slots `LivePlatesToggle` (leadingControls), `LivePlatesOverlay` (overlay), `LivePlatesList` (belowControls) |
+| `ClipScans.kt` | `ClipScans` (singleton): app-wide clip check queue, progress, cancel, automatic check of new downloads |
+| `ClipPlates.kt` | `ClipPlatesViewModel`, slots `ClipPlates` (clipExtras) and `ClipPlatesOverlay` (clipOverlay), `PlatesAutoScan()` |
+| `PlatesScreen.kt` / `PlateDetailScreen.kt` / `PlatesSettingsScreen.kt` | search, history of one plate, settings (+ `PlatesSettingsRow`) |
+| `PlateUi.kt` | `fitRect`, `mapBox`, `PlateOverlay` (boxes + chips), `PlateChip`, `seenText` |
+
+Wiring (`AxoNavHost`): `liveGraph(navController, leadingControls, belowControls, overlay)`, `mediaGraph(navController, clipExtras, clipOverlay)`, `platesGraph(navController)` and one `PlatesAutoScan()` next to the NavHost (starts the automatic clip check once per process). Additions in `plates/`: `PlateDao.sightingRows(plateId)` (sightings joined with their `media_item`: kind, category, raw recorder time, phone copy), `observeForMedia(mediaId)`, `incidentPlateIds()` (join on `media_item.category = 'EVENT'`), `PlateRepository.delete(plateId)` (plate, sightings by cascade, crops). Queries only, no schema change.
+
+### Behaviour
+
+**Live view.** The "Kennzeichen" toggle (left of Screenshot) is the `platesLive` preference. Frames are collected only while the toggle is on, the Live entry is resumed (reported by the overlay, which exists in normal and full screen) and the stream plays (`LiveFrameSource.videoSize != null`): `frames(fps = 5, wanted = processor.wantsFrame)` into a `LivePlateProcessor` with the repository, so sightings are recorded as LIVE (2 s dedupe). Each activation gets its own processor and recognizer; both are closed when any condition ends. Overlay: the boxes of the last processed frame, mapped from the pixels of the frame handed to the processor (≤ 1280 px wide, the stream's display aspect) into `videoRect` — `x' = videoRect.left + x · videoRect.width / frameWidth`, same for y — so letterboxing and full screen line up. Below the controls: "Erkannte Kennzeichen" = the last three distinct plates of this visit with their history count ("4-mal gesehen") and time, "Verlauf" (→ `Plates()`), the off text from the artboard, and "Läuft auf diesem Handy · 3,6 Bilder/s" from `stats.processedFps` while processing.
+
+**Clip.** "Kennzeichen in diesem Clip" (original videos only): the sightings grouped by plate ("2-mal in diesem Clip", row → detail) with one jump button per sighting (`seekTo(positionMs)`), and "Clip auf Kennzeichen prüfen" for a phone copy (else "Erst herunterladen, dann prüfen."). The check runs in `ClipScans` (app scope, one clip at a time) with a progress bar and "Abbrechen" on the clip screen and the Plates screen; the outcome is shown per clip for the life of the process: "Keine Kennzeichen gefunden.", "n Kennzeichen gefunden.", "Prüfung abgebrochen. Bis dahin gefundene Kennzeichen bleiben gespeichert." or "Prüfung fehlgeschlagen …". `clipStartMs` is the item's `recorderTimeEpochGuess`, so a clip sighting's time is the recorder-time guess plus the position (scan time when the recorder time is unknown). Overlay: sightings within ± 500 ms of the playback position, fitted into the 16:9 box like the player (`RESIZE_MODE_FIT`, video size from `MediaMetadataRetriever`). Enhanced frames and upscaled clips show "Verbesserte und hochskalierte Dateien werden nicht auf Kennzeichen geprüft: Sie sind rekonstruiert, kein Beweis. Prüfe das Original." and are refused by `ClipScans.enqueue` as well.
+
+**Automatic clip check** (`platesClips`): while on, every ORIGINAL_VIDEO with a phone copy whose `downloadedAt` is at or after the start (process start when it was on at start, else the moment it was switched on) is queued once per process. Photos, screenshots, derived outputs and recordings without a phone copy are never queued.
+
+**Search** (`Plates(query)`, Home search bar): partial match on `normalized` ("bmk", "4821", "B-"), chips "Alle" / "Vorfälle" (plates with a sighting in a recording of category EVENT), count, rows with the reading (`?` as read), "x-mal gesehen", "Zuletzt heute 17:42", "Vorfall" badge. Empty states: no match ("Keine Kennzeichen passen zu „…“" + "Probiere einen Teil des Kennzeichens, etwa die Städtekennung oder die letzten Ziffern."), no incidents, no history. Query and filter survive process death (SavedStateHandle).
+
+**Detail** (`PlateDetail(plateId)`): sightings count, first/last seen, "Vorfall" badge, sightings newest first: time, source ("Live-Ansicht" or "Vorfall 00:53:00 · bei 00:02" with the raw recorder clock), crop, "Gelesen als …" when the sighting's reading differs, "unsicher gelesen" when `confidence == null`; a sighting whose recording is on the phone opens `Clip(mediaId, positionMs)`, otherwise "Aufnahme nicht auf dem Handy". "Verlauf dieses Kennzeichens löschen" asks first.
+
+**Settings** (`PlatesSettings`): "In der Live-Ansicht" (`platesLive`), "In gespeicherten Clips" (`platesClips`), "Kennzeichen-Daten in Drive-Sicherung einschließen" (`backupIncludePlateMetadata`, explained as local by default), "Verlauf löschen" (danger confirmation → `PlateRepository.clear()`), and the note "Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt – nichts wird geraten, und es gibt keine Trefferquote."
+
+### Honesty rules as rendered
+
+- No confidence figure anywhere (no percentage, no bar, no score). The only signal is binary: `confidence == null` → "unsicher" (live/clip overlay: dashed amber box, amber chip with the word) and "unsicher gelesen" (detail).
+- Readings are shown as read: `?` stays in chips, lists, overlay and "Gelesen als …"; nothing is filled in.
+- Enhanced/upscaled outputs are never scanned (UI refusal, `ClipScans.scannable`, the automatic check only takes ORIGINAL_VIDEO), so no sighting comes from a reconstruction.
+- Times: live sightings carry phone time; clip sightings the recorder-time guess plus position (the clip screen labels the recorder time as "laut Recorder, Zeitzone unbekannt").
+- Accessibility: the overlay is one TalkBack element ("Erkannte Kennzeichen: B-MK 4821; K?LT 207, unsicher"); toggle, jump buttons ("Zu 00:02 springen"), switches (whole row) and rows are ≥ 48 dp.
+- Nothing is logged beyond exception class names; plate text never goes to the log.
+
+### Limitations
+
+- The live overlay was not exercised: the simulator has no RTSP stream. Boxes are those of the last processed frame (one every ~0.3–1 s with the 30 % budget), so they trail moving plates.
+- Switching between normal and full screen restarts the processor (new recognizer, model init again).
+- Dedupe keeps one sighting per continuous appearance (2 s window), so the clip overlay shows a box only ± 500 ms around where each appearance was first detected.
+- Clip checks survive leaving the screen but not process death; outcomes are kept in memory only. A download that finished in a process that died before the check is not checked automatically ("Clip auf Kennzeichen prüfen" covers it).
+- The "Vorfall" badge needs the recording's library row; when its last copy is deleted (row removed), the badge goes, the sightings stay.
+- Clip overlay ignores rotation and pixel aspect (dashcam clips have none).
+- Lint (AGP 9.3 K2 UAST) crashes in `ExperimentalDetector` on a bound callable reference to a constructor parameter in a property initializer (`repository::search`); use a lambda there.
+
+### Validation
+
+- Unit tests (Robolectric, seeded in-memory Room): `PlatesViewModelsTest` (search by city letters/digits, route query, incident filter, detail rows with source/copy/unsure reading, delete with crops, settings switches and clear), `PlateOverlayMathTest` (fit and mapping: same aspect, pillarbox, portrait letterbox, full screen, clip player; ± 500 ms window), `ClipScansTest` (progress, one at a time, cancel running/queued incl. before the scan started, failure, derived/photo/no-copy refused, automatic check only for originals downloaded since start, nothing while off, only later downloads after switching on), `LivePlatesViewModelTest` (frames only while on + resumed + playing, recognizer closed on each stop, LIVE sighting recorded and listed).
+- Emulator (`emulator-5556`, API 36) [SIM]: simulator session with "In gespeicherten Clips" on; the incident clip `E20261001_005300.mp4` (the simulator's fixture, 320 × 176, 4 s) downloaded → the automatic check ran → "Keine Kennzeichen gefunden." (expected: the fixture shows no plates); "Clip auf Kennzeichen prüfen" again showed the progress bar with "Abbrechen" and the same result. Plates screens with a fictional history written through `run-as` into the debug app's database (no seeding code in the app): list (5 plates, "Vorfall" on two, `K?LT 207` shown as read), "Vorfälle" (2), search "4821" (1), "XY9" empty state, detail of B-MK 4821 (3 sightings, "Gelesen als B ?K 4821" + "unsicher gelesen", clip sighting "Vorfall 00:53:00 · bei 00:02") → clip opened at 00:02 with box and chip at the seeded spot. Live view: off text, and after the toggle "Noch keine Kennzeichen erkannt …". The live overlay and live processing could not be exercised: the simulator has no RTSP server (stream error 2000).
+
+### Hardware checklist (owner)
+
+1. Live overlay on the phone with the real stream: box position on the plate in normal and full screen (letterboxed), lag behind moving plates, the "x Bilder/s" figure; CPU and thermal with plates on (procedure steps 4–5 above).
+2. Real footage through the app: "Clip auf Kennzeichen prüfen" on 3–5 real clips (procedure step 6): time per clip, found exact / with `?` / wrong, boxes at the jump positions.
+3. Automatic check after real downloads (full-length clips): queue behaviour and scan time per minute of video.
+4. Whether `fileTime` is the clip start and in which time zone (clip sighting times are based on it).
