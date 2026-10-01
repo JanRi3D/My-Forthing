@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.os.FileObserver
+import androidx.core.graphics.scale
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -218,7 +219,7 @@ class MediaRepository @Inject constructor(
         val target = File(thumbDir.apply { mkdirs() }, "$id.jpg")
         try {
             val scale = THUMB_PX.toFloat() / maxOf(bitmap.width, bitmap.height)
-            val small = if (scale < 1f) Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
+            val small = if (scale < 1f) bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt()) else bitmap
             target.outputStream().use { small.compress(Bitmap.CompressFormat.JPEG, 85, it) }
             target.path
         } catch (e: Exception) {

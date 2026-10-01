@@ -282,7 +282,11 @@ class DownloadWorker @AssistedInject constructor(
             }
             Result.success()
         } catch (e: CancellationException) {
-            if (stopReason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) withContext(NonCancellable) { downloader.discardPartial(mediaId) }
+            // Cancelled from the notification: drop the part. ponytail: the stop reason needs Android 12; below, the
+            // part stays and the next download of the file resumes from it (Storage "Freigeben" removes it).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && stopReason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) {
+                withContext(NonCancellable) { downloader.discardPartial(mediaId) }
+            }
             throw e
         } catch (e: IOException) { // includes RecorderNotBoundException: no recorder Wi-Fi yet
             if (e is DownloadException && e.permanent || runAttemptCount + 1 >= MAX_ATTEMPTS) {

@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -342,7 +343,7 @@ private fun Actions(item: MediaItem, onPhone: Boolean, viewModel: ClipViewModel,
         val lastCopy = item.recorderPath == null && item.driveFileId == null
         ConfirmDialog(
             title = stringResource(R.string.media_delete_local_title),
-            text = context.resources.getQuantityString(if (lastCopy) R.plurals.media_delete_local_last_text else R.plurals.media_delete_local_text, 1, 1),
+            text = pluralStringResource(if (lastCopy) R.plurals.media_delete_local_last_text else R.plurals.media_delete_local_text, 1, 1),
             confirmLabel = stringResource(R.string.media_delete),
             onConfirm = {
                 confirmLocal = false
@@ -355,7 +356,7 @@ private fun Actions(item: MediaItem, onPhone: Boolean, viewModel: ClipViewModel,
     if (confirmRecorder) {
         ConfirmDialog(
             title = stringResource(R.string.media_delete_recorder_title),
-            text = context.resources.getQuantityString(R.plurals.media_delete_recorder_text, 1, 1),
+            text = pluralStringResource(R.plurals.media_delete_recorder_text, 1, 1),
             confirmLabel = stringResource(R.string.media_delete),
             onConfirm = {
                 confirmRecorder = false
