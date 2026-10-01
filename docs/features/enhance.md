@@ -139,6 +139,9 @@ Emulator throughput of the classical clip path (SwiftShader + software H.264, 12
 H.264 encoder stops at 2048×2048 / 8192 macroblocks, so 1440p and 2160p fail there with `UpscaleError.Encoder` –
 on purpose covered by a test; real 1440p/2160p numbers need a phone. ML per frame for a 1080p source costs the ×2
 frame time above (5.5–11 s) → ≈ 3–5.5 h per minute of 30 fps video on the emulator: offered only as an explicit option.
+Incident: emulator-5556 restarted twice while the opt-in clip benchmark was writing 1920×1080 synthetic sources
+(host heavily loaded by parallel builds; cause not established, the 12 functional tests never triggered it). The
+benchmark now checks for a target encoder before writing any source, so the emulator skips the 1440p/2160p cases.
 
 ## Estimates (only when measurable)
 

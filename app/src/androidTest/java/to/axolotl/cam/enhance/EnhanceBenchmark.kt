@@ -1,6 +1,9 @@
 package to.axolotl.cam.enhance
 
 import android.graphics.Bitmap
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.net.Uri
 import android.os.Debug
 import android.os.SystemClock
@@ -154,6 +157,16 @@ class EnhanceBenchmark {
         val frames = (30 * seconds).toInt()
         val cases = listOf(Pair(1920 to 1080, 1440), Pair(1920 to 1080, 2160), Pair(960 to 540, 1080), Pair(640 to 360, 720))
         for ((src, target) in cases) {
+            val (w, h) = outputSize(src.first, src.second, target)
+            val probe = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h).apply {
+                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+            }
+            if (MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(probe) == null) {
+                // Skip before writing the source: on emulator-5556 writing 1080p sources coincided with two emulator restarts.
+                log("CLIP | ${src.first}x${src.second} -> ${target}p | SKIP: no H.264 encoder for ${w}x$h on this device")
+                continue
+            }
             val input = File(context.cacheDir, "bench-${src.first}.mp4")
             TestMedia.writeClip(input, src.first, src.second, 30, seconds, audio = true)
             val t = SystemClock.elapsedRealtime()
