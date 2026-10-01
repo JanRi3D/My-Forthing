@@ -1,6 +1,5 @@
 package to.axolotl.cam.media
 
-import android.net.Uri
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Index
@@ -12,6 +11,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import to.axolotl.cam.recorder.RecorderValues
 import java.io.File
+import java.net.URI
 
 /**
  * One recording, photo, screenshot or derived output (CONTRACTS §8). Up to three copies exist independently: on the
@@ -38,7 +38,7 @@ data class MediaItem(
     val recorderTime: String?,
     /** [recorderTime] read in the phone's zone: a guess, labelled as such wherever it is shown. */
     val recorderTimeEpochGuess: Long?,
-    /** `file://` URI of the phone copy (app-private storage). */
+    /** `file:` URI of the phone copy in app storage ([File.toURI]); read it with [localFile]. */
     val localUri: String?,
     val localSizeBytes: Long?,
     /** Absolute path of the locally generated thumbnail (JPEG). */
@@ -53,7 +53,7 @@ data class MediaItem(
     val driveMd5: String?,
     val createdAt: Long,
 ) {
-    val localFile: File? get() = localUri?.let { Uri.parse(it).path }?.let(::File)
+    val localFile: File? get() = localUri?.let { runCatching { File(URI(it)) }.getOrNull() }
     val isVideo: Boolean get() = kind == MediaKind.ORIGINAL_VIDEO || kind == MediaKind.UPSCALED_CLIP
     val isDerived: Boolean get() = kind == MediaKind.ENHANCED_FRAME || kind == MediaKind.UPSCALED_CLIP
 }

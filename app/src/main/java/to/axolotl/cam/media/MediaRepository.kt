@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.os.FileObserver
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -106,7 +105,7 @@ class MediaRepository @Inject constructor(
         val item = newItem(
             id, kind, parent?.category ?: MediaCategory.UNKNOWN, file.name, createdAt = info?.createdAt ?: System.currentTimeMillis(),
         ).copy(
-            localUri = Uri.fromFile(file).toString(), localSizeBytes = file.length(),
+            localUri = file.toURI().toString(), localSizeBytes = file.length(),
             localThumbPath = thumbnail(id, file, kind == MediaKind.UPSCALED_CLIP), parentId = parentId, parentPositionMs = parentPositionMs,
         )
         return mutex.withLock { if (dao.insert(item) == -1L) dao.get(id)!! else item }
@@ -140,7 +139,7 @@ class MediaRepository @Inject constructor(
         val id = meta.optString("id").ifBlank { jpg.nameWithoutExtension }
         if (dao.get(id) != null) return false
         val item = newItem(id, MediaKind.SCREENSHOT, MediaCategory.UNKNOWN, jpg.name, createdAt = capturedAt(meta) ?: jpg.lastModified())
-            .copy(localUri = Uri.fromFile(jpg).toString(), localSizeBytes = jpg.length(), localThumbPath = thumbnail(id, jpg, video = false))
+            .copy(localUri = jpg.toURI().toString(), localSizeBytes = jpg.length(), localThumbPath = thumbnail(id, jpg, video = false))
         return mutex.withLock { dao.insert(item) != -1L }
     }
 
@@ -148,7 +147,7 @@ class MediaRepository @Inject constructor(
     suspend fun markDownloaded(id: String, file: File): MediaItem? = mutex.withLock {
         val item = dao.get(id) ?: return null
         item.copy(
-            localUri = Uri.fromFile(file).toString(), localSizeBytes = file.length(), downloadedAt = System.currentTimeMillis(),
+            localUri = file.toURI().toString(), localSizeBytes = file.length(), downloadedAt = System.currentTimeMillis(),
             localThumbPath = thumbnail(id, file, item.isVideo),
         ).also { dao.update(it) }
     }

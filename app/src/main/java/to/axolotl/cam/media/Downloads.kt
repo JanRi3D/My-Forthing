@@ -40,6 +40,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import to.axolotl.cam.R
+import to.axolotl.cam.core.log.Log
 import to.axolotl.cam.dashcam.RecorderConnectionManager
 import to.axolotl.cam.dashcam.RecorderConnectionState
 import java.io.File
@@ -296,11 +297,18 @@ class DownloadWorker @AssistedInject constructor(
 
     private val notificationId get() = id.hashCode()
 
-    /** Without the notification permission (Android 13+) the transfer runs silently; the in-app sheet shows it. */
+    /**
+     * Without the notification permission (Android 13+) the transfer runs silently; the in-app sheet shows it.
+     * A failing notification never fails the transfer.
+     */
     private fun updateNotification(name: String, bytes: Long, total: Long?) {
         val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        if (granted) notifications().notify(notificationId, notification(name, bytes, total))
+        try {
+            if (granted) notifications().notify(notificationId, notification(name, bytes, total))
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "progress notification failed", e)
+        }
     }
 
     private fun notifications() = NotificationManagerCompat.from(applicationContext).apply {
@@ -338,6 +346,7 @@ class DownloadWorker @AssistedInject constructor(
         const val KEY_BYTES = "bytes"
         const val KEY_TOTAL = "total"
         const val KEY_ERROR = "error"
+        private const val TAG = "DownloadWorker"
         private const val CHANNEL = "media_transfers"
         private const val MAX_PARALLEL = 2
         private const val MAX_ATTEMPTS = 10
