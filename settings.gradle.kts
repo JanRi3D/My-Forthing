@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Axolotl Cam"
 include(":app")
- 
+include(":recorder")
