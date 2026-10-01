@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import to.axolotl.cam.core.log.Log
@@ -73,8 +75,18 @@ sealed interface PlayerEvent {
     /** Display size of the stream (pixel aspect ratio applied). */
     data class Size(val width: Int, val height: Int) : PlayerEvent
 
-    /** [code] is Media3's error code name, or [ExoLivePlayer.STREAM_ENDED]. */
-    data class Failed(val code: String) : PlayerEvent
+    data class Failed(val error: StreamError) : PlayerEvent
+}
+
+/** A stream failure: Media3's `PlaybackException.errorCode` and its name, or a local reason ([code] null). */
+data class StreamError(val name: String, val code: Int? = null) {
+    companion object {
+        /** The stream ended; the original app stops the preview on stream closure. */
+        val ENDED = StreamError("STREAM_ENDED")
+
+        /** Ready without a bound recorder Wi-Fi (outside simulator mode): nothing is started unbound. */
+        val NOT_BOUND = StreamError("RECORDER_WIFI_NOT_BOUND")
+    }
 }
 
 /**
@@ -95,7 +107,7 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
             when (playbackState) {
                 Player.STATE_BUFFERING -> listener?.invoke(PlayerEvent.Buffering)
                 // The original app stops the preview when the stream closes; here that counts as a stream error.
-                Player.STATE_ENDED -> listener?.invoke(PlayerEvent.Failed(STREAM_ENDED))
+                Player.STATE_ENDED -> listener?.invoke(PlayerEvent.Failed(StreamError.ENDED))
                 else -> Unit
             }
         }
@@ -113,7 +125,7 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
 
         override fun onPlayerError(error: PlaybackException) {
             Log.w(TAG, "stream error ${error.errorCodeName}") // the URL carries no credentials
-            listener?.invoke(PlayerEvent.Failed(error.errorCodeName))
+            listener?.invoke(PlayerEvent.Failed(StreamError(error.errorCodeName, error.errorCode)))
         }
     }
 
@@ -181,7 +193,6 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
 
     companion object {
         private const val TAG = "LivePlayer"
-        const val STREAM_ENDED = "STREAM_ENDED"
         private const val MIN_BUFFER_MS = 1_000
         private const val MAX_BUFFER_MS = 3_000
         private const val START_BUFFER_MS = 500
@@ -191,28 +202,38 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
 
 /**
  * Phase 4 hook (plates-ui, enhance-ui): frames of the running live view. [frames] grabs from the player surface
- * only while collected and only while the stream plays; each [Frame] is a fresh software ARGB_8888 bitmap at most
- * [LiveStream.MAX_FRAME_WIDTH] px wide, owned by the collector (a slow collector delays the next grab).
+ * only while collected and only while the stream plays (it suspends otherwise); each [Frame] is a fresh software
+ * ARGB_8888 bitmap at most [LiveStream.MAX_FRAME_WIDTH] px wide, owned by the collector (a slow collector delays
+ * the next grab).
  */
 @Singleton
 class LiveFrameSource @Inject constructor() {
-    /** Set by [LiveViewModel] while its stream plays. */
-    @Volatile internal var player: LivePlayer? = null
+    /** Set by [LiveViewModel] while its stream plays (Playing or Buffering). */
+    internal val player = MutableStateFlow<LivePlayer?>(null)
 
     internal val size = MutableStateFlow<IntSize?>(null)
 
-    /** Stream display size of the running stream, null when none (e.g. for `LiveSharpen.effect(scale)`). */
+    /** Stream display size while a stream plays, else null (e.g. for `LiveSharpen.effect(scale)`). */
     val videoSize: StateFlow<IntSize?> = size.asStateFlow()
 
-    fun frames(targetFps: Int): Flow<Frame> {
-        require(targetFps > 0) { "targetFps must be positive" }
+    /**
+     * Each grab is a GPU readback on the main thread, so [wanted] is asked first: pass the consumer's own check
+     * (`processor::wantsFrame` of `LivePlateProcessor`) and frames it would drop are never grabbed.
+     */
+    fun frames(targetFps: Int, wanted: () -> Boolean = { true }): Flow<Frame> {
+        require(targetFps in 1..MAX_FPS) { "targetFps must be in 1..$MAX_FPS" }
         return flow {
             while (true) {
-                val bitmap = withContext(Dispatchers.Main) { player?.capture(LiveStream.MAX_FRAME_WIDTH) }
+                val source = player.filterNotNull().first()
+                val bitmap = if (wanted()) withContext(Dispatchers.Main) { source.capture(LiveStream.MAX_FRAME_WIDTH) } else null
                 if (bitmap != null) emit(Frame(bitmap, System.currentTimeMillis()))
                 delay(1000L / targetFps)
             }
         }
+    }
+
+    companion object {
+        const val MAX_FPS = 30
     }
 }
 

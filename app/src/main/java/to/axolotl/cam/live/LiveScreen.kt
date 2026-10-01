@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -34,6 +35,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +70,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -100,35 +103,43 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/**
- * Route [Live]. Phase 4 slots: [extraControls] (Plates / Upscale buttons, next to Screenshot), [overlay] (drawn over
- * the video; `videoRect` is the letterboxed video in the overlay's coordinates, px) and [renderEffect] (applied to
- * the video surface, API 31+). The owners compute them from their own state.
- */
+/** Route [Live] with the Phase 4 slots of [LiveScreen] (all optional). */
 fun NavGraphBuilder.liveGraph(
     navController: NavController,
-    extraControls: @Composable RowScope.() -> Unit = {},
+    leadingControls: @Composable RowScope.() -> Unit = {},
+    trailingControls: @Composable RowScope.() -> Unit = {},
+    belowControls: @Composable ColumnScope.() -> Unit = {},
     overlay: @Composable BoxScope.(videoRect: Rect) -> Unit = {},
-    renderEffect: @Composable () -> RenderEffect? = { null },
+    renderEffect: @Composable (videoRect: Rect) -> RenderEffect? = { null },
 ) {
     composable<Live> {
         LiveScreen(
             onBack = { navController.navigateUp() },
             onConnect = { navController.navigate(Connection) { launchSingleTop = true } },
-            extraControls = extraControls,
+            leadingControls = leadingControls,
+            trailingControls = trailingControls,
+            belowControls = belowControls,
             overlay = overlay,
-            renderEffect = renderEffect(),
+            renderEffect = renderEffect,
         )
     }
 }
 
+/**
+ * Phase 4 slots, computed by their owners from their own state: [leadingControls] left of Screenshot (Plates),
+ * [trailingControls] right of it (Upscale), [belowControls] under the control row (recognised plates + "Verlauf",
+ * the battery note), [overlay] over the video in normal and full screen (`videoRect` = the letterboxed video in the
+ * overlay's coordinates, px), [renderEffect] applied to the video surface (API 31+), evaluated with that `videoRect`.
+ */
 @Composable
 fun LiveScreen(
     onBack: () -> Unit,
     onConnect: () -> Unit,
-    extraControls: @Composable RowScope.() -> Unit = {},
+    leadingControls: @Composable RowScope.() -> Unit = {},
+    trailingControls: @Composable RowScope.() -> Unit = {},
+    belowControls: @Composable ColumnScope.() -> Unit = {},
     overlay: @Composable BoxScope.(videoRect: Rect) -> Unit = {},
-    renderEffect: RenderEffect? = null,
+    renderEffect: @Composable (videoRect: Rect) -> RenderEffect? = { null },
     viewModel: LiveViewModel = hiltViewModel(),
 ) {
     val connection by viewModel.connection.collectAsStateWithLifecycle()
@@ -172,8 +183,13 @@ fun LiveScreen(
                 .focusable(),
         ) {
             video(Modifier.fillMaxSize(), Modifier.fillMaxSize())
-            IconButton(onClick = exit, modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
-                Icon(painterResource(R.drawable.ic_live_fullscreen_exit), stringResource(R.string.live_fullscreen_exit), tint = Color.White)
+            // Bottom end: the badges (Live, Handyzeit) sit at the top.
+            IconButton(
+                onClick = exit,
+                modifier = Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(12.dp),
+                colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.6f), contentColor = Color.White),
+            ) {
+                Icon(painterResource(R.drawable.ic_live_fullscreen_exit), stringResource(R.string.live_fullscreen_exit))
             }
         }
         LaunchedEffect(Unit) { focus.requestFocus() }
@@ -213,9 +229,11 @@ fun LiveScreen(
                 horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.Top,
             ) {
+                leadingControls()
                 ScreenshotButton(enabled = stream == StreamState.Playing || stream == StreamState.Buffering, onClick = viewModel::screenshot)
-                extraControls()
+                trailingControls()
             }
+            belowControls()
             RecorderControls(ready, command, viewModel::takePhoto, viewModel::record)
         }
     }
@@ -228,8 +246,8 @@ private fun VideoArea(
     videoSize: IntSize?,
     viewModel: LiveViewModel,
     onConnect: () -> Unit,
-    overlay: @Composable BoxScope.(Rect) -> Unit,
-    renderEffect: RenderEffect?,
+    overlay: @Composable BoxScope.(videoRect: Rect) -> Unit,
+    renderEffect: @Composable (videoRect: Rect) -> RenderEffect?,
     modifier: Modifier,
     videoModifier: Modifier,
 ) {
@@ -239,21 +257,25 @@ private fun VideoArea(
                 Box(videoModifier) {
                     var videoRect by remember { mutableStateOf(Rect.Zero) }
                     val aspect = videoSize?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
+                    val showing = stream == StreamState.Playing || stream == StreamState.Buffering
+                    val effect = renderEffect(videoRect)
+                    val description = stringResource(R.string.live_video_description)
                     AndroidView(
                         factory = { TextureView(it) },
                         modifier = Modifier
                             .align(Alignment.Center)
                             .aspectRatio(aspect)
-                            .onPlaced { videoRect = it.boundsInParent() },
+                            .onPlaced { videoRect = it.boundsInParent() }
+                            .semantics { contentDescription = description },
                         update = { view ->
                             viewModel.attach(view)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) view.setRenderEffect(renderEffect)
+                            // The display timeout would stop the activity, and with it the session.
+                            view.keepScreenOn = showing
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) view.setRenderEffect(effect)
                         },
                         onRelease = viewModel::detach,
                     )
-                    if (stream == StreamState.Playing || stream == StreamState.Buffering) {
-                        Badges(Modifier.fillMaxWidth().align(Alignment.TopStart).padding(12.dp))
-                    }
+                    if (showing) Badges(Modifier.fillMaxWidth().align(Alignment.TopStart).safeDrawingPadding().padding(12.dp))
                     overlay(videoRect)
                 }
             }
@@ -269,26 +291,32 @@ private fun StateMessage(connection: RecorderConnectionState, stream: StreamStat
             StreamState.Off, StreamState.Loading -> Progress(stringResource(R.string.live_loading))
             StreamState.Buffering -> Progress(stringResource(R.string.live_buffering))
             StreamState.Playing -> Unit
-            is StreamState.Failed -> Message(
-                stringResource(R.string.live_failed),
-                stringResource(R.string.live_failed_code, stream.code),
-                stringResource(R.string.action_retry),
-                onRetry,
-            )
+            is StreamState.Failed -> {
+                val e = stream.error
+                val notBound = e == StreamError.NOT_BOUND
+                Message(
+                    title = stringResource(R.string.live_failed),
+                    text = stringResource(e.reason),
+                    detail = stringResource(R.string.live_failed_code, if (e.code == null) e.name else "${e.name} (${e.code})"),
+                    action = stringResource(if (notBound) R.string.dashcam_open_connection else R.string.action_retry),
+                    onAction = if (notBound) onConnect else onRetry,
+                )
+            }
         }
         RecorderConnectionState.Connecting -> Progress(stringResource(R.string.dashcam_state_connecting))
         RecorderConnectionState.TcpConnected -> Progress(stringResource(R.string.dashcam_state_tcp))
         RecorderConnectionState.Negotiating -> Progress(stringResource(R.string.dashcam_state_negotiating))
         else -> Message(
-            stringResource(R.string.live_connect_first),
-            when (connection) {
+            title = stringResource(R.string.live_connect_first),
+            text = when (connection) {
                 RecorderConnectionState.NoWifi -> stringResource(R.string.dashcam_state_no_wifi)
                 is RecorderConnectionState.WrongWifi -> stringResource(R.string.dashcam_state_wrong_wifi)
                 is RecorderConnectionState.Error -> errorText(connection.error)
                 else -> stringResource(R.string.home_dashcam_disconnected)
             },
-            stringResource(R.string.dashcam_open_connection),
-            onConnect,
+            detail = null,
+            action = stringResource(R.string.dashcam_open_connection),
+            onAction = onConnect,
         )
     }
 }
@@ -308,7 +336,7 @@ private fun Progress(text: String) {
 }
 
 @Composable
-private fun Message(title: String, text: String, action: String, onAction: () -> Unit) {
+private fun Message(title: String, text: String, detail: String?, action: String, onAction: () -> Unit) {
     Column(
         Modifier.padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -324,6 +352,9 @@ private fun Message(title: String, text: String, action: String, onAction: () ->
             textAlign = TextAlign.Center,
         )
         Text(text, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        if (detail != null) {
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center)
+        }
         FilledTonalButton(onClick = onAction) { Text(action) }
     }
 }
@@ -409,21 +440,23 @@ private fun RecorderControls(ready: Boolean, command: CommandUi, onPhoto: (burst
         if (command.recordSecondsLeft != null) Hint(R.string.live_record_note, note)
         if (command.photoBusy) Hint(R.string.live_waiting, note)
         val resources = LocalResources.current
+        val strings: Strings = { id, args -> resources.getString(id, *args) }
         command.last?.let { outcome ->
             Text(
-                commandMessage(outcome) { id, args -> resources.getString(id, *args) },
+                commandMessage(outcome, strings),
                 modifier = note.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (outcome.result is RecorderResult.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             )
         }
-        if (command.extraReplies > 0) {
+        command.extra?.let { extra ->
             Text(
                 pluralStringResource(
                     R.plurals.live_extra_replies,
-                    command.extraReplies,
-                    command.extraReplies,
-                    command.lastExtraPath ?: stringResource(R.string.live_extra_no_path),
+                    extra.count,
+                    stringResource(extra.action.label),
+                    extra.count,
+                    replyText(extra.last, strings),
                 ),
                 modifier = note.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodyMedium,

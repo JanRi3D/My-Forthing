@@ -438,7 +438,14 @@
     <string name="live_loading">Livebild wird geöffnet …</string>
     <string name="live_buffering">Puffern …</string>
     <string name="live_failed">Livebild nicht verfügbar</string>
-    <string name="live_failed_code">Player-Fehler: %1$s</string>
+    <string name="live_failed_code">Code: %1$s</string>
+    <string name="live_err_network">Recorder liefert kein Livebild (RTSP, Port 554)</string>
+    <string name="live_err_format">Livebild des Recorders nicht lesbar (Datenformat)</string>
+    <string name="live_err_decoder">Videoformat auf diesem Handy nicht abspielbar</string>
+    <string name="live_err_ended">Der Recorder hat das Livebild beendet</string>
+    <string name="live_err_not_bound">Keine Verbindung über das Dashcam-WLAN – bitte neu verbinden</string>
+    <string name="live_err_other">Unerwarteter Fehler beim Abspielen</string>
+    <string name="live_video_description">Livebild der Dashcam</string>
     <string name="live_screenshot">Screenshot</string>
     <string name="live_screenshot_action">Screenshot aufnehmen</string>
     <string name="live_screenshot_saved">Screenshot gespeichert</string>
@@ -457,10 +464,10 @@
     <string name="live_reply_time">Zeit laut Recorder: %1$s</string>
     <string name="live_reply_error">%1$s – Recorder meldet Fehler: %2$s</string>
     <string name="live_reply_local">%1$s: %2$s</string>
+    <string name="live_reply_late">%1$s, verspätete Antwort</string>
     <plurals name="live_extra_replies">
-        <item quantity="one">%1$d weitere Antwort des Recorders (zuletzt: %2$s)</item>
-        <item quantity="other">%1$d weitere Antworten des Recorders (zuletzt: %2$s)</item>
+        <item quantity="one">%1$s: %2$d weitere Antwort des Recorders (zuletzt: %3$s)</item>
+        <item quantity="other">%1$s: %2$d weitere Antworten des Recorders (zuletzt: %3$s)</item>
     </plurals>
-    <string name="live_extra_no_path">ohne Dateipfad</string>
     <!-- /live -->
 </resources>

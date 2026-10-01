@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.view.TextureView
+import androidx.compose.ui.unit.IntSize
 import androidx.exifinterface.media.ExifInterface
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
@@ -18,13 +19,16 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowNetwork
 import org.w3c.dom.Element
 import to.axolotl.cam.R
+import to.axolotl.cam.dashcam.FakeWifi
 import to.axolotl.cam.dashcam.RecorderConnectionManagerImpl
 import to.axolotl.cam.dashcam.managerFor
 import to.axolotl.cam.plates.Frame
@@ -34,8 +38,8 @@ import java.io.File
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
-import javax.xml.parsers.DocumentBuilderFactory
 import javax.net.SocketFactory
+import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * The German texts straight from res/values/strings.xml: these Robolectric tests run without merged app
@@ -54,12 +58,14 @@ object GermanStrings {
 class FakePlayer : LivePlayer {
     override var listener: ((PlayerEvent) -> Unit)? = null
     val plays = mutableListOf<String>()
+    val sockets = mutableListOf<SocketFactory>()
     var stops = 0
     var released = false
     var frame: Bitmap? = null
 
     override fun play(url: String, socketFactory: SocketFactory) {
         plays += url
+        sockets += socketFactory
     }
 
     override fun stop() {
@@ -77,7 +83,7 @@ class FakePlayer : LivePlayer {
     fun emit(event: PlayerEvent) = listener!!.invoke(event)
 }
 
-/** [SIM] Live view logic against the real connection manager in simulator mode and a fake player. */
+/** [SIM] Live view logic against the real connection manager (simulator transport) and a fake player. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -86,6 +92,7 @@ class LiveViewModelTest {
     private val sim = RecorderSimulator()
     private val player = FakePlayer()
     private val frames = LiveFrameSource()
+    private val ioError = StreamError("ERROR_CODE_IO_UNSPECIFIED", 2000)
 
     @After
     fun tearDown() = Dispatchers.resetMain()
@@ -98,6 +105,8 @@ class LiveViewModelTest {
 
     private fun bitmap(w: Int = 64, h: Int = 36) = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
 
+    private fun message(vm: LiveViewModel) = commandMessage(vm.command.value.last!!, GermanStrings::get)
+
     @Test
     fun `stream starts only when Ready and the screen is started`() = runTest {
         val (manager, vm) = setUp()
@@ -108,7 +117,22 @@ class LiveViewModelTest {
         manager.connect()
         runCurrent()
         assertThat(player.plays).containsExactly(LiveStream.SIMULATOR_URL)
+        assertThat(player.sockets.single()).isSameInstanceAs(SocketFactory.getDefault())
         assertThat(vm.stream.value).isEqualTo(StreamState.Loading)
+    }
+
+    @Test
+    fun `outside simulator mode RTSP uses the socket factory of the Ready network`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val network = ShadowNetwork.newInstance(7)
+        val manager = managerFor(sim, FakeWifi().apply { this.network.value = network })
+        val vm = LiveViewModel(context, manager, player, frames)
+        manager.connect()
+        vm.onForeground(true)
+        runCurrent()
+
+        assertThat(player.plays).containsExactly(LiveStream.URL)
+        assertThat(player.sockets.single()).isSameInstanceAs(network.socketFactory)
     }
 
     @Test
@@ -130,15 +154,17 @@ class LiveViewModelTest {
         vm.onForeground(true)
         runCurrent()
         player.emit(PlayerEvent.Size(1280, 720))
+        assertThat(frames.videoSize.value).isNull() // published only once it plays
         player.emit(PlayerEvent.Playing)
         assertThat(vm.stream.value).isEqualTo(StreamState.Playing)
-        assertThat(frames.player).isSameInstanceAs(player)
+        assertThat(frames.player.value).isSameInstanceAs(player)
+        assertThat(frames.videoSize.value).isEqualTo(IntSize(1280, 720))
 
         vm.onForeground(false)
         runCurrent()
         assertThat(player.stops).isEqualTo(1)
         assertThat(vm.stream.value).isEqualTo(StreamState.Off)
-        assertThat(frames.player).isNull()
+        assertThat(frames.player.value).isNull()
         assertThat(frames.videoSize.value).isNull()
 
         vm.onForeground(true)
@@ -152,19 +178,23 @@ class LiveViewModelTest {
     }
 
     @Test
-    fun `one automatic retry, then an error state with a manual retry`() = runTest {
+    fun `one delayed automatic retry, then an error state with a manual retry`() = runTest {
         val (manager, vm) = setUp()
         manager.connect()
         vm.onForeground(true)
         runCurrent()
 
-        player.emit(PlayerEvent.Failed("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"))
-        assertThat(player.plays).hasSize(2)
+        player.emit(PlayerEvent.Failed(ioError))
         assertThat(vm.stream.value).isEqualTo(StreamState.Loading)
-
-        player.emit(PlayerEvent.Failed("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS - 1)
+        assertThat(player.plays).hasSize(1)
+        advanceTimeBy(2)
         assertThat(player.plays).hasSize(2)
-        assertThat(vm.stream.value).isEqualTo(StreamState.Failed("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"))
+
+        player.emit(PlayerEvent.Failed(ioError))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS * 2)
+        assertThat(player.plays).hasSize(2)
+        assertThat(vm.stream.value).isEqualTo(StreamState.Failed(ioError))
 
         vm.retry()
         assertThat(player.plays).hasSize(3)
@@ -174,8 +204,35 @@ class LiveViewModelTest {
         player.emit(PlayerEvent.Playing)
         player.emit(PlayerEvent.Buffering)
         assertThat(vm.stream.value).isEqualTo(StreamState.Buffering)
-        player.emit(PlayerEvent.Failed(ExoLivePlayer.STREAM_ENDED))
+        player.emit(PlayerEvent.Failed(StreamError.ENDED))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS + 1)
         assertThat(player.plays).hasSize(4)
+    }
+
+    @Test
+    fun `a stop cancels the pending automatic retry`() = runTest {
+        val (manager, vm) = setUp()
+        manager.connect()
+        vm.onForeground(true)
+        runCurrent()
+        player.emit(PlayerEvent.Failed(ioError))
+
+        vm.onForeground(false)
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS * 2)
+        assertThat(player.plays).hasSize(1)
+        assertThat(vm.stream.value).isEqualTo(StreamState.Off)
+    }
+
+    @Test
+    fun `stream errors get a German reason by Media3 code group`() {
+        assertThat(StreamError("ERROR_CODE_IO_UNSPECIFIED", 2000).reason).isEqualTo(R.string.live_err_network)
+        assertThat(StreamError("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED", 2001).reason).isEqualTo(R.string.live_err_network)
+        assertThat(StreamError("ERROR_CODE_PARSING_CONTAINER_MALFORMED", 3001).reason).isEqualTo(R.string.live_err_format)
+        assertThat(StreamError("ERROR_CODE_DECODER_INIT_FAILED", 4001).reason).isEqualTo(R.string.live_err_decoder)
+        assertThat(StreamError("ERROR_CODE_DECODING_FORMAT_UNSUPPORTED", 4005).reason).isEqualTo(R.string.live_err_decoder)
+        assertThat(StreamError.ENDED.reason).isEqualTo(R.string.live_err_ended)
+        assertThat(StreamError.NOT_BOUND.reason).isEqualTo(R.string.live_err_not_bound)
+        assertThat(StreamError("ERROR_CODE_UNSPECIFIED", 1000).reason).isEqualTo(R.string.live_err_other)
     }
 
     @Test
@@ -206,12 +263,11 @@ class LiveViewModelTest {
         manager.connect()
         vm.takePhoto(burst = false)
         runCurrent()
-        assertThat(commandMessage(vm.command.value.last!!, GermanStrings::get))
-            .isEqualTo("Foto – Recorder meldet: /mnt/sd/photo/P001.jpg\nZeit laut Recorder: 2026-10-01 12:00:00")
+        assertThat(message(vm)).isEqualTo("Foto – Recorder meldet: /mnt/sd/photo/P001.jpg\nZeit laut Recorder: 2026-10-01 12:00:00")
 
         vm.record() // the simulator's default reply: rval 0, no param
         runCurrent()
-        assertThat(commandMessage(vm.command.value.last!!, GermanStrings::get)).isEqualTo("Aufnahme – Recorder meldet: OK ohne Dateipfad (rval 0)")
+        assertThat(message(vm)).isEqualTo("Aufnahme – Recorder meldet: OK ohne Dateipfad (rval 0)")
     }
 
     @Test
@@ -228,34 +284,55 @@ class LiveViewModelTest {
         advanceTimeBy(7_000)
         runCurrent()
         assertThat(vm.command.value.recordSecondsLeft).isNull()
-        assertThat(sim.received.map { it.msgId }).doesNotContain(12294) // no stop command
         advanceTimeBy(1_000)
         runCurrent()
-        assertThat(commandMessage(vm.command.value.last!!, GermanStrings::get))
-            .isEqualTo("Aufnahme: Ergebnis unbekannt – neu verbinden und prüfen (Keine Antwort innerhalb der Wartezeit (Code -205))")
+        assertThat(message(vm)).isEqualTo("Aufnahme: Ergebnis unbekannt – neu verbinden und prüfen (Keine Antwort innerhalb der Wartezeit (Code -205))")
 
         sim.silentMsgIds -= 12293
         vm.record()
         runCurrent()
         assertThat(vm.command.value.recordSecondsLeft).isNull()
         assertThat(vm.command.value.last!!.result).isInstanceOf(RecorderResult.Ok::class.java)
+        assertThat(sim.received.map { it.msgId }).doesNotContain(12294) // never a stop command
     }
 
     @Test
-    fun `further burst replies arrive unmatched and are counted`() = runTest {
+    fun `a late record reply resolves the unknown outcome`() = runTest {
+        sim.silentMsgIds += 12293
+        val (manager, vm) = setUp()
+        manager.connect()
+        vm.record()
+        advanceTimeBy(11_000)
+        runCurrent()
+        assertThat(message(vm)).startsWith("Aufnahme: Ergebnis unbekannt")
+
+        sim.inject("""{"msgId":12293,"rval":0,"param":{"filePath":"/mnt/sd/manual/M001.mp4"}}""", seq = 4321)
+        runCurrent()
+        assertThat(message(vm)).isEqualTo("Aufnahme, verspätete Antwort – Recorder meldet: /mnt/sd/manual/M001.mp4")
+        assertThat(vm.command.value.extra).isNull()
+    }
+
+    @Test
+    fun `further burst replies arrive unmatched and are counted, with rval meaning`() = runTest {
         val (manager, vm) = setUp()
         manager.connect()
         vm.takePhoto(burst = true)
         runCurrent()
         sim.inject("""{"msgId":12292,"rval":0,"param":{"chanNo":1,"filePath":"/b2.jpg"}}""", seq = 4242)
-        sim.inject("""{"msgId":12292,"rval":0,"param":{"chanNo":1,"filePath":"/b3.jpg"}}""", seq = 4243)
         runCurrent()
-        assertThat(vm.command.value.extraReplies).isEqualTo(2)
-        assertThat(vm.command.value.lastExtraPath).isEqualTo("/b3.jpg")
+        assertThat(vm.command.value.extra!!.count).isEqualTo(1)
+        assertThat(replyText(vm.command.value.extra!!.last, GermanStrings::get)).isEqualTo("/b2.jpg")
+
+        sim.inject("""{"msgId":12292,"rval":303}""", seq = 4243)
+        runCurrent()
+        val extra = vm.command.value.extra!!
+        assertThat(extra.action).isEqualTo(LiveAction.BURST)
+        assertThat(extra.count).isEqualTo(2)
+        assertThat(replyText(extra.last, GermanStrings::get)).isEqualTo("Foto fehlgeschlagen (Code 303)")
 
         vm.takePhoto(burst = false)
         runCurrent()
-        assertThat(vm.command.value.extraReplies).isEqualTo(0)
+        assertThat(vm.command.value.extra).isNull()
     }
 
     @Test
@@ -266,12 +343,10 @@ class LiveViewModelTest {
         manager.connect()
         vm.takePhoto(burst = true)
         runCurrent()
-        assertThat(commandMessage(vm.command.value.last!!, GermanStrings::get))
-            .isEqualTo("5er-Serie – Recorder meldet Fehler: Foto fehlgeschlagen (Code 303)")
+        assertThat(message(vm)).isEqualTo("5er-Serie – Recorder meldet Fehler: Foto fehlgeschlagen (Code 303)")
         vm.record()
         runCurrent()
-        assertThat(commandMessage(vm.command.value.last!!, GermanStrings::get))
-            .isEqualTo("Aufnahme – Recorder meldet Fehler: Manuelle Aufnahme fehlgeschlagen (Code 311)")
+        assertThat(message(vm)).isEqualTo("Aufnahme – Recorder meldet Fehler: Manuelle Aufnahme fehlgeschlagen (Code 311)")
     }
 
     @Test
@@ -305,14 +380,15 @@ class LiveViewModelTest {
     }
 
     @Test
-    fun `frames are sampled only while the stream plays`() = runTest {
+    fun `frames are sampled only while the stream plays and only when wanted`() = runTest {
         val (manager, vm) = setUp()
         manager.connect()
         vm.onForeground(true)
         runCurrent()
         player.frame = bitmap(1280, 720)
         val got = mutableListOf<Frame>()
-        backgroundScope.launch { frames.frames(targetFps = 10).collect { got += it } }
+        var wanted = true
+        backgroundScope.launch { frames.frames(targetFps = 10, wanted = { wanted }).collect { got += it } }
         advanceTimeBy(500)
         assertThat(got).isEmpty()
 
@@ -321,10 +397,19 @@ class LiveViewModelTest {
         assertThat(got).isNotEmpty()
         assertThat(got.first().bitmap.width).isAtMost(LiveStream.MAX_FRAME_WIDTH)
 
-        vm.onForeground(false)
-        runCurrent()
-        val count = got.size
+        wanted = false
+        var count = got.size
         advanceTimeBy(500)
         assertThat(got).hasSize(count)
+
+        wanted = true
+        vm.onForeground(false)
+        runCurrent()
+        count = got.size
+        advanceTimeBy(500)
+        assertThat(got).hasSize(count)
+
+        assertThrows(IllegalArgumentException::class.java) { frames.frames(0) }
+        assertThrows(IllegalArgumentException::class.java) { frames.frames(LiveFrameSource.MAX_FPS + 1) }
     }
 }
