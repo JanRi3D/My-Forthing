@@ -63,7 +63,11 @@ class AndroidRecorderWifi(context: Context) : RecorderWifi {
         ?.takeIf { it.length > 2 && it.startsWith('"') && it.endsWith('"') }
         ?.let { it.substring(1, it.length - 1) }
 
-    override fun mobileDataEnabled(): Boolean? = runCatching { telephony?.isDataEnabled }.getOrNull()
+    override fun mobileDataEnabled(): Boolean? = try {
+        telephony?.isDataEnabled
+    } catch (e: SecurityException) {
+        null
+    }
 
     companion object {
         /** Location for the SSID (fine + coarse together, as Android 12+ requires); Android 13+ also nearby Wi-Fi. */
