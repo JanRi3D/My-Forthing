@@ -34,6 +34,8 @@ exifinterface = "1.4.2"
 mlkitTextRecognition = "16.0.1"
 # enhance: LiteRT classic Interpreter API (CPU/XNNPACK); 2.x adds GPU/NPU but merges foreground-service permissions
 litert = "1.4.2"
+# live: RTSP live view (TCP interleaved)
+media3 = "1.11.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -80,6 +82,9 @@ mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition"
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
 # dashcam
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
+# live
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-exoplayer-rtsp = { group = "androidx.media3", name = "media3-exoplayer-rtsp", version.ref = "media3" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

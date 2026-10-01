@@ -118,6 +118,9 @@ dependencies {
     // dashcam (okhttp above, shared with drive)
     implementation(project(":recorder"))
     implementation(libs.androidx.lifecycle.process)
+    // live
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.rtsp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
