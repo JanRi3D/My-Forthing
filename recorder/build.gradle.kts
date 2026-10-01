@@ -31,3 +31,13 @@ dependencies {
 tasks.test {
     useJUnit()
 }
+
+// Debug simulator for the app's "Simulator (10.0.2.2:7878)" mode. The server reads dashcam.rsaKey from
+// local.properties itself, so the key never passes through Gradle (or its configuration cache).
+tasks.register<JavaExec>("runSimulator") {
+    group = "application"
+    description = "Runs the recorder simulator on 127.0.0.1:7878 (emulator: 10.0.2.2:7878)."
+    classpath = sourceSets["testFixtures"].runtimeClasspath
+    mainClass = "to.axolotl.cam.recorder.SimulatorTcpServerKt"
+    args(rootProject.file("local.properties").absolutePath)
+}
