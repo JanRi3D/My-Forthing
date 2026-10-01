@@ -696,7 +696,7 @@ Write-Output "Evidence saved to $zipPath"
 
 ```text
 
-> **Repository note (Axolotl Cam):** the Base64 appendix (734-entry evidence ZIP, SHA-256
+> **Repository note (My Forthing, repository folder `Axolotl Cam`):** the Base64 appendix (734-entry evidence ZIP, SHA-256
 > `c5b4b1b660bf506fecf969c4e182907e363ff22e2a516cd4a8e3ec5b7de0b39d`) is deliberately **not**
 > committed. It contains recovered vendor source and the APK-embedded RSA private key. The verified,
 > extracted copy lives outside version control at `reference/evidence/` in the main checkout

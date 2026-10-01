@@ -1,6 +1,6 @@
 # Dashcam connection (feature/recorder-connection)
 
-Package `to.axolotl.cam.dashcam`. Builds on `:recorder` (CONTRACTS §6) and implements CONTRACTS §7.
+Package `me.ri3d.cam.dashcam`. Builds on `:recorder` (CONTRACTS §6) and implements CONTRACTS §7.
 
 | File | Contents |
 | --- | --- |
@@ -100,7 +100,7 @@ Recorder" from the session's 4099. Tap → Connection. The Connection screen add
 4098, 4097, 4099, 20481 and best effort 20480/20482–20485 (5 s each; errors and -205 timeouts kept), then the last
 400 frame-log events. Every JSON text passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …)
 on top of the module's own redaction; a test checks the export against the real secrets of a simulated session.
-Shared as `cacheDir/diagnostics/axolotl-diagnose-<time>.json` through `DiagnosticsFileProvider` (own `FileProvider`
+Shared as `cacheDir/diagnostics/myforthing-diagnose-<time>.json` through `DiagnosticsFileProvider` (own `FileProvider`
 subclass with the paths in its manifest meta-data, authority `${applicationId}.dashcam.files`, so other features'
 providers do not clash in the manifest).
 

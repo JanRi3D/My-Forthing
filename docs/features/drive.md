@@ -1,6 +1,6 @@
 # Feature: Google Drive authorisation and REST client (`feature/drive-auth`)
 
-Package `to.axolotl.cam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
+Package `me.ri3d.cam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
 
 ## What it does
 
@@ -18,10 +18,10 @@ Without these steps "Mit Google Drive verbinden" ends with **"Google-Cloud-Konfi
 
 1. **Project**: open <https://console.cloud.google.com>, create a project or pick the existing Firebase project (a Firebase project is a Cloud project; sharing it is fine, Drive still does not use Firebase). The future web app must use **this same project** (see `DRIVE_FORMAT.md` §1).
 2. **Enable the API**: APIs & Services → Library → "Google Drive API" → Enable. (Missing → connect works, but every Drive call fails with HTTP 403 `accessNotConfigured`, shown in the app as "Die Drive API ist im Google-Cloud-Projekt der App nicht aktiviert".)
-3. **OAuth consent screen** (Google Auth Platform): app name "Axolotl Cam", support e-mail, audience **External**. Data access → Add scope `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app"; a non-sensitive scope). While the app is in **Testing**, add every Google account that should connect under Audience → Test users (max. 100).
+3. **OAuth consent screen** (Google Auth Platform): app name "My Forthing", support e-mail, audience **External**. Data access → Add scope `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app"; a non-sensitive scope). While the app is in **Testing**, add every Google account that should connect under Audience → Test users (max. 100).
    - Testing status: Google expires the grants of test users after **7 days**; the app then shows "Erneut verbinden". Publishing the app (brand verification only, `drive.file` needs no security assessment) removes the limit.
 4. **Android OAuth clients** (Clients → Create client → Android), one per signing certificate:
-   - Package name `to.axolotl.cam`.
+   - Package name `me.ri3d.cam`. Clients created for the old package name do not match; create new ones.
    - **Debug** SHA-1: `./gradlew :app:signingReport` (variant `debug`) or `keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android`. Each developer machine has its own debug keystore → one client per machine.
    - **Release** SHA-1: `keytool -list -v -keystore <upload keystore> -alias <alias>` (keystore from `keystore.properties`, outside git). If the APK is ever distributed through Google Play with Play App Signing, add a third client with the SHA-1 from Play Console → App integrity → App signing key.
 5. **Check**: install the matching build, Settings → Google Drive → connect with a test user → Google shows the `drive.file` consent → the screen shows the account e-mail and "x von y belegt · z frei".

@@ -1,4 +1,4 @@
-# Axolotl Cam – Shared interfaces, data contracts and ownership
+# My Forthing – Shared interfaces, data contracts and ownership
 
 Binding for every agent. Producers implement exactly these shapes (improvements allowed when documented in the report and in this file). Consumers code against them. Kotlin signatures are normative; naming may add suffixes but not change meaning.
 
@@ -6,7 +6,7 @@ Binding for every agent. Producers implement exactly these shapes (improvements 
 
 | Path | Owner branch | Contents |
 | --- | --- | --- |
-| `recorder/` (Gradle `:recorder`, Kotlin/JVM, no Android deps) | feature/recorder-protocol | `to.axolotl.cam.recorder.*` |
+| `recorder/` (Gradle `:recorder`, Kotlin/JVM, no Android deps) | feature/recorder-protocol | `me.ri3d.cam.recorder.*` |
 | `app/.../core/` | feature/foundation | theme, navigation, shared UI, DB, prefs, profile, branding, logging, `core/home`, `core/onboarding`, `core/settings` (app section) |
 | `app/.../dashcam/` | feature/recorder-connection | connection manager, network binding, connection screen, Home dashcam card, device/SD info, recorder settings |
 | `app/.../live/` | feature/live-view | RTSP player, screenshot, photo/record controls |
@@ -23,7 +23,7 @@ Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gra
 
 ## 2. Naming, branding, localisation
 
-- Package root `to.axolotl.cam`. App name from `R.string.app_name` only. `core/branding/Branding.kt` holds `appName`, `driveRootFolderName`, `supportUrl`; launcher icon resources under `res/mipmap-*` / `res/drawable/ic_launcher_*`. Renaming = this file + icon + `app_name`.
+- Package root `me.ri3d.cam` (applicationId and namespace). App name from `R.string.app_name` only. `core/branding/Branding.kt` holds `appName`, `driveRootFolderName`, `supportUrl`; launcher icon resources under `res/mipmap-*` / `res/drawable/ic_launcher_*`. Renaming = this file + icon + `app_name` (a package change also needs new Firebase / Google Cloud registrations, `docs/features/accounts.md`, `docs/features/drive.md`). `Axo` (`AxoTheme`, `AxoTopBar`, `AxoNavHost`, `AxoColors`, …) is a legacy code prefix from the working name "Axolotl Cam" and is kept; it never reaches the UI.
 - German is the **default** locale (`res/values/strings.xml`), `generateLocaleConfig = true`. No hard-coded UI text, including content descriptions, notifications, errors. Plurals via `<plurals>`. Dates/sizes via `DateUtils` / `Formatter`.
 - Accessibility: every icon-only control has a content description; touch targets ≥ 48 dp; dynamic type supported; animations use Material motion and are skipped when `Settings.Global.ANIMATOR_DURATION_SCALE == 0`.
 
@@ -53,7 +53,7 @@ data class AppPreferences(
 )
 enum class BackupMode { MANUAL, INCIDENTS, ALL }
 ```
-`AppPreferences` is app-only. Recorder settings are a different type (§7) and are never written from preferences. As implemented: `enum class ExportQuality { Q1080, Q1440, Q2160 }`; `LocalProfile` is a Room entity (`local_profile`), `avatarPath` relative to `filesDir`; `LocalProfileDao { fun observe(): Flow<LocalProfile?>; suspend fun upsert(profile) }`; `ProfileRepository.createLocal(displayName, avatar: Uri?)`; `PreferencesRepository(@Singleton) { val preferences: Flow<AppPreferences>; suspend fun update(transform) }`. Hilt `core/di/CoreDataModule` provides `AppDatabase` (`axolotl.db`, schema export on, no destructive migration), `LocalProfileDao` and the unqualified `DataStore<Preferences>`; features needing their own DataStore add a qualifier. Shared UI as implemented: `AxoTopBar(title, onBack, actions)`, `StateView(state, …)`, `ConfirmDialog(title, text, confirmLabel, onConfirm, onDismiss, danger)` (danger = extra acknowledgement checkbox), `ListGroup/ListRow/SectionHeader`, `LocalSnackbarHostState`, `LocalReduceMotion`. `UiText` = `Res(@StringRes id, args)` | `Dynamic(text)`.
+`AppPreferences` is app-only. Recorder settings are a different type (§7) and are never written from preferences. As implemented: `enum class ExportQuality { Q1080, Q1440, Q2160 }`; `LocalProfile` is a Room entity (`local_profile`), `avatarPath` relative to `filesDir`; `LocalProfileDao { fun observe(): Flow<LocalProfile?>; suspend fun upsert(profile) }`; `ProfileRepository.createLocal(displayName, avatar: Uri?)`; `PreferencesRepository(@Singleton) { val preferences: Flow<AppPreferences>; suspend fun update(transform) }`. Hilt `core/di/CoreDataModule` provides `AppDatabase` (`myforthing.db`, schema export on, no destructive migration), `LocalProfileDao` and the unqualified `DataStore<Preferences>`; features needing their own DataStore add a qualifier. Shared UI as implemented: `AxoTopBar(title, onBack, actions)`, `StateView(state, …)`, `ConfirmDialog(title, text, confirmLabel, onConfirm, onDismiss, danger)` (danger = extra acknowledgement checkbox), `ListGroup/ListRow/SectionHeader`, `LocalSnackbarHostState`, `LocalReduceMotion`. `UiText` = `Res(@StringRes id, args)` | `Dynamic(text)`.
 
 Result/error conventions: suspend functions return `Result<T>` or domain sealed classes; UI state is `sealed interface UiState<T> { Loading; Empty; Error(message: UiText, retry: (() -> Unit)?); Ready(data) }` in `core/ui/UiState.kt`. `UiText` = string-resource reference or dynamic text.
 

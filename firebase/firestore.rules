@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Axolotl Cam: one profile document per account (docs/features/accounts.md). Everything else is denied.
+// My Forthing: one profile document per account (docs/features/accounts.md). Everything else is denied.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(uid) {

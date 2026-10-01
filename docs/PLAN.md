@@ -1,10 +1,10 @@
-# Axolotl Cam – Implementation plan
+# My Forthing – Implementation plan
 
 Status: 2026-10-01, plan v1. Owner: project manager (Claude session). All code is written by delegated agents (`.claude/agents/dev.md`, reviewer `.claude/agents/reviewer.md`: Opus 5.5, effort xhigh).
 
 ## Product
 
-Android companion app for the Forthing 4 U-Tour dashcam (Hikvision-SDK recorder at 192.168.42.1). Working name **Axolotl Cam** (the brief writes "Axolotle Cam"; the repository, package `to.axolotl.cam` and app name already use "Axolotl Cam" – kept, easy to rename via `Branding`). German UI, guest-first, optional Firebase account, independent Google Drive backup, on-device plate recognition and enhancement.
+Android companion app for the Forthing 4 U-Tour dashcam (Hikvision-SDK recorder at 192.168.42.1). App name **My Forthing**, package / applicationId `me.ri3d.cam` (renamed by the owner on 2026-10-01 from the working name "Axolotl Cam"; the repository folder keeps `Axolotl Cam`, internal Kotlin names keep the legacy `Axo` prefix, the launcher icon is unchanged). German UI, guest-first, optional Firebase account, independent Google Drive backup, on-device plate recognition and enhancement.
 
 Technical reference: `docs/protocol/Forthing-U-Tour-protocol-report.md` (vendor app 3.2.15 analysis). Evidence labels in that report are binding: *App path* / *SDK-only* / *Offline test* / *Needs recorder verification*. Nothing offline can prove the physical recorder accepts commands; see "Hardware verification" below.
 
@@ -59,8 +59,8 @@ Hardware verification (owner checklist, delivered with release): session handsha
 
 ## External inputs required from the owner
 
-1. Firebase project (new, or reuse "my-forthing"): Android app `to.axolotl.cam`, debug + release SHA-1/SHA-256 registered, Google sign-in enabled → `app/google-services.json`.
-2. Google Cloud (same project): Drive API enabled, OAuth consent screen with scope `drive.file`, test users, Android OAuth client for the release certificate.
+1. Firebase project (new, or reuse "my-forthing"): Android app with package `me.ri3d.cam`, debug + release SHA-1/SHA-256 registered, Google sign-in enabled → `app/google-services.json`.
+2. Google Cloud (same project): Drive API enabled, OAuth consent screen with scope `drive.file`, test users, Android OAuth clients for package `me.ri3d.cam` (debug + release certificates). Registrations made for the old package name do not apply and must be redone.
 3. Representative dashcam recordings (MP4/JPG from the SD card) for plate/enhancement evaluation.
 4. Physical recorder sessions for the hardware checklist.
 

@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Axolotl Cam: profile pictures only. The app uploads a JPEG of at most 512 px per side.
+// My Forthing: profile pictures only. The app uploads a JPEG of at most 512 px per side.
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{uid}/avatar.jpg {
