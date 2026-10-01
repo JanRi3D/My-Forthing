@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -53,8 +54,11 @@ enum class StorageKind(@StringRes val label: Int, @StringRes val confirm: Int, v
     CACHE(R.string.media_storage_cache, R.string.media_storage_free_cache_text, emptySet()),
 }
 
-/** Bytes on this phone per [StorageKind], plate crops and free space. */
-data class StorageUsage(val bytes: Map<StorageKind, Long>, val plateCrops: Long, val free: Long)
+/**
+ * Bytes on this phone per [StorageKind], plate crops and free space. [lastCopies]: phone copies per kind that have
+ * neither a recorder nor a Drive copy (freeing deletes them for good).
+ */
+data class StorageUsage(val bytes: Map<StorageKind, Long>, val lastCopies: Map<StorageKind, Int>, val plateCrops: Long, val free: Long)
 
 @HiltViewModel
 class StorageViewModel @Inject constructor(
@@ -74,10 +78,10 @@ class StorageViewModel @Inject constructor(
     fun free(kind: StorageKind) {
         viewModelScope.launch {
             when (kind) {
+                // Only the media image cache: other features' cache files (diagnostics export, avatar preview) stay.
                 StorageKind.CACHE -> withContext(Dispatchers.IO) {
                     http.imageLoader.memoryCache?.clear()
                     http.imageLoader.diskCache?.clear()
-                    context.cacheDir.listFiles().orEmpty().filter { it != http.imageLoader.diskCache?.directory?.toFile() }.forEach { it.deleteRecursively() }
                 }
                 else -> {
                     repository.localItems(kind.kinds).forEach { repository.deleteLocalCopy(it.id) }
@@ -89,24 +93,28 @@ class StorageViewModel @Inject constructor(
     }
 
     private suspend fun measure(): StorageUsage = withContext(Dispatchers.IO) {
+        repository.importScreenshots() // screenshots taken since the library was last open count too
         val local = repository.localItems(MediaKind.entries.toSet())
         fun sizeOf(kinds: Set<MediaKind>) = local.filter { it.kind in kinds }
             .sumOf { (it.localFile?.length() ?: 0) + (it.localThumbPath?.let(::File)?.length() ?: 0) }
         StorageUsage(
             bytes = StorageKind.entries.associateWith { kind ->
                 when (kind) {
-                    StorageKind.CACHE -> dirSize(context.cacheDir)
+                    StorageKind.CACHE -> http.imageLoader.diskCache?.size ?: 0
                     StorageKind.DOWNLOADS -> sizeOf(kind.kinds) + partFiles().sumOf { it.length() }
                     else -> sizeOf(kind.kinds)
                 }
+            },
+            lastCopies = StorageKind.entries.associateWith { kind ->
+                local.count { it.kind in kind.kinds && it.recorderPath == null && it.driveFileId == null }
             },
             plateCrops = dirSize(File(context.filesDir, "plates")),
             free = StatFs(context.filesDir.path).availableBytes,
         )
     }
 
-    /** Interrupted downloads (`media/<id>/<name>.part`). */
-    private fun partFiles() = repository.mediaDir.walk().filter { it.isFile && it.name.endsWith(".part") }.toList()
+    /** Interrupted downloads (`media/<id>/<name>.part` and its `.part.size`). */
+    private fun partFiles() = repository.mediaDir.walk().filter { it.isFile && (it.name.endsWith(".part") || it.name.endsWith(".part.size")) }.toList()
 
     private fun inTransfer(part: File) = downloads.progress.value[part.parentFile?.name]?.state in DownloadQueue.ACTIVE
 
@@ -168,7 +176,8 @@ fun StorageScreen(onBack: () -> Unit, viewModel: StorageViewModel = hiltViewMode
     confirm?.let { kind ->
         ConfirmDialog(
             title = stringResource(R.string.media_storage_free_title, stringResource(kind.label)),
-            text = stringResource(kind.confirm),
+            text = stringResource(kind.confirm) + (usage?.lastCopies?.get(kind)?.takeIf { it > 0 }
+                ?.let { "\n\n" + pluralStringResource(R.plurals.media_storage_last_copies, it, it) } ?: ""),
             confirmLabel = stringResource(R.string.media_storage_free),
             onConfirm = {
                 confirm = null
