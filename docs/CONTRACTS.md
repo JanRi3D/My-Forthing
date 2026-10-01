@@ -183,7 +183,9 @@ interface AccountRepository {
 }
 enum class MergeStrategy { KEEP_LOCAL, KEEP_REMOTE, ASK }
 ```
-Firestore: `users/{uid}` { displayName, photoPath, preferences (AppPreferences minus device-local flags), createdAt, updatedAt }. Storage: `users/{uid}/avatar.jpg`. Migration rule: if `users/{uid}` already has data, show local vs remote and let the user choose; never overwrite silently. Signed-in users without network keep working from the cached `LocalProfile`. Firebase is initialised lazily; a missing or placeholder `google-services.json` must not crash guest mode.
+As implemented in `account/`: `AccountRepository.isConfigured`; `AccountNotConfigured` (every auth call fails with it when `app/google-services.json` is absent – Gradle parses that git-ignored file into `BuildConfig.FIREBASE_*`, no google-services plugin); `MergeConflict(local: ProfileSummary, remote: ProfileSummary)` and `LinkedToOtherAccount(accountEmail)` from `linkGuestProfile` (`ASK` surfaces the conflict, `KEEP_REMOTE` = switch accounts); `SignedIn` is reported only when the Firebase user equals `LocalProfile.linkedUid`, with `displayName` from the local profile; synced preferences are only `theme` and `exportQuality`; `accountGraph(navController)`, `AccountSettingsRow(shape, onNavigate)`, `Throwable.toAccountMessage(): UiText?` (null = cancelled); route `Account`. Firebase is never initialised for guests.
+
+Firestore: `users/{uid}` { displayName, photoPath, preferences (theme, exportQuality), createdAt, updatedAt }. Storage: `users/{uid}/avatar.jpg` (optional; without it the picture stays on the phone and is never deleted by a re-sign-in). Migration rule: if `users/{uid}` already has data, show local vs remote and let the user choose; never overwrite silently. Signed-in users without network keep working from the cached `LocalProfile`. Firebase is initialised lazily; a missing or placeholder `google-services.json` must not crash guest mode.
 
 ## 10. Drive (feature/drive-auth, `drive/`) and backup (feature/drive-backup, `backup/`)
 
