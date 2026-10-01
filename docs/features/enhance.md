@@ -291,3 +291,137 @@ for a 60 s clip; HEVC sources from the recorder (if it records H.265).
 ## Phone measurements
 
 None yet.
+
+## UI (feature/enhance-ui)
+
+Package `me.ri3d.cam.enhance.ui`. Routes `Enhance(mediaId, positionMs)`, `Upscale(mediaId)`, `EnhanceSettings`
+(`enhanceGraph`); entry points only through the existing slots.
+
+| File | Contents |
+| --- | --- |
+| `EnhanceGraph.kt` | `enhanceGraph`, `EnhanceClipActions` (media `clipActions` slot), `EnhanceSettingsRow`, `ChoiceRow`, `durationText` |
+| `EnhanceScreen.kt` | `EnhanceViewModel` + screen: frame/photo, options, progress/cancel, comparison, save |
+| `UpscaleScreen.kt` | `UpscaleViewModel` + screen: source facts, targets, engines, job card |
+| `UpscaleWorker.kt` | `UpscaleJobs` (unique WorkManager work), `UpscaleWorker` (Hilt, `dataSync` foreground), `UpscaleFailureKind` |
+| `LiveSharpening.kt` | `LiveSharpening` (probe cache), `EnhanceSettingsViewModel`, `LiveSharpenControl` / `liveSharpenEffect` (live slots) |
+| `EnhanceSettingsScreen.kt` | Settings → "Verbesserung & Hochskalierung" |
+
+Shared files (appends only): `Routes.kt` (`EnhanceSettings`), `AxoNavHost.kt` (`liveGraph` `trailingControls` +
+`renderEffect`, `mediaGraph` `clipActions`, `enhanceGraph`), `SettingsScreen.kt` (one row), `strings.xml`
+(`<!-- enhance -->`), drawables `ic_enhance` / `ic_upscale` (Material Symbols paths from the artboards). The manifest
+already declares `dataSync` for WorkManager's foreground service (media), so it is unchanged.
+
+### Flows
+
+- **Clip** (slot below Teilen/Löschen): original videos → "Bild verbessern" (frame at the current player position) and
+  "Clip hochskalieren"; photos and screenshots → "Bild verbessern" only; both need the phone copy ("Erst aufs Handy
+  herunterladen …" otherwise). Derived items show "Bereits verbessert/hochskaliert – rekonstruiert, kein Beweis." with
+  "Zum Original" (at `parentPositionMs`) and are never enhanced again.
+- **Bild verbessern** (M3Enhance adapted): the frame comes from `MediaMetadataRetriever.getFrameAtTime(positionMs,
+  OPTION_CLOSEST)` (the exact frame, decoded from the previous key frame), photos from `BitmapFactory`. Options: factor
+  4×/2× (a factor beyond `EnhancerCapabilities.maxInputPixels` is disabled: "Zu groß für den Speicher dieses Handys"),
+  engine from `capabilities().engines` (KI-Modell first when available, otherwise Klassisch only, with a note). "Dauer
+  etwa …" only from `estimateMs` (measured on this phone). Progress bar + Abbrechen. Result: one box showing original or
+  enhanced (segmented toggle that keeps the zoom; pinch zoom up to 8×), card "Verbessert ×N – rekonstruiert, kein
+  Beweis" + engine/model, and a note when ML was asked for but classical ran. "Verbessertes Bild speichern" →
+  `saveEnhancedFrame` → `registerDerived(ENHANCED_FRAME, file, mediaId, positionMs | null, info)` in `NonCancellable`
+  (leaving mid-save never orphans a file) → the new item's Clip screen (Enhance is popped). "Andere Einstellung wählen"
+  drops the unsaved result. Errors: `TooLarge` → "… zu groß … Bitte 2× wählen.", `Memory`/OOM → "Nicht genug
+  Arbeitsspeicher …", other → "Verbessern fehlgeschlagen.", save → "Speichern fehlgeschlagen. Ist genug Speicher frei?".
+- **Clip hochskalieren** (M3Upscale): source facts from `MediaExtractor` (coded size, duration, frame rate) + file size.
+  Targets: `ClipUpscaler.estimate()` per target; a `TargetNotLarger` result removes the target (the pipeline's own rule).
+  Each remaining target is checked with the pipeline's own query (`MediaCodecList.findEncoderForFormat`, H.264, surface
+  input, size and frame rate) and shown disabled with "Dieses Handy hat keinen Encoder für W × H" when it fails. Default
+  = `exportQuality` if available, else the first available target. Supporting text: size always ("etwa 98 MB"),
+  computing time only when `estimate` returns one, otherwise one note that it is estimated after the first clip with
+  that engine. Engines: Klassisch (default); KI-Modell only when `capabilities()` has ML, with "Sehr langsam, Stunden pro
+  Minute Video. Handy dabei laden." in the error colour; switching re-estimates (time is per engine).
+- **Job**: "Hochskalieren starten" (asks for the notification permission on Android 13+, runs either way) →
+  `UpscaleJobs.start` = unique work `enhance-upscale` with `ExistingWorkPolicy.KEEP`: **one upscale at a time**; another
+  clip's running job disables Start ("Es läuft bereits …" + "Laufende Hochskalierung anzeigen"). `UpscaleWorker` calls
+  `setForeground` (`dataSync`) with "Clip wird hochskaliert", "42 % · noch etwa 3 min", a progress bar and "Abbrechen"
+  (`createCancelPendingIntent`); progress goes to `setProgress` at most once per second, so the screen shows it after
+  leaving and returning. ETA and output-size estimate appear only once the pipeline reports them (≥ 5 %). Cancel (screen
+  or notification) cancels the work, which cancels the pipeline's `Deferred` (temp file and sidecar are deleted by
+  enhance-core). Done → `registerDerived(UPSCALED_CLIP, file, mediaId, null, info)` (`NonCancellable`), "In den Aufnahmen
+  gespeichert – hochskaliert, rekonstruiert, kein Beweis." + "In Aufnahmen öffnen" (the new item's Clip screen) and a
+  finished notification. Failures (`UpscaleFailureKind`): Decoder, Encoder ("… in dieser Größe nicht erzeugen (Encoder).
+  Eine kleinere Ausgabe wählen."), Storage, Memory, TargetNotLarger, Cancelled ("Abgebrochen. Es wurde nichts
+  gespeichert."), plus SourceGone (phone copy deleted meanwhile) and Interrupted (restarted by the system 3×). Start
+  then reads "Erneut versuchen"; after an ML failure also "Mit klassisch erneut versuchen". Reopening the screen shows
+  the clip's last job with its target and engine. Notifications never fail the job (built inside a try).
+- **Live** (M3Live "Upscale"): trailing control "Schärfen" (HD icon, 56 dp toggle, description "Geschärfte
+  Live-Ansicht") = `AppPreferences.liveUpscale`, enabled only when the probe offered it and Android ≥ 13. Below it:
+  "Geschärft – verbraucht mehr Akku" when on, "Wird geprüft …" before any probe, "Auf diesem Handy nicht verfügbar"
+  when not offered (the design README's "replaced by note"; the reason is in Settings). `renderEffect(videoRect)` →
+  `LiveSharpen.effect(videoRect.width / videoSize.width)` (remembered per scale) when on, offered and a stream plays,
+  else null. The artboard's "Upscaled" badge over the video is not drawn (the `overlay` slot belongs to plates-ui; the
+  toggle state is visible right under the video).
+- **Probe**: `LiveSharpening.ensureProbed()` runs `LiveUpscaleProbe` at most once per process, on the first screen that
+  needs it (Live or the settings), not on every launch; the decision (offer, reason, classical 720p ms) is stored in the
+  `enhance` DataStore, so the toggle shows the previous start's decision at once. `ponytail:` on the Live screen the
+  ≈ 1 s probe can overlap the stream start; a busy GPU errs towards "no".
+- **Settings** → "Verbesserung & Hochskalierung" (one row in the App section): Standard-Exportqualität (radio,
+  `exportQuality`), Geschärfte Live-Ansicht (switch, disabled with the probe's reason: "Erst ab Android 13 verfügbar.",
+  "… zu langsam für Echtzeit (gemessen X ms pro Bild, Grenze 8 ms).", "… Messung … fehlgeschlagen."), Hinweis (honesty
+  note), Modell & Lizenzen (model/runtime line + every `assets/models/LICENSE-*.txt` / `NOTICE-*.txt`, expandable,
+  monospace).
+
+### Labelling and limits
+
+- Every enhanced view says "rekonstruiert, kein Beweis"; no wording claims verification or "mehr Details"; live
+  sharpening says "geschärft" and that no extra detail appears. Originals are only read.
+- **Not implemented from M3Enhance:** the "Recognized plate … 98 % match" block and "Show all sightings": there is no
+  measured basis for a match figure, and enhanced pixels are never fed to plate recognition (cross-feature rule above).
+- Drawing: previews are capped at 4096 px on the long side (≈ 38 MB ARGB; 1080p×4 = 133 MB would crash a Canvas). The
+  comparison zooms that preview, so beyond ≈ 2× zoom of a 1080p×4 result the screen shows the preview's resolution, not
+  the full output (the saved JPEG has it). The full output stays in the ViewModel until saved, replaced or closed.
+- `dataSync` foreground services are limited to 6 h per 24 h on Android 15+: an ML upscale of a long clip can hit it;
+  WorkManager then stops the work, it restarts from 0 and gives up after 3 starts ("Vom System mehrfach unterbrochen").
+  `ponytail:` no resume; `mediaProcessing` (API 35) is the better type once ML clips matter.
+- Without the notification permission the job runs silently (progress on the screen only).
+- Unit tests run without Android resources (project-wide Robolectric setup), so texts are tested by resource id; the
+  save path (`saveEnhancedFrame` reads the app name for EXIF) is verified on the emulator.
+
+### Validation (this branch)
+
+Unit tests (`me.ri3d.cam.enhance.ui.*`, Robolectric, 26): Enhance (11) – photo enhanced on the defaults with the original
+untouched, exact video frame at 37 s (`ShadowMediaMetadataRetriever`), undecodable frame, another setting after a
+result, ML → classical fallback flagged, classical only without the model, factor beyond the memory limit disabled,
+estimate only when measured (per engine/scale), `Memory`/`TooLarge` messages, cancel, no phone copy. Upscale (10) –
+1080p source: P1080 removed (TargetNotLarger via `estimate`), P1440 enabled / P2160 disabled with an AVC level-5 encoder
+(`ShadowMediaCodecList`); no encoder → nothing can start; display rules (size/time/encoder reason, duration rounding);
+ML offered only with the model, with its own estimate; the job through WorkManager with a fake `ClipUpscaler`: progress
+(fraction/ETA/bytes) visible while `RUNNING`, done → `UPSCALED_CLIP` linked to the original, cancel cancels the
+pipeline, `Memory` failure after ML + "mit klassisch" retry, mapping of every `UpscaleError`, one job at a time (KEEP),
+source gone / interrupted. Live (5) – probe once per process, stored decision visible to the next start without
+probing, Android 13 gate, reason texts, toggle writes `liveUpscale` / `exportQuality`.
+
+Emulator (`emulator-5556`, API 36, simulator from `:recorder:runSimulator`) [SIM]: downloaded `N20261001_010000.mp4`
+(the 3 s fixture: 320 × 176, 6 fps) → clip actions → seek to 0:02 → "Bild verbessern" (KI-Modell, 4×, "Dauer etwa 1 s
+(auf diesem Handy gemessen)") → card "Verbessert ×4 – rekonstruiert, kein Beweis" + model id, Original/Verbessert
+toggle → saved `files/enhance/<uuid>.jpg` (1280 × 704) + sidecar (`ENHANCED_FRAME`, `ML`, `sourcePositionMs` 2061,
+`reconstructed: true`) → opened as "Verbessertes Bild" with "Original … bei 00:02". "Clip hochskalieren": 1080p =
+1964 × 1080, 1440p = 2618 × 1440, 2160p = 3928 × 2160, all disabled ("Dieses Handy hat keinen Encoder für …": the
+emulator's only H.264 encoder stops at 8192 macroblocks; 1964 × 1080 needs 8364). With a temporary, uncommitted build
+that skipped this check, P1080 started and failed typed (`Encoder(no H264 encoder for 1964x1080@6)`): card
+"Hochskalieren fehlgeschlagen / … (Encoder). Eine kleinere Ausgabe wählen.", "Erneut versuchen", the German failure
+notification, nothing left in `files/enhance`. Settings: export quality, live sharpening disabled with "… zu langsam für
+Echtzeit (gemessen 16.7 ms pro Bild, Grenze 8 ms)", both licence texts expand. Live: "Schärfen" disabled with "Auf
+diesem Handy nicht verfügbar" (SwiftShader); sharpening itself needs a stream and a GPU that passes the probe – not
+exercisable here. Not exercised: pinch zoom (adb has no multi-touch), a successful real upscale (no fixture fits the
+emulator encoder), the running notification.
+
+### Hardware checklist (owner, phone)
+
+1. Upscale a real recorder clip to 1440p and 2160p (classical): time per minute, the result plays in Aufnahmen and in
+   another player, audio in sync, a second run shows "etwa … Rechenzeit"; repeat with the screen off and the app in the
+   background (notification progress, cancel from the notification, nothing left behind).
+2. Battery and thermal for a 60 s clip at 2160p (procedure in *Measure on a phone*), and one ML clip of a few seconds
+   (expect hours per minute; check the 6 h `dataSync` limit on Android 15+ for longer clips).
+3. Enhance a 1080p frame ×4 with the model: time vs. "Dauer etwa …", the zoomed comparison, saved JPEG size, memory on a
+   2–3 GB phone (`TooLarge` / `Memory` messages if hit).
+4. Live sharpening on a real RTSP stream with a GPU that passes the probe: toggle on/off, full screen, visual check
+   ("geschärft", no ringing), battery over 10 min with and without it, the probe decision on first opening Live.
+5. Encoder availability: which targets a mid-range phone disables (the screen must never offer a target that then fails
+   with `Encoder`).
