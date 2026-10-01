@@ -3,22 +3,29 @@ package to.axolotl.cam.plates
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
 import to.axolotl.cam.core.data.AppDatabase
+import to.axolotl.cam.core.data.PreferencesRepository
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class PlateRepositoryTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private val context = RuntimeEnvironment.getApplication()
     private val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     private val repository = PlateRepository(context, db.plateDao())
@@ -114,15 +121,55 @@ class PlateRepositoryTest {
     }
 
     @Test
-    fun `sidecar export lists the sightings of one recording`() = runTest {
+    fun `sidecar export lists the sightings of one recording, only when opted in`() = runTest {
         repository.recordSightings(listOf(det("B-MK 4821", box = RectF(10.4f, 20.6f, 30f, 40f))), SightingSource.CLIP, "m1", 37_000, seenAt = 1)
         repository.recordSightings(listOf(det("8-MK 4821", confidence = null)), SightingSource.CLIP, "m1", 41_000, seenAt = 2)
         repository.recordSightings(listOf(det("HH-JK 553")), SightingSource.LIVE, seenAt = 3)
+        val preferences = PreferencesRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "p.preferences_pb") })
+        val export = PlateExport(db.plateDao(), preferences)
 
-        assertThat(PlateExport(db.plateDao()).forMedia("m1")).containsExactly(
+        assertThat(export.forMedia("m1")).isEmpty() // backupIncludePlateMetadata is off by default
+        preferences.update { it.copy(backupIncludePlateMetadata = true) }
+        assertThat(export.forMedia("m1")).containsExactly(
             SidecarPlate("B-MK 4821", "BMK4821", 37_000, 0.9f, listOf(10, 21, 30, 40)),
             SidecarPlate("?-MK 4821", "8MK4821", 41_000, null, listOf(100, 50, 300, 90)),
         ).inOrder()
-        assertThat(PlateExport(db.plateDao()).forMedia("none")).isEmpty()
+        assertThat(export.forMedia("none")).isEmpty()
+    }
+
+    @Test
+    fun `readings with question marks merge by normalized but keep their own text`() = runTest {
+        val unsure = PlateDetection("B ?K 4821", "BMK4821", null, RectF(0f, 0f, 1f, 1f), 0, PlateFormat.GERMAN)
+        repository.recordSightings(listOf(unsure), SightingSource.CLIP, "m1", 0, seenAt = 1)
+        assertThat(plate("BMK4821").display).isEqualTo("B ?K 4821")
+
+        repository.recordSightings(listOf(det("B MK 4821")), SightingSource.CLIP, "m1", 9_000, seenAt = 2)
+        val p = plate("BMK4821")
+        assertThat(p.display).isEqualTo("B MK 4821") // the first reading without '?' becomes the plate's display
+        assertThat(repository.plate(p.id).first()!!.sightings.map { it.display }).containsExactly("B ?K 4821", "B MK 4821")
+
+        repository.recordSightings(listOf(unsure), SightingSource.CLIP, "m2", 0, seenAt = 3)
+        assertThat(plate("BMK4821").display).isEqualTo("B MK 4821") // never downgraded
+    }
+
+    @Test
+    fun `a failed write leaves no crop behind`() = runTest {
+        val frame = Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888)
+        val failingDao = object : PlateDao by db.plateDao() {
+            override suspend fun addSighting(normalized: String, sighting: PlateSighting): Long = error("disk full")
+        }
+        val failed = runCatching {
+            PlateRepository(context, failingDao).recordSightings(listOf(det("B MK 4821")), SightingSource.LIVE, frame = frame, seenAt = 1)
+        }
+        assertThat(failed.isFailure).isTrue()
+        assertThat(File(context.filesDir, "plates").listFiles().orEmpty()).isEmpty()
+    }
+
+    @Test
+    fun `a finished clip scan forgets its dedupe state, the database still dedupes`() = runTest {
+        val bmk = det("B-MK 4821")
+        repository.recordSightings(listOf(bmk), SightingSource.CLIP, "m1", 0, seenAt = 1)
+        repository.forgetClip("m1")
+        assertThat(repository.recordSightings(listOf(bmk), SightingSource.CLIP, "m1", 1_500, seenAt = 2)).isEqualTo(0)
     }
 }

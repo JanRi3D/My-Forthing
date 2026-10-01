@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "d202a7fe14d7f949c8562a9fba876516",
+    "identityHash": "459c0af4b8af73d572ed221e43274167",
     "entities": [
       {
         "tableName": "local_profile",
@@ -105,7 +105,7 @@
       },
       {
         "tableName": "plate_sighting",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plateId` INTEGER NOT NULL, `mediaId` TEXT, `positionMs` INTEGER, `source` TEXT NOT NULL, `seenAt` INTEGER NOT NULL, `confidence` REAL, `cropPath` TEXT, `boxLeft` REAL NOT NULL, `boxTop` REAL NOT NULL, `boxRight` REAL NOT NULL, `boxBottom` REAL NOT NULL, FOREIGN KEY(`plateId`) REFERENCES `plate`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plateId` INTEGER NOT NULL, `display` TEXT NOT NULL, `mediaId` TEXT, `positionMs` INTEGER, `source` TEXT NOT NULL, `seenAt` INTEGER NOT NULL, `confidence` REAL, `cropPath` TEXT, `boxLeft` REAL NOT NULL, `boxTop` REAL NOT NULL, `boxRight` REAL NOT NULL, `boxBottom` REAL NOT NULL, FOREIGN KEY(`plateId`) REFERENCES `plate`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -117,6 +117,12 @@
             "fieldPath": "plateId",
             "columnName": "plateId",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "display",
+            "columnName": "display",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -228,7 +234,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd202a7fe14d7f949c8562a9fba876516')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '459c0af4b8af73d572ed221e43274167')"
     ]
   }
 }

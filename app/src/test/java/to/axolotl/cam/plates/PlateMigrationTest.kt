@@ -37,14 +37,14 @@ class PlateMigrationTest {
     fun `migration 1 to 2 keeps the profile and adds the plate history`() = runTest {
         createVersion1()
 
-        val db = open(AppDatabase.MIGRATION_1_2)
+        val db = open(*AppDatabase.MIGRATIONS) // the array CoreDataModule registers
         try {
             assertThat(db.localProfileDao().observe().first()?.displayName).isEqualTo("Mein Auto")
             val sighting = PlateSighting(
-                plateId = 0, mediaId = "m1", positionMs = 0, source = SightingSource.CLIP, seenAt = 1, confidence = null,
-                cropPath = null, boxLeft = 0f, boxTop = 0f, boxRight = 1f, boxBottom = 1f,
+                plateId = 0, display = "B-MK 4821", mediaId = "m1", positionMs = 0, source = SightingSource.CLIP,
+                seenAt = 1, confidence = null, cropPath = null, boxLeft = 0f, boxTop = 0f, boxRight = 1f, boxBottom = 1f,
             )
-            db.plateDao().addSighting("BMK4821", "B-MK 4821", sighting)
+            db.plateDao().addSighting("BMK4821", sighting)
             assertThat(db.plateDao().history().first().single().count).isEqualTo(1)
         } finally {
             db.close()
@@ -70,8 +70,8 @@ class PlateMigrationTest {
         }
     }
 
-    private fun open(migration: Migration) = Room.databaseBuilder(context, AppDatabase::class.java, DB)
-        .addMigrations(migration)
+    private fun open(vararg migrations: Migration) = Room.databaseBuilder(context, AppDatabase::class.java, DB)
+        .addMigrations(*migrations)
         .allowMainThreadQueries()
         .build()
 

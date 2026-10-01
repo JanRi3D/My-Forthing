@@ -1,6 +1,8 @@
 package to.axolotl.cam.plates
 
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
+import to.axolotl.cam.core.data.PreferencesRepository
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -15,17 +17,20 @@ data class SidecarPlate(
 )
 
 /**
- * Plate metadata for the backup sidecar. Local by default: the backup feature calls [forMedia] only while
- * `AppPreferences.backupIncludePlateMetadata` is on.
+ * Plate metadata for the backup sidecar, each sighting with its own reading. Local by default: empty unless
+ * `AppPreferences.backupIncludePlateMetadata` is on (the backup feature checks it as well).
  */
-class PlateExport @Inject constructor(private val dao: PlateDao) {
-    suspend fun forMedia(mediaId: String): List<SidecarPlate> = dao.sightingsForMedia(mediaId).map {
-        SidecarPlate(
-            text = it.display,
-            normalized = it.normalized,
-            positionMs = it.positionMs,
-            confidence = it.confidence,
-            box = listOf(it.boxLeft, it.boxTop, it.boxRight, it.boxBottom).map(Float::roundToInt),
-        )
+class PlateExport @Inject constructor(private val dao: PlateDao, private val preferences: PreferencesRepository) {
+    suspend fun forMedia(mediaId: String): List<SidecarPlate> {
+        if (!preferences.preferences.first().backupIncludePlateMetadata) return emptyList()
+        return dao.sightingsForMedia(mediaId).map {
+            SidecarPlate(
+                text = it.display,
+                normalized = it.normalized,
+                positionMs = it.positionMs,
+                confidence = it.confidence,
+                box = listOf(it.boxLeft, it.boxTop, it.boxRight, it.boxBottom).map(Float::roundToInt),
+            )
+        }
     }
 }

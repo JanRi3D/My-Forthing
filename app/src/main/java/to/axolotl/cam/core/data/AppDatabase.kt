@@ -31,8 +31,8 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_plate_normalized` ON `plate` (`normalized`)")
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `plate_sighting` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                        "`plateId` INTEGER NOT NULL, `mediaId` TEXT, `positionMs` INTEGER, `source` TEXT NOT NULL, " +
-                        "`seenAt` INTEGER NOT NULL, `confidence` REAL, `cropPath` TEXT, `boxLeft` REAL NOT NULL, " +
+                        "`plateId` INTEGER NOT NULL, `display` TEXT NOT NULL, `mediaId` TEXT, `positionMs` INTEGER, " +
+                        "`source` TEXT NOT NULL, `seenAt` INTEGER NOT NULL, `confidence` REAL, `cropPath` TEXT, `boxLeft` REAL NOT NULL, " +
                         "`boxTop` REAL NOT NULL, `boxRight` REAL NOT NULL, `boxBottom` REAL NOT NULL, " +
                         "FOREIGN KEY(`plateId`) REFERENCES `plate`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
                 )

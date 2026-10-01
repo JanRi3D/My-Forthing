@@ -6,6 +6,7 @@ import android.graphics.Rect
 import androidx.core.graphics.scale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,7 +42,8 @@ class PlateRepository @Inject constructor(
     /**
      * Stores the detections of one frame; returns how many sightings were written. A plate detected again within
      * [DEDUPE_WINDOW_MS] of its previous detection (LIVE: wall time; CLIP: position in the same clip, also across
-     * rescans) is one continuous sighting and is skipped. [frame] (not recycled here) is used for the crops.
+     * rescans) is one continuous sighting and is skipped. [frame] (not recycled here) is used for the crops;
+     * [frameScale] = frame pixels per box unit when the boxes refer to a larger original (clip decoded downscaled).
      */
     suspend fun recordSightings(
         detections: List<PlateDetection>,
@@ -50,6 +52,7 @@ class PlateRepository @Inject constructor(
         positionMs: Long? = null,
         frame: Bitmap? = null,
         seenAt: Long = System.currentTimeMillis(),
+        frameScale: Float = 1f,
     ): Int = mutex.withLock {
         if (source == SightingSource.LIVE) {
             lastDetection.entries.removeAll { it.key.startsWith("${SightingSource.LIVE}|") && seenAt - it.value >= DEDUPE_WINDOW_MS }
@@ -63,16 +66,20 @@ class PlateRepository @Inject constructor(
             if (source == SightingSource.CLIP && mediaId != null && positionMs != null &&
                 dao.hasClipSightingNear(d.normalized, mediaId, positionMs, DEDUPE_WINDOW_MS)
             ) continue
-            val crop = frame?.let { saveCrop(it, d) }
-            dao.addSighting(
-                d.normalized,
-                d.text,
-                PlateSighting(
-                    plateId = 0, mediaId = mediaId, positionMs = positionMs, source = source, seenAt = seenAt,
-                    confidence = d.confidence, cropPath = crop,
-                    boxLeft = d.box.left, boxTop = d.box.top, boxRight = d.box.right, boxBottom = d.box.bottom,
-                ),
-            )
+            val crop = frame?.let { saveCrop(it, d, frameScale) }
+            try {
+                dao.addSighting(
+                    d.normalized,
+                    PlateSighting(
+                        plateId = 0, display = d.text, mediaId = mediaId, positionMs = positionMs, source = source,
+                        seenAt = seenAt, confidence = d.confidence, cropPath = crop,
+                        boxLeft = d.box.left, boxTop = d.box.top, boxRight = d.box.right, boxBottom = d.box.bottom,
+                    ),
+                )
+            } catch (t: Throwable) { // failed or cancelled: no orphan crop
+                crop?.let { withContext(NonCancellable + Dispatchers.IO) { File(context.filesDir, it).delete() } }
+                throw t
+            }
             written++
         }
         written
@@ -85,6 +92,12 @@ class PlateRepository @Inject constructor(
         withContext(Dispatchers.IO) { cropDir().deleteRecursively() }
     }
 
+    /** Drops the in-memory dedupe state of a finished clip scan (a later rescan is deduped by the database). */
+    suspend fun forgetClip(mediaId: String) = mutex.withLock {
+        lastDetection.keys.removeAll { it.startsWith("${SightingSource.CLIP}|$mediaId|") }
+        Unit
+    }
+
     /** Deletes the sightings of one recording (and plates left without sightings) with their crops. */
     suspend fun clearForMedia(mediaId: String) = mutex.withLock {
         val crops = dao.cropsForMedia(mediaId)
@@ -93,14 +106,14 @@ class PlateRepository @Inject constructor(
         withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
     }
 
-    private suspend fun saveCrop(frame: Bitmap, d: PlateDetection): String? = withContext(Dispatchers.IO) {
+    private suspend fun saveCrop(frame: Bitmap, d: PlateDetection, scale: Float): String? = withContext(Dispatchers.IO) {
         val padX = d.box.width() * 0.1f
         val padY = d.box.height() * 0.3f
         val r = Rect(
-            (d.box.left - padX).roundToInt().coerceAtLeast(0),
-            (d.box.top - padY).roundToInt().coerceAtLeast(0),
-            (d.box.right + padX).roundToInt().coerceAtMost(frame.width),
-            (d.box.bottom + padY).roundToInt().coerceAtMost(frame.height),
+            ((d.box.left - padX) * scale).roundToInt().coerceAtLeast(0),
+            ((d.box.top - padY) * scale).roundToInt().coerceAtLeast(0),
+            ((d.box.right + padX) * scale).roundToInt().coerceAtMost(frame.width),
+            ((d.box.bottom + padY) * scale).roundToInt().coerceAtMost(frame.height),
         )
         if (r.width() <= 0 || r.height() <= 0) return@withContext null
         val cut = Bitmap.createBitmap(frame, r.left, r.top, r.width(), r.height())

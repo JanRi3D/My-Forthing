@@ -12,7 +12,10 @@ import androidx.room.Relation
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
-/** A distinct plate reading. [count], [firstSeen] and [lastSeen] summarise its sightings. */
+/**
+ * A distinct plate, keyed by [normalized]. [display] is the best reading so far (one without `?` replaces one
+ * with `?`); [count], [firstSeen] and [lastSeen] summarise its sightings.
+ */
 @Entity(tableName = "plate", indices = [Index(value = ["normalized"], unique = true)])
 data class Plate(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -26,8 +29,9 @@ data class Plate(
 enum class SightingSource { LIVE, CLIP }
 
 /**
- * One sighting. [mediaId]/[positionMs] link to the recording (CLIP); [cropPath] is relative to `filesDir`.
- * The box (frame coordinates of the source frame) is stored for the backup sidecar.
+ * One sighting with its own reading [display] (may contain `?` where the plate's best reading does not).
+ * [mediaId]/[positionMs] link to the recording (CLIP); [cropPath] is relative to `filesDir`. The box (pixels of
+ * the source frame, video pixels for clips) is stored for the backup sidecar.
  */
 @Entity(
     tableName = "plate_sighting",
@@ -37,6 +41,7 @@ enum class SightingSource { LIVE, CLIP }
 data class PlateSighting(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val plateId: Long,
+    val display: String,
     val mediaId: String?,
     val positionMs: Long?,
     val source: SightingSource,
@@ -86,7 +91,7 @@ interface PlateDao {
     suspend fun hasClipSightingNear(normalized: String, mediaId: String, positionMs: Long, windowMs: Long): Boolean
 
     @Query(
-        """SELECT p.display, p.normalized, s.positionMs, s.confidence, s.boxLeft, s.boxTop, s.boxRight, s.boxBottom
+        """SELECT s.display, p.normalized, s.positionMs, s.confidence, s.boxLeft, s.boxTop, s.boxRight, s.boxBottom
            FROM plate_sighting s JOIN plate p ON p.id = s.plateId WHERE s.mediaId = :mediaId ORDER BY s.positionMs""",
     )
     suspend fun sightingsForMedia(mediaId: String): List<MediaSighting>
@@ -106,11 +111,23 @@ interface PlateDao {
     @Query("UPDATE plate SET firstSeen = MIN(firstSeen, :seenAt), lastSeen = MAX(lastSeen, :seenAt), count = count + 1 WHERE id = :id")
     suspend fun countSighting(id: Long, seenAt: Long)
 
-    /** Adds [sighting] to the plate [normalized] (created on first sighting); returns the sighting id. */
+    @Query("UPDATE plate SET display = :display WHERE id = :id")
+    suspend fun updateDisplay(id: Long, display: String)
+
+    /**
+     * Adds [sighting] to the plate [normalized] (created on first sighting); returns the sighting id. Readings with
+     * `?` merge by [normalized] but keep their own text; the plate's display upgrades to the first reading without `?`.
+     */
     @Transaction
-    suspend fun addSighting(normalized: String, display: String, sighting: PlateSighting): Long {
-        val plateId = byNormalized(normalized)?.id?.also { countSighting(it, sighting.seenAt) }
-            ?: insert(Plate(normalized = normalized, display = display, firstSeen = sighting.seenAt, lastSeen = sighting.seenAt, count = 1))
+    suspend fun addSighting(normalized: String, sighting: PlateSighting): Long {
+        val existing = byNormalized(normalized)
+        val plateId = if (existing != null) {
+            countSighting(existing.id, sighting.seenAt)
+            if ('?' in existing.display && '?' !in sighting.display) updateDisplay(existing.id, sighting.display)
+            existing.id
+        } else {
+            insert(Plate(normalized = normalized, display = sighting.display, firstSeen = sighting.seenAt, lastSeen = sighting.seenAt, count = 1))
+        }
         return insert(sighting.copy(plateId = plateId))
     }
 
