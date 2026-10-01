@@ -9,7 +9,7 @@ object FeatureFlags {
     const val accounts = true
 
     /** Home plate search bar (feature/plates-ui). */
-    const val plates = false
+    const val plates = true
 
     /** Settings → Sicherung (feature/drive-backup). */
     const val backup = false

@@ -28,6 +28,13 @@ import me.ri3d.cam.dashcam.DashcamSettingsSection
 import me.ri3d.cam.dashcam.dashcamGraph
 import me.ri3d.cam.live.liveGraph
 import me.ri3d.cam.media.mediaGraph
+import me.ri3d.cam.plates.ui.ClipPlates
+import me.ri3d.cam.plates.ui.ClipPlatesOverlay
+import me.ri3d.cam.plates.ui.LivePlatesList
+import me.ri3d.cam.plates.ui.LivePlatesOverlay
+import me.ri3d.cam.plates.ui.LivePlatesToggle
+import me.ri3d.cam.plates.ui.PlatesAutoScan
+import me.ri3d.cam.plates.ui.platesGraph
 
 /** The single NavHost. Features register their graph here with one line each. */
 @Composable
@@ -56,9 +63,20 @@ fun AxoNavHost(startDestination: Route) {
                     accountGraph(navController)
                     driveGraph(navController)
                     dashcamGraph(navController)
-                    liveGraph(navController)
-                    mediaGraph(navController)
+                    liveGraph(
+                        navController,
+                        leadingControls = { LivePlatesToggle() },
+                        belowControls = { LivePlatesList(onNavigate = { navController.navigate(it) }) },
+                        overlay = { LivePlatesOverlay(it) },
+                    )
+                    mediaGraph(
+                        navController,
+                        clipExtras = { item, _, seekTo -> ClipPlates(item, seekTo, onNavigate = { navController.navigate(it) }) },
+                        clipOverlay = { item, position -> ClipPlatesOverlay(item, position) },
+                    )
+                    platesGraph(navController)
                 }
+                PlatesAutoScan()
                 SnackbarHost(
                     snackbarHostState,
                     Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding(),

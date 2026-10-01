@@ -605,4 +605,87 @@
     <string name="media_storage_free_space">Frei auf dem Handy: %1$s</string>
     <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
     <!-- /media -->
+    <!-- plates -->
+    <string name="plates_recognition">Kennzeichenerkennung</string>
+    <string name="plates_unsure">unsicher</string>
+    <string name="plates_unsure_read">unsicher gelesen</string>
+    <string name="plates_overlay_description">Erkannte Kennzeichen: %1$s</string>
+    <string name="plates_today">heute %1$s</string>
+    <string name="plates_yesterday">gestern %1$s</string>
+    <string name="plates_date_time">%1$s, %2$s</string>
+    <string name="plates_incident">Vorfall</string>
+    <plurals name="plates_seen">
+        <item quantity="one">Einmal gesehen</item>
+        <item quantity="other">%d-mal gesehen</item>
+    </plurals>
+    <string name="plates_history">Verlauf</string>
+    <string name="plates_live_toggle">Kennzeichen</string>
+    <string name="plates_live_recognized">Erkannte Kennzeichen</string>
+    <string name="plates_live_off">Kennzeichenerkennung ist aus. Schalte sie mit der Kennzeichen-Taste ein.</string>
+    <string name="plates_live_none">Noch keine Kennzeichen erkannt. Die Erkennung läuft, solange das Livebild spielt.</string>
+    <string name="plates_live_rate">Läuft auf diesem Handy · %1$.1f Bilder/s</string>
+    <string name="plates_clip_title">Kennzeichen in diesem Clip</string>
+    <string name="plates_clip_derived">Verbesserte und hochskalierte Dateien werden nicht auf Kennzeichen geprüft: Sie sind rekonstruiert, kein Beweis. Prüfe das Original.</string>
+    <plurals name="plates_seen_in_clip">
+        <item quantity="one">Einmal in diesem Clip</item>
+        <item quantity="other">%d-mal in diesem Clip</item>
+    </plurals>
+    <string name="plates_clip_jump">Zu %1$s springen</string>
+    <string name="plates_clip_check">Clip auf Kennzeichen prüfen</string>
+    <string name="plates_clip_checking">Clip wird auf Kennzeichen geprüft …</string>
+    <string name="plates_clip_queued">Wartet auf die Prüfung …</string>
+    <plurals name="plates_clip_more_queued">
+        <item quantity="one">%d weiterer Clip wartet</item>
+        <item quantity="other">%d weitere Clips warten</item>
+    </plurals>
+    <string name="plates_clip_download_first">Erst herunterladen, dann prüfen.</string>
+    <string name="plates_clip_none">Keine Kennzeichen gefunden.</string>
+    <plurals name="plates_clip_found">
+        <item quantity="one">%d Kennzeichen gefunden.</item>
+        <item quantity="other">%d Kennzeichen gefunden.</item>
+    </plurals>
+    <string name="plates_clip_cancelled">Prüfung abgebrochen. Bis dahin gefundene Kennzeichen bleiben gespeichert.</string>
+    <string name="plates_clip_failed">Prüfung fehlgeschlagen: Der Clip ließ sich nicht lesen.</string>
+    <string name="plates_search">Kennzeichen suchen</string>
+    <string name="plates_filter_all">Alle</string>
+    <string name="plates_filter_incidents">Vorfälle</string>
+    <plurals name="plates_count">
+        <item quantity="one">%d Kennzeichen</item>
+        <item quantity="other">%d Kennzeichen</item>
+    </plurals>
+    <string name="plates_last_seen">Zuletzt %1$s</string>
+    <string name="plates_no_match">Keine Kennzeichen passen zu „%1$s“</string>
+    <string name="plates_no_match_text">Probiere einen Teil des Kennzeichens, etwa die Städtekennung oder die letzten Ziffern.</string>
+    <string name="plates_no_incidents">Keine Kennzeichen aus Vorfällen</string>
+    <string name="plates_no_incidents_text">Hier erscheinen Kennzeichen aus geprüften Vorfall-Aufnahmen.</string>
+    <string name="plates_empty">Noch keine Kennzeichen</string>
+    <string name="plates_empty_text">Schalte die Erkennung in der Live-Ansicht ein oder prüfe einen heruntergeladenen Clip.</string>
+    <string name="plates_detail_title">Verlauf</string>
+    <string name="plates_detail_gone">Dieses Kennzeichen ist nicht mehr im Verlauf.</string>
+    <string name="plates_sightings">Sichtungen</string>
+    <string name="plates_stat_sightings">Sichtungen</string>
+    <string name="plates_stat_first">Zuerst gesehen</string>
+    <string name="plates_stat_last">Zuletzt gesehen</string>
+    <string name="plates_read_as">Gelesen als %1$s</string>
+    <string name="plates_source_live">Live-Ansicht</string>
+    <string name="plates_source_clip">Clip</string>
+    <string name="plates_source_position">%1$s · %2$s</string>
+    <string name="plates_not_on_phone">Aufnahme nicht auf dem Handy</string>
+    <string name="plates_delete">Löschen</string>
+    <string name="plates_delete_one">Verlauf dieses Kennzeichens löschen</string>
+    <string name="plates_delete_one_title">Verlauf löschen?</string>
+    <string name="plates_delete_one_text">Alle Sichtungen von %1$s und ihre Ausschnitte werden von diesem Handy gelöscht. Die Aufnahmen bleiben erhalten.</string>
+    <string name="plates_settings_row_text">Live-Ansicht, Clips, Verlauf</string>
+    <string name="plates_setting_live">In der Live-Ansicht</string>
+    <string name="plates_setting_live_text">Erkennt Kennzeichen im Livebild, solange die Live-Ansicht offen ist.</string>
+    <string name="plates_setting_clips">In gespeicherten Clips</string>
+    <string name="plates_setting_clips_text">Prüft neu heruntergeladene Clips automatisch, einen nach dem anderen.</string>
+    <string name="plates_honesty">Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt – nichts wird geraten, und es gibt keine Trefferquote.</string>
+    <string name="plates_section_history">Verlauf</string>
+    <string name="plates_setting_backup">Kennzeichen-Daten in Drive-Sicherung einschließen</string>
+    <string name="plates_setting_backup_text">Standardmäßig bleibt der Verlauf nur auf diesem Handy. Eingeschaltet kommen Kennzeichen, Position im Clip und Rahmen in die Begleitdatei jeder gesicherten Aufnahme.</string>
+    <string name="plates_clear">Verlauf löschen</string>
+    <string name="plates_clear_title">Ganzen Verlauf löschen?</string>
+    <string name="plates_clear_text">Alle Kennzeichen, Sichtungen und Ausschnitte werden von diesem Handy gelöscht. Die Aufnahmen bleiben erhalten.</string>
+    <!-- /plates -->
 </resources>
