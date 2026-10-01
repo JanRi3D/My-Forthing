@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Axolotl Cam: profile pictures only. The app uploads a JPEG of at most 512 px per side.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/avatar.jpg {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+  }
+}

@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Axolotl Cam: one profile document per account (docs/features/accounts.md). Everything else is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // The app writes with merge, so `data` is the complete document after the write.
+    function validProfile(uid, data) {
+      return data.keys().hasOnly(['displayName', 'photoPath', 'preferences', 'createdAt', 'updatedAt'])
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 40
+        && (!('photoPath' in data) || data.photoPath == null || data.photoPath == 'users/' + uid + '/avatar.jpg')
+        && data.preferences is map && data.preferences.size() <= 20
+        && data.updatedAt == request.time
+        && (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validProfile(uid, request.resource.data);
+    }
+  }
+}
