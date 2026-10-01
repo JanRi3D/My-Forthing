@@ -44,6 +44,11 @@ fun errorMeaning(error: RecorderError): Int = when (error.source) {
 fun errorText(error: RecorderError): String =
     stringResource(R.string.dashcam_error_with_code, stringResource(errorMeaning(error)), error.code)
 
+/** The build has no usable RSA key: nothing was tried on the network. */
+fun isConfigurationError(error: RecorderError): Boolean =
+    error.code == ErrorCodes.SESSION_KEY_INVALID &&
+        (error.message == RecorderConnectionManagerImpl.KEY_MISSING || error.message == RecorderConnectionManagerImpl.KEY_INVALID)
+
 private val AppMeaning.text: Int
     get() = when (this) {
         AppMeaning.UNKNOWN_ERROR -> R.string.dashcam_err_app_unknown

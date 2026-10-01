@@ -28,7 +28,7 @@ class RecorderSettingsViewModelTest {
 
     private suspend fun TestScope.loadedViewModel(): RecorderSettingsViewModel {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val manager = managerFor(sim).apply { simulator = true }
+        val manager = managerFor(sim).apply { setSimulator(true) }
         manager.connect()
         val viewModel = RecorderSettingsViewModel(manager)
         runCurrent()

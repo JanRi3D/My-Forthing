@@ -90,6 +90,7 @@
     <string name="dashcam_step_failed">fehlgeschlagen</string>
     <string name="dashcam_wrong_wifi_text">„%1$s“ beginnt nicht mit FORTHING. Wenn das trotzdem das WLAN deiner Dashcam ist, verbinde trotzdem.</string>
     <string name="dashcam_no_wifi_text">Kein WLAN gefunden. Verbinde dein Handy in den WLAN-Einstellungen mit dem WLAN der Dashcam.</string>
+    <string name="dashcam_mobile_data_on">Mobile Daten sind eingeschaltet. Klappt die Verbindung nicht, schalte sie aus und versuche es erneut.</string>
     <string name="dashcam_tcp_only_text">Die Dashcam ist erreichbar, aber die Sitzung steht noch nicht. Befehle funktionieren erst danach.</string>
     <string name="dashcam_ready_info">Gerät: %1$s · Firmware %2$s</string>
     <string name="dashcam_ready_no_info">Geräteinformationen werden gelesen …</string>
@@ -98,7 +99,7 @@
     <string name="dashcam_disconnect">Trennen</string>
     <string name="dashcam_open_wifi_settings">WLAN-Einstellungen öffnen</string>
     <string name="dashcam_permission_title">WLAN-Namen erkennen</string>
-    <string name="dashcam_permission_rationale">Android verrät den Namen des verbundenen WLANs nur Apps mit Standort-Berechtigung (ab Android 13 zusätzlich „Geräte in der Nähe“). Die App prüft damit nur, ob du mit dem WLAN der Dashcam verbunden bist; dein Standort wird weder gespeichert noch gesendet. Ohne Berechtigung kannst du trotzdem verbinden.</string>
+    <string name="dashcam_permission_rationale">Android verrät den Namen des verbundenen WLANs nur Apps mit Standort-Berechtigung. Die App prüft damit nur, ob du mit dem WLAN der Dashcam verbunden bist; dein Standort wird weder gespeichert noch gesendet. Ohne Berechtigung kannst du trotzdem verbinden.</string>
     <string name="dashcam_permission_grant">Berechtigung erteilen</string>
     <string name="dashcam_permission_denied">Die Berechtigung wurde abgelehnt. Du kannst sie in den App-Einstellungen erteilen.</string>
     <string name="dashcam_permission_app_settings">App-Einstellungen öffnen</string>

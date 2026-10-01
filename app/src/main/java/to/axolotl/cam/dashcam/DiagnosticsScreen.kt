@@ -109,7 +109,7 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
             put("ssid", manager.ssid.value)
             put("recorderNetworkBound", manager.recorderNetwork.value != null)
             put("mobileDataEnabled", manager.mobileDataEnabled())
-            put("simulator", manager.simulator)
+            put("simulator", manager.simulator.value)
         }
         put("connectionState", state::class.simpleName)
         (state as? RecorderConnectionState.Error)?.let { put("connectionError", it.error.toJson()) }

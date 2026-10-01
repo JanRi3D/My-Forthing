@@ -7,10 +7,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- dashcam: reading the current Wi-Fi name (SSID) needs location; Android 13+ also gets NEARBY_WIFI_DEVICES. -->
+    <!-- dashcam: reading the current Wi-Fi name (SSID) needs location. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
     <!-- No Android backup: the offline profile stays on this phone. allowBackup="false" covers Android 8-11
          (so no fullBackupContent is needed); data_extraction_rules also blocks device transfer on 12+. -->

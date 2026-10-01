@@ -43,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,8 +61,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import to.axolotl.cam.BuildConfig
 import to.axolotl.cam.R
@@ -83,10 +80,7 @@ import to.axolotl.cam.dashcam.RecorderConnectionState.TcpConnected
 import to.axolotl.cam.dashcam.RecorderConnectionState.WrongWifi
 import to.axolotl.cam.recorder.ErrorCodes
 import to.axolotl.cam.recorder.NormalInfo
-import to.axolotl.cam.recorder.RecorderCommand
-import to.axolotl.cam.recorder.RecorderResult
 import to.axolotl.cam.recorder.StorageInfo
-import to.axolotl.cam.recorder.parseStorageInfo
 import javax.inject.Inject
 
 /** Shared by the Connection screen and the Home card. */
@@ -96,27 +90,27 @@ class ConnectionViewModel @Inject constructor(private val manager: RecorderConne
     val ssid: StateFlow<String?> = manager.ssid
     val network: StateFlow<Network?> = manager.recorderNetwork
     val recStatus: StateFlow<NormalInfo.RecStatus?> = manager.recStatus
-    private val _simulator = MutableStateFlow(manager.simulator)
-    val simulator: StateFlow<Boolean> = _simulator.asStateFlow()
+    val simulator: StateFlow<Boolean> = manager.simulator
 
-    /** 4099 of the current session, for "SD frei" on the card. */
-    private val _storage = MutableStateFlow<StorageInfo?>(null)
-    val storage: StateFlow<StorageInfo?> = _storage.asStateFlow()
+    /** 4099 read once per session by the manager, for "SD frei" on the card. */
+    val storage: StateFlow<StorageInfo?> = manager.storage
+
+    /** Phone mobile data, read on resume and whenever the connection fails (for the routing hint). */
+    private val _mobileData = MutableStateFlow<Boolean?>(null)
+    val mobileData: StateFlow<Boolean?> = _mobileData.asStateFlow()
 
     private var userDisconnected = false
 
     init {
         viewModelScope.launch {
-            manager.state.map { it is Ready }.distinctUntilChanged().collect { ready ->
-                _storage.value = if (!ready) null
-                else (manager.request(RecorderCommand.GetStorageInfo(), ::parseStorageInfo) as? RecorderResult.Ok)?.value
-            }
+            manager.state.collect { if (it == NoWifi || it is Error) _mobileData.value = manager.mobileDataEnabled() }
         }
     }
 
     /** Like the original connection screen's onResume: try again unless busy, connected or stopped by the user. */
     fun onResume() {
         manager.refreshSsid()
+        _mobileData.value = manager.mobileDataEnabled()
         val s = state.value
         val idle = s == Disconnected || s == NoWifi || s is WrongWifi || (s is Error && s.retry)
         if (idle && !userDisconnected) connect()
@@ -137,8 +131,7 @@ class ConnectionViewModel @Inject constructor(private val manager: RecorderConne
     fun setSimulator(enabled: Boolean) {
         viewModelScope.launch {
             manager.disconnect()
-            manager.simulator = enabled
-            _simulator.value = manager.simulator
+            manager.setSimulator(enabled)
             userDisconnected = false
             manager.connect()
         }
@@ -155,6 +148,7 @@ fun ConnectionScreen(
     val ssid by viewModel.ssid.collectAsStateWithLifecycle()
     val network by viewModel.network.collectAsStateWithLifecycle()
     val simulator by viewModel.simulator.collectAsStateWithLifecycle()
+    val mobileData by viewModel.mobileData.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var permitted by remember { mutableStateOf(hasSsidPermission(context)) }
     var denied by rememberSaveable { mutableStateOf(false) }
@@ -179,7 +173,7 @@ fun ConnectionScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            StatusCard(state, ssid, network, simulator, permitted)
+            StatusCard(state, ssid, network, simulator, permitted, mobileData == true)
             Actions(
                 state = state,
                 simulator = simulator,
@@ -236,6 +230,7 @@ private fun StatusCard(
     network: Network?,
     simulator: Boolean,
     permitted: Boolean,
+    mobileDataOn: Boolean,
 ) {
     Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -272,13 +267,18 @@ private fun StatusCard(
                 )
                 is Ready -> {
                     val info = state.info
+                    val missing = stringResource(R.string.dashcam_value_missing)
                     Text(
                         if (info == null) stringResource(R.string.dashcam_ready_no_info)
-                        else stringResource(R.string.dashcam_ready_info, info.productModel ?: "–", info.fwVersion ?: "–"),
+                        else stringResource(R.string.dashcam_ready_info, info.productModel ?: missing, info.fwVersion ?: missing),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 else -> Unit
+            }
+            val unreachable = state == NoWifi || (state is Error && state.error.code == ErrorCodes.CONNECT_FAILED)
+            if (unreachable && mobileDataOn && !simulator) {
+                Text(stringResource(R.string.dashcam_mobile_data_on), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -300,9 +300,11 @@ private fun steps(state: RecorderConnectionState, networkBound: Boolean): List<S
     Connecting -> if (networkBound) listOf(Step.DONE, Step.ACTIVE, Step.PENDING) else listOf(Step.ACTIVE, Step.PENDING, Step.PENDING)
     TcpConnected, Negotiating -> listOf(Step.DONE, Step.DONE, Step.ACTIVE)
     is Ready -> listOf(Step.DONE, Step.DONE, Step.DONE)
-    is Error -> when (state.error.code) {
-        ErrorCodes.CONNECT_FAILED -> listOf(Step.DONE, Step.FAILED, Step.PENDING)
-        ErrorCodes.SESSION_KEY_INVALID, ErrorCodes.SESSION_TIMEOUT -> listOf(Step.DONE, Step.DONE, Step.FAILED)
+    is Error -> when {
+        isConfigurationError(state.error) -> listOf(Step.PENDING, Step.PENDING, Step.FAILED) // nothing was tried
+        state.error.code == ErrorCodes.CONNECT_FAILED -> listOf(Step.DONE, Step.FAILED, Step.PENDING)
+        state.error.code == ErrorCodes.SESSION_KEY_INVALID || state.error.code == ErrorCodes.SESSION_TIMEOUT ->
+            listOf(Step.DONE, Step.DONE, Step.FAILED)
         else -> listOf(if (networkBound) Step.DONE else Step.PENDING, Step.FAILED, Step.FAILED)
     }
 }
@@ -383,9 +385,8 @@ fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltVi
     val ssid by viewModel.ssid.collectAsStateWithLifecycle()
     val storage by viewModel.storage.collectAsStateWithLifecycle()
     val recStatus by viewModel.recStatus.collectAsStateWithLifecycle()
+    val simulator by viewModel.simulator.collectAsStateWithLifecycle()
     val ready = state is Ready
-    // Only the simulator session is Ready without a bound Wi-Fi network (the toggle lives on another screen).
-    val simulator = (state as? Ready)?.network == null
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -400,24 +401,15 @@ fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltVi
             )
             IconLine(if (ready) R.drawable.ic_wifi else R.drawable.ic_wifi_off, stringResource(state.cardLine(simulator)))
             val rec = recStatus
-            if (ready && rec != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val recording = rec.status == 1 || rec.status == 2
-                    Box(
-                        Modifier
-                            .padding(5.dp)
-                            .size(8.dp)
-                            .background(if (recording) LocalAxoColors.current.recording else Color.Transparent, CircleShape),
-                    )
-                    Text(recStatusText(rec).asString(), style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+            // Text only, no recording indicator: the recStatus meaning is an unconfirmed SDK reading.
+            if (ready && rec != null) Text(recStatusText(rec).asString(), style = MaterialTheme.typography.bodyMedium)
             if (ready) {
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     CardFact(stringResource(R.string.dashcam_card_wifi), if (simulator) stringResource(R.string.dashcam_simulator_short) else ssid ?: stringResource(R.string.dashcam_ssid_unknown))
                     CardFact(
                         stringResource(R.string.dashcam_card_sd),
-                        storage?.available?.let { stringResource(R.string.dashcam_card_sd_free, it.toString()) } ?: "–",
+                        storage?.available?.let { stringResource(R.string.dashcam_card_sd_free, it.toString()) }
+                            ?: stringResource(R.string.dashcam_value_missing),
                     )
                 }
             } else {

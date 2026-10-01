@@ -30,7 +30,7 @@ class SdCardViewModelTest {
     @Test
     fun `storage is read when ready and formatting re-reads it`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val manager = managerFor(sim).apply { simulator = true }
+        val manager = managerFor(sim).apply { setSimulator(true) }
         manager.connect()
         val viewModel = SdCardViewModel(manager)
         runCurrent()
@@ -48,7 +48,7 @@ class SdCardViewModelTest {
     fun `a failed format keeps the app meaning`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         sim.rvalOverrides[12288] = 209
-        val manager = managerFor(sim).apply { simulator = true }
+        val manager = managerFor(sim).apply { setSimulator(true) }
         manager.connect()
         val viewModel = SdCardViewModel(manager)
         runCurrent()
