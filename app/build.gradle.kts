@@ -113,6 +113,8 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     // plates
     implementation(libs.mlkit.text.recognition)
+    // enhance
+    implementation(libs.litert)
     // dashcam (okhttp above, shared with drive)
     implementation(project(":recorder"))
     implementation(libs.androidx.lifecycle.process)
