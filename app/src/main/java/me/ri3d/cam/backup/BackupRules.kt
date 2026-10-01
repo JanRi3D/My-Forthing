@@ -45,11 +45,24 @@ object BackupRules {
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) // the builder's default would rule out any VPN
                 .build()
             builder.setRequiredNetworkRequest(wifi, type)
         } else {
             builder.setRequiredNetworkType(type)
         }
         return builder.build()
+    }
+
+    /**
+     * The default network right now (the one the Drive client uses) fits the conditions: validated internet, Wi-Fi
+     * when required, unmetered unless mobile data is allowed. Checked when a job starts, since the network may have
+     * changed after JobScheduler decided. A VPN reports its underlying network's transports and metering.
+     */
+    fun networkFits(caps: NetworkCapabilities?, prefs: AppPreferences): Boolean = when {
+        caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> false
+        prefs.backupRequireInternetWifi -> caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        else -> prefs.backupOnMobileData || caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 }

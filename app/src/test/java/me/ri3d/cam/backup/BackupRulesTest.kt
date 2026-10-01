@@ -7,7 +7,9 @@ import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import me.ri3d.cam.core.model.AppPreferences
 import me.ri3d.cam.core.model.BackupMode
 import me.ri3d.cam.media.BackupState
@@ -61,6 +63,7 @@ class BackupRulesTest {
         assertThat(request.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)).isTrue()
         assertThat(request.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)).isTrue()
         assertThat(request.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)).isTrue()
+        assertThat(request.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)).isFalse() // a VPN over Wi-Fi is fine
 
         val unmetered = BackupRules.constraints(AppPreferences(backupRequireInternetWifi = false, backupOnMobileData = false))
         assertThat(unmetered.requiredNetworkType).isEqualTo(NetworkType.UNMETERED)
@@ -74,9 +77,30 @@ class BackupRulesTest {
     }
 
     @Test
-    @Config(sdk = [23]) // WorkManager ignores network requests below API 28
+    @Config(sdk = [27]) // WorkManager ignores network requests below API 28
     fun `below API 28 the Wi-Fi rule falls back to unmetered, never mobile data`() {
         val wifi = BackupRules.constraints(AppPreferences(backupRequireInternetWifi = true, backupOnMobileData = true))
         assertThat(wifi.requiredNetworkType).isEqualTo(NetworkType.UNMETERED)
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun `the default network is checked against the conditions when a job starts`() {
+        fun caps(vararg capabilities: Int, transport: Int) = ShadowNetworkCapabilities.newInstance().also { nc ->
+            capabilities.forEach { shadowOf(nc).addCapability(it) }
+            shadowOf(nc).addTransportType(transport)
+        }
+        val internet = intArrayOf(NetworkCapabilities.NET_CAPABILITY_INTERNET, NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        val wifi = caps(*internet, NetworkCapabilities.NET_CAPABILITY_NOT_METERED, transport = NetworkCapabilities.TRANSPORT_WIFI)
+        val cellular = caps(*internet, transport = NetworkCapabilities.TRANSPORT_CELLULAR)
+        val recorderWifi = caps(NetworkCapabilities.NET_CAPABILITY_NOT_METERED, transport = NetworkCapabilities.TRANSPORT_WIFI) // no internet
+
+        val wifiOnly = AppPreferences(backupRequireInternetWifi = true)
+        val unmeteredOnly = AppPreferences(backupRequireInternetWifi = false, backupOnMobileData = false)
+        val mobileAllowed = AppPreferences(backupRequireInternetWifi = false, backupOnMobileData = true)
+        assertThat(listOf(wifiOnly, unmeteredOnly, mobileAllowed).map { BackupRules.networkFits(wifi, it) }).containsExactly(true, true, true)
+        assertThat(listOf(wifiOnly, unmeteredOnly, mobileAllowed).map { BackupRules.networkFits(cellular, it) }).containsExactly(false, false, true)
+        assertThat(listOf(wifiOnly, unmeteredOnly, mobileAllowed).map { BackupRules.networkFits(recorderWifi, it) }).containsExactly(false, false, false)
+        assertThat(BackupRules.networkFits(null, mobileAllowed)).isFalse()
     }
 }
