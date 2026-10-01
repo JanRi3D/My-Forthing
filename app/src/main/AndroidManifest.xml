@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- drive: Google Drive REST -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- No Android backup: the offline profile stays on this phone. allowBackup="false" covers Android 8-11
          (so no fullBackupContent is needed); data_extraction_rules also blocks device transfer on 12+. -->
     <application
