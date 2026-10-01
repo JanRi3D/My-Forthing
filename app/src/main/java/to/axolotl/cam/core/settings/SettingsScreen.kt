@@ -36,6 +36,7 @@ import to.axolotl.cam.core.navigation.Appearance
 import to.axolotl.cam.core.navigation.Backup
 import to.axolotl.cam.core.navigation.DriveAccount
 import to.axolotl.cam.core.navigation.Route
+import to.axolotl.cam.core.navigation.Storage
 import to.axolotl.cam.core.ui.AxoTopBar
 import to.axolotl.cam.core.ui.ListGroup
 import to.axolotl.cam.core.ui.ListRow
@@ -89,6 +90,18 @@ fun SettingsScreen(
                         }
                     }
                     add { shape -> DriveSettingsRow(shape, onClick = { onNavigate(DriveAccount) }) }
+                    if (FeatureFlags.media) {
+                        add { shape ->
+                            ListRow(
+                                stringResource(R.string.media_storage_title),
+                                supporting = stringResource(R.string.media_storage_settings_text),
+                                icon = R.drawable.ic_media_storage,
+                                shape = shape,
+                                onClick = { onNavigate(Storage) },
+                                trailing = { Chevron() },
+                            )
+                        }
+                    }
                 },
             )
             recorderSettingsSection?.invoke()
