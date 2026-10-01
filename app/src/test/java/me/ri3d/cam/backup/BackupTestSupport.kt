@@ -19,6 +19,10 @@ import me.ri3d.cam.media.recorderFile
 import me.ri3d.cam.plates.PlateExport
 import me.ri3d.cam.recorder.RecorderSimulator
 import java.io.File
+import java.time.Instant
+
+/** The stored session of [id] for the current account. */
+fun BackupStore.currentSession(id: String): String? = session(id, account.orEmpty())
 
 /** Drive in memory: files with appProperties, sidecar contents, scripted upload failures. */
 class FakeDriveApi : DriveApi {
@@ -31,6 +35,12 @@ class FakeDriveApi : DriveApi {
 
     /** Each upload takes the next failure (after it started its session). */
     val uploadFailures = ArrayDeque<() -> Throwable>()
+
+    /** Each JSON write runs the next hook first; a returned error fails the write. */
+    val writeHooks = ArrayDeque<() -> Throwable?>()
+
+    /** Each delete runs the next hook first; a returned error fails the delete. */
+    val deleteHooks = ArrayDeque<() -> Throwable?>()
 
     /** Drive reports another md5Checksum than the bytes sent. */
     var corrupt = false
@@ -55,6 +65,7 @@ class FakeDriveApi : DriveApi {
     }
 
     override suspend fun writeJson(name: String, parentId: String, json: String, appProperties: Map<String, String>): Result<DriveFile> {
+        writeHooks.removeFirstOrNull()?.invoke()?.let { return Result.failure(it) }
         val file = files.firstOrNull { it.name == name && parentId in it.parents }
             ?: driveFile(newId("json"), name, appProperties, parentId, null).also { files += it }
         this.json[file.id] = json
@@ -67,6 +78,7 @@ class FakeDriveApi : DriveApi {
     }
 
     override suspend fun delete(id: String): Result<Unit> {
+        deleteHooks.removeFirstOrNull()?.invoke()?.let { return Result.failure(it) }
         deleted += id
         files.removeAll { it.id == id }
         return Result.success(Unit)
@@ -74,8 +86,15 @@ class FakeDriveApi : DriveApi {
 
     override suspend fun about() = Result.success(DriveQuota(limit = 100, usage = 100))
 
-    fun driveFile(id: String, name: String, appProperties: Map<String, String>, parent: String, md5: String?) =
-        DriveFile(id, name, md5Checksum = md5, appProperties = appProperties, parents = listOf(parent), createdTime = "2026-10-01T12:%04d".format(next))
+    /** [createdTime] defaults to now (later files are newer). */
+    fun driveFile(
+        id: String,
+        name: String,
+        appProperties: Map<String, String>,
+        parent: String,
+        md5: String?,
+        createdTime: Instant = Instant.now().plusMillis((++next).toLong()),
+    ) = DriveFile(id, name, md5Checksum = md5, appProperties = appProperties, parents = listOf(parent), createdTime = createdTime.toString())
 
     fun of(mediaId: String, role: String) = files.filter { it.appProperties[DriveFormat.KEY_ID] == mediaId && it.appProperties[DriveFormat.KEY_ROLE] == role }
 

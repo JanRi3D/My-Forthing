@@ -1,6 +1,7 @@
 package me.ri3d.cam.backup
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.work.Configuration
@@ -30,7 +31,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import org.robolectric.shadows.ShadowLooper
 import me.ri3d.cam.R
 import me.ri3d.cam.core.model.BackupMode
@@ -81,7 +84,32 @@ class BackupQueueTest {
     private fun TestScope.setup(): BackupFixture {
         f = BackupFixture(context, db, this, tmp.newFile("prefs.preferences_pb").apply { delete() })
         queue = BackupQueue(context, f.repository, f.preferences, f.auth, f.backup, f.store)
+        defaultNetwork(NetworkCapabilities.TRANSPORT_WIFI, NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         return f
+    }
+
+    /** The phone's default network: validated internet over [transport] plus [extra] capabilities. */
+    private fun defaultNetwork(transport: Int, vararg extra: Int) {
+        val caps = ShadowNetworkCapabilities.newInstance()
+        (intArrayOf(NetworkCapabilities.NET_CAPABILITY_INTERNET, NetworkCapabilities.NET_CAPABILITY_VALIDATED) + extra).forEach { shadowOf(caps).addCapability(it) }
+        shadowOf(caps).addTransportType(transport)
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        shadowOf(connectivity).setNetworkCapabilities(connectivity.activeNetwork, caps)
+    }
+
+    @Test
+    fun `a job started on a network that no longer fits waits without uploading`() = runTest {
+        setup()
+        defaultNetwork(NetworkCapabilities.TRANSPORT_CELLULAR) // Wi-Fi only is the default rule
+        val item = f.local("/sim/EVENT/a.mp4")
+        queue.enqueue(listOf(item.id))
+        val work = unfinished().single()
+
+        networkUp()
+        eventually { workManager.getWorkInfoById(work.id).get()!!.runAttemptCount == 1 }
+
+        assertThat(f.api.sessions).isEmpty()
+        assertThat(state(item.id)).isEqualTo(BackupState.QUEUED)
     }
 
     private fun state(id: String) = runBlocking { f.item(id)?.backupState }

@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -183,7 +184,7 @@ class BackupQueue @Inject constructor(
     /** Stops and forgets the upload of [id] (also a failed one); the automatic rules skip it until "Sichern". */
     suspend fun cancel(id: String) {
         store.exclude(id)
-        store.setSession(id, null)
+        store.clearSession(id)
         store.clearFailures(id)
         repository.update(id) {
             if (it.backupState in BackupRules.PENDING || it.backupState == BackupState.FAILED) it.copy(backupState = BackupState.NONE, backupError = null) else it
@@ -193,9 +194,12 @@ class BackupQueue @Inject constructor(
     }
 
     /** "Drive-Kopie löschen": media file and sidecar; phone and recorder copies stay. */
-    suspend fun deleteOnDrive(id: String): Result<Unit> {
-        if (repository.get(id)?.backupState in BackupRules.PENDING) cancel(id)
-        return backup.deleteOnDrive(id)
+    suspend fun deleteOnDrive(id: String): Result<Unit> = backup.deleteOnDrive(id)
+
+    /** The default network right now fits the network conditions (checked by the worker before it uploads). */
+    suspend fun networkFits(): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        return BackupRules.networkFits(connectivity.getNetworkCapabilities(connectivity.activeNetwork), preferences.preferences.first())
     }
 
     /** "Drive-Status prüfen"; returns how many DONE items were missing in Drive. */
@@ -222,7 +226,7 @@ class BackupQueue @Inject constructor(
         }
     }
 
-    private fun enqueueWork(item: MediaItem, constraints: Constraints, policy: ExistingWorkPolicy) {
+    private suspend fun enqueueWork(item: MediaItem, constraints: Constraints, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<BackupWorker>()
             .setInputData(workDataOf(KEY_ID to item.id, KEY_NAME to item.originalFileName))
             .setConstraints(constraints)
@@ -230,7 +234,7 @@ class BackupQueue @Inject constructor(
             .addTag(TAG)
             .addTag(ID_TAG + item.id)
             .build()
-        workManager.enqueueUniqueWork(workName(item.id), policy, request)
+        workManager.enqueueUniqueWork(workName(item.id), policy, request).await()
     }
 
     companion object {
@@ -261,21 +265,28 @@ class BackupWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val mediaId = inputData.getString(BackupQueue.KEY_ID) ?: return Result.success()
         val name = inputData.getString(BackupQueue.KEY_NAME).orEmpty()
+        // JobScheduler decided on the network a moment ago; the default network may have changed since.
+        if (!queue.networkFits()) return Result.retry()
         // Not allowed from the background on Android 12+: then it runs as normal work (and may be stopped and resumed).
         runCatching { setForeground(foregroundInfo(name, 0, 0)) }
         var last = 0L
-        val outcome = backup.upload(mediaId) { sent, total ->
-            val now = SystemClock.elapsedRealtime()
-            if (now - last >= PROGRESS_INTERVAL_MS || sent == total) {
-                last = now
-                setProgressAsync(workDataOf(BackupQueue.KEY_BYTES to sent, BackupQueue.KEY_TOTAL to total))
-                BackupNotifications.show(applicationContext, id.hashCode()) { BackupNotifications.progress(applicationContext, name, sent, total) }
+        val outcome = try {
+            backup.upload(mediaId) { sent, total ->
+                val now = SystemClock.elapsedRealtime()
+                if (now - last >= PROGRESS_INTERVAL_MS || sent == total) {
+                    last = now
+                    setProgressAsync(workDataOf(BackupQueue.KEY_BYTES to sent, BackupQueue.KEY_TOTAL to total))
+                    BackupNotifications.show(applicationContext, id.hashCode()) { BackupNotifications.progress(applicationContext, name, sent, total) }
+                }
             }
+        } finally {
+            BackupNotifications.cancel(applicationContext, id.hashCode()) // never leave an ongoing progress notification
         }
         if (outcome is BackupOutcome.Paused && outcome.reason != PauseReason.NOT_CONNECTED) {
             BackupNotifications.alert(applicationContext, outcome.reason)
         }
-        if (outcome == BackupOutcome.Retry) return Result.retry()
+        // Right after process start Drive reads "not connected" until the account record is loaded: try again then.
+        if (outcome == BackupOutcome.Retry || outcome == BackupOutcome.Paused(PauseReason.NOT_CONNECTED) && backup.connected) return Result.retry()
         queue.schedule(excluding = id)
         return Result.success()
     }
@@ -336,7 +347,11 @@ internal object BackupNotifications {
         }
     }
 
-    fun cancelAlert(context: Context) = NotificationManagerCompat.from(context).cancel(ALERT_ID)
+    fun cancelAlert(context: Context) = cancel(context, ALERT_ID)
+
+    fun cancel(context: Context, id: Int) {
+        runCatching { NotificationManagerCompat.from(context).cancel(id) }
+    }
 
     /** A failing notification never fails the backup. */
     fun show(context: Context, id: Int, build: () -> Notification) {
