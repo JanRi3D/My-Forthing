@@ -68,8 +68,9 @@ class AuthViewModel @Inject constructor(
     var termsAccepted by mutableStateOf(false)
         private set
 
-    /** Field errors appear after the first submit. */
+    /** Field errors appear after the first submit; Google only checks the terms. */
     private var validate by mutableStateOf(false)
+    private var validateTerms by mutableStateOf(false)
     var busy by mutableStateOf(false)
         private set
     var message by mutableStateOf<UiText?>(null)
@@ -96,7 +97,7 @@ class AuthViewModel @Inject constructor(
 
     @get:StringRes
     val termsError: Int?
-        get() = R.string.account_error_terms.takeIf { validate && !termsAccepted }
+        get() = R.string.account_error_terms.takeIf { (validate || validateTerms) && !termsAccepted }
 
     fun onEmail(value: String) {
         email = value
@@ -126,16 +127,16 @@ class AuthViewModel @Inject constructor(
     fun signInGoogle(activity: Activity, needsTerms: Boolean) {
         if (busy) return
         if (needsTerms && !termsAccepted) {
-            validate = true
+            validateTerms = true
             return
         }
-        run { accounts.signInGoogle(activity).then { link(MergeStrategy.ASK, next = AuthDone.HOME) } }
+        perform { accounts.signInGoogle(activity).then { link(MergeStrategy.ASK, next = AuthDone.HOME) } }
     }
 
     fun sendReset() {
         validate = true
         if (busy || emailError != null) return
-        run {
+        perform {
             accounts.sendPasswordReset(email).onSuccess {
                 resendCooldown.start(RESEND_COOLDOWN_S)
                 done = AuthDone.RESET_SENT
@@ -145,7 +146,7 @@ class AuthViewModel @Inject constructor(
 
     fun resendReset() {
         if (busy || resendCooldown.secondsLeft > 0) return
-        run {
+        perform {
             accounts.sendPasswordReset(email).onSuccess {
                 resendCooldown.start(RESEND_COOLDOWN_S)
                 message = UiText.Res(R.string.account_link_sent)
@@ -155,7 +156,7 @@ class AuthViewModel @Inject constructor(
 
     fun choose(strategy: MergeStrategy) {
         prompt = null
-        run { link(strategy, next = afterLink) }
+        perform { link(strategy, next = afterLink) }
     }
 
     /** The user declined the chooser or the account switch: back to the state before signing in. */
@@ -171,11 +172,11 @@ class AuthViewModel @Inject constructor(
     private fun submit(newPassword: Boolean, needsTerms: Boolean, action: suspend () -> Result<Unit>) {
         validate = true
         if (busy || emailError != null || passwordError(newPassword) != null || (needsTerms && termsError != null)) return
-        run(action)
+        perform(action)
     }
 
     /** Runs [action] with the busy flag; its failure becomes [message]. */
-    private fun run(action: suspend () -> Result<Unit>) {
+    private fun perform(action: suspend () -> Result<Unit>) {
         busy = true
         message = null
         viewModelScope.launch {

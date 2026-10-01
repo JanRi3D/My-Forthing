@@ -202,6 +202,7 @@ class AuthViewModelTest {
         vm.signInGoogle(activity, needsTerms = true)
         advanceUntilIdle()
         assertThat(vm.termsError).isEqualTo(R.string.account_error_terms)
+        assertThat(vm.emailError).isNull() // the e-mail form is not in use
         assertThat(repo.calls).isEmpty()
 
         vm.onTerms(true)
