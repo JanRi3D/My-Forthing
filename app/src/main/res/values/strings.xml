@@ -427,4 +427,47 @@
     <string name="account_error_password_short">Das Passwort braucht mindestens 8 Zeichen.</string>
     <string name="account_error_terms">Bitte stimme den Nutzungsbedingungen zu.</string>
     <!-- /accounts -->
+
+    <!-- live -->
+    <string name="live_title">Live-Ansicht</string>
+    <string name="live_fullscreen">Vollbild</string>
+    <string name="live_fullscreen_exit">Vollbild verlassen</string>
+    <string name="live_badge">Live</string>
+    <string name="live_phone_time">Handyzeit %1$s</string>
+    <string name="live_connect_first">Erst mit dem Recorder verbinden</string>
+    <string name="live_loading">Livebild wird geöffnet …</string>
+    <string name="live_buffering">Puffern …</string>
+    <string name="live_failed">Livebild nicht verfügbar</string>
+    <string name="live_failed_code">Code: %1$s</string>
+    <string name="live_err_network">Recorder liefert kein Livebild (RTSP, Port 554)</string>
+    <string name="live_err_format">Livebild des Recorders nicht lesbar (Datenformat)</string>
+    <string name="live_err_decoder">Videoformat auf diesem Handy nicht abspielbar</string>
+    <string name="live_err_ended">Der Recorder hat das Livebild beendet</string>
+    <string name="live_err_not_bound">Keine Verbindung über das Dashcam-WLAN – bitte neu verbinden</string>
+    <string name="live_err_other">Unerwarteter Fehler beim Abspielen</string>
+    <string name="live_video_description">Livebild der Dashcam</string>
+    <string name="live_screenshot">Screenshot</string>
+    <string name="live_screenshot_action">Screenshot aufnehmen</string>
+    <string name="live_screenshot_saved">Screenshot gespeichert</string>
+    <string name="live_screenshot_saved_app">Screenshot gespeichert (nur in der App, nicht in Fotos)</string>
+    <string name="live_screenshot_failed">Screenshot konnte nicht gespeichert werden</string>
+    <string name="live_screenshot_no_frame">Kein Livebild für einen Screenshot</string>
+    <string name="live_recorder_controls">Auf der SD-Karte der Dashcam</string>
+    <string name="live_photo">Foto</string>
+    <string name="live_burst">5er-Serie</string>
+    <string name="live_record">Aufnahme</string>
+    <string name="live_record_running">Aufnahme · %1$d s</string>
+    <string name="live_record_note">Countdown der App wie im Original – die Clip-Länge bestimmt der Recorder.</string>
+    <string name="live_waiting">Wartet auf den Recorder …</string>
+    <string name="live_reply_ok">%1$s – Recorder meldet: %2$s</string>
+    <string name="live_reply_no_path">OK ohne Dateipfad (rval %1$d)</string>
+    <string name="live_reply_time">Zeit laut Recorder: %1$s</string>
+    <string name="live_reply_error">%1$s – Recorder meldet Fehler: %2$s</string>
+    <string name="live_reply_local">%1$s: %2$s</string>
+    <string name="live_reply_late">%1$s, verspätete Antwort</string>
+    <plurals name="live_extra_replies">
+        <item quantity="one">%1$s: %2$d weitere Antwort des Recorders (zuletzt: %3$s)</item>
+        <item quantity="other">%1$s: %2$d weitere Antworten des Recorders (zuletzt: %3$s)</item>
+    </plurals>
+    <!-- /live -->
 </resources>
