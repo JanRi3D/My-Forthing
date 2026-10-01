@@ -87,8 +87,11 @@ Recorder settings are a different type and are never touched. Unknown keys/value
 kept in the document and ignored locally.
 
 While signed in (`ProfileSync.run`): a remote change (another phone) is applied to the phone; a local change of the
-profile name (Konto screen) or a synced preference (Darstellung) is written to Firestore. Remote wins if both change at
-the same moment.
+profile name (Konto screen) or a synced preference (Darstellung) is written to Firestore. Direction: the phone's synced
+state is re-read on every change and compared with its state right after the last apply or push; if it moved, it is a
+local edit (pushed), otherwise the difference came from the account (applied). The account's copy wins at sign-in /
+app start. Timestamp-only updates (server acknowledgements) are ignored. Pictures: a picture missing on the phone is
+fetched; a picture missing in the account (Storage enabled later, earlier upload failed) is uploaded from the phone.
 
 ## Linking and migration (`linkGuestProfile`)
 
@@ -109,7 +112,8 @@ cache must not decide an overwrite).
 | linked to another account | has data / empty | KEEP_REMOTE ("Wechseln") | account profile applied / phone profile moves into the account |
 
 Nothing is overwritten without the user's decision when both sides hold a profile. The guest picture stays on the
-phone unless the profile is linked. Sign-out keeps the profile on the phone (still marked as linked) and stops syncing;
+phone unless the profile is linked. The phone's picture is only ever replaced by one that was actually downloaded; for
+the same account it is kept when the account has none (e.g. no Storage). Sign-out keeps the profile on the phone (still marked as linked) and stops syncing;
 Settings then shows "Abgemeldet · Anmelden".
 
 `AccountState.SignedIn` is reported only when the Firebase user is the account this phone's profile is linked to.
@@ -124,8 +128,10 @@ when returning to the app and every 5 s while visible, "Später bestätigen"); t
 not offered (sign out on the Konto screen instead). The Upgrade screen also offers e-mail/password and the terms
 checkbox, and says that dashcam settings stay in the dashcam (the artboard claimed they move).
 
-Google sign-in: Credential Manager with `GetGoogleIdOption` (web client id, random nonce, all accounts), then
-`GoogleAuthProvider.getCredential(idToken)`. Sign-out clears the Credential Manager state.
+Google sign-in: Credential Manager with `GetGoogleIdOption` (web client id, all accounts); if the phone has no Google
+account (`NoCredentialException`) it retries with `GetSignInWithGoogleOption`, whose flow lets the user add one. Then
+`GoogleAuthProvider.getCredential(idToken)`. No nonce: Firebase does not verify one for Google ID tokens. Sign-out
+clears the Credential Manager state.
 
 ## Tests
 
@@ -144,5 +150,8 @@ avatar downscale, live sync without echo), `SyncedPreferencesTest`, `AccountErro
 - Writes queued offline are lost if the user signs out before they reach the server.
 - Unverified e-mail accounts can sync (the rules do not require `email_verified`).
 - Release builds are not minified; enabling R8 later needs the Credential Manager keep rules.
-- Dependencies add the permissions `INTERNET`, `ACCESS_NETWORK_STATE` (Firebase), `USE_BIOMETRIC`/`USE_FINGERPRINT`
-  (androidx.credentials) and `READ_GSERVICES` (Play services) to the merged manifest.
+- Dependencies add the permissions `INTERNET`, `ACCESS_NETWORK_STATE` (Firebase) and `READ_GSERVICES` (Play services)
+  to the merged manifest; `USE_BIOMETRIC`/`USE_FINGERPRINT` from androidx.credentials are removed in the app manifest.
+- A guest or other-account picture dropped without a replacement (KEEP_REMOTE onto an account without one) stays in
+  `filesDir/profile` unreferenced.
+- Logs carry only exception class and error code.
