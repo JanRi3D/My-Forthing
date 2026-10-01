@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -48,8 +49,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.scale
@@ -78,10 +85,13 @@ import me.ri3d.cam.core.log.Log
 import me.ri3d.cam.core.ui.AxoTopBar
 import me.ri3d.cam.core.ui.ListGroup
 import me.ri3d.cam.core.ui.SectionHeader
+import me.ri3d.cam.enhance.DefaultFrameEnhancer
 import me.ri3d.cam.enhance.EnhanceEngine
 import me.ri3d.cam.enhance.EnhanceError
 import me.ri3d.cam.enhance.EnhanceException
 import me.ri3d.cam.enhance.EnhancedFrame
+import me.ri3d.cam.enhance.EnhancedOutput
+import me.ri3d.cam.enhance.EnhancementInfo
 import me.ri3d.cam.enhance.EnhancerCapabilities
 import me.ri3d.cam.enhance.FrameEnhancer
 import me.ri3d.cam.enhance.saveEnhancedFrame
@@ -154,6 +164,8 @@ class EnhanceViewModel @Inject constructor(
 
     private suspend fun load() {
         val item = repository.get(mediaId)
+        // Outputs are reconstructions already; they are never enhanced again.
+        if (item?.isDerived == true) return _state.update { it.copy(loading = false, loadError = R.string.enhance_error_derived) }
         val file = item?.localFile?.takeIf { it.isFile }
         if (file == null) return _state.update { it.copy(loading = false, loadError = R.string.enhance_error_no_copy) }
         val position = requestedPositionMs.takeIf { item.isVideo }
@@ -165,7 +177,14 @@ class EnhanceViewModel @Inject constructor(
         _state.update {
             it.copy(fileName = item.originalFileName, positionMs = position, sourceWidth = bitmap.width, sourceHeight = bitmap.height, original = original)
         }
-        val c = enhancer.capabilities().also { caps = it }
+        val c = try {
+            enhancer.capabilities()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "capabilities failed, classical only: ${e.javaClass.simpleName}")
+            EnhancerCapabilities(listOf(EnhanceEngine.CLASSICAL), null, DefaultFrameEnhancer.maxOutputPixels(context), emptyList())
+        }.also { caps = it }
         val scales = listOf(4, 2).associateWith { bitmap.width.toLong() * bitmap.height <= c.maxInputPixels(it) }
         _state.update { s ->
             s.copy(loading = false, engines = c.engines, engine = c.engines.first(), scales = scales, scale = scales.entries.firstOrNull { it.value }?.key ?: 4)
@@ -222,15 +241,19 @@ class EnhanceViewModel @Inject constructor(
         val out = frame ?: return
         val result = _state.value.result ?: return
         if (_state.value.saving) return
+        val positionMs = _state.value.positionMs
         _state.update { it.copy(saving = true, error = null) }
         viewModelScope.launch {
             // Finishes even when the screen is left meanwhile, so no output is left without its library item.
-            val id = withContext(NonCancellable) {
+            val id = withContext(NonCancellable + Dispatchers.IO) {
+                var output: EnhancedOutput? = null
                 try {
-                    val output = saveEnhancedFrame(context, out, result.scale, mediaId, _state.value.positionMs)
+                    output = saveEnhancedFrame(context, out, result.scale, mediaId, positionMs)
                     repository.registerDerived(MediaKind.ENHANCED_FRAME, output.file, mediaId, output.info.sourcePositionMs, output.info).id
-                } catch (e: Exception) {
+                } catch (e: Throwable) { // incl. OutOfMemoryError while encoding a large JPEG; nothing here is cancellable
                     Log.w(TAG, "saving the enhanced frame failed: ${e.javaClass.simpleName}")
+                    // A file without its library item would be invisible in the app: remove it.
+                    output?.let { it.file.delete(); EnhancementInfo.sidecarOf(it.file).delete() }
                     null
                 }
             }
@@ -250,7 +273,7 @@ class EnhanceViewModel @Inject constructor(
 
     override fun onCleared() {
         job?.cancel()
-        dropResult()
+        if (!_state.value.saving) dropResult() // a running save still reads the bitmap
     }
 
     private companion object {
@@ -301,7 +324,14 @@ fun EnhanceScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: Enha
                 LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
                 OutlinedButton(onClick = viewModel::cancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_cancel)) }
             }
-            s.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+            s.error?.let {
+                Text(
+                    stringResource(it),
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             when {
                 s.result != null -> {
                     Button(onClick = viewModel::save, enabled = !s.saving, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
@@ -333,7 +363,7 @@ private fun Comparison(original: Bitmap, result: EnhanceResult?) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var box by remember { mutableStateOf(IntSize.Zero) }
-    val transform = rememberTransformableState { zoomChange, pan, _ ->
+    val transform = rememberTransformableState { _, zoomChange, pan, _ ->
         zoom = (zoom * zoomChange).coerceIn(1f, MAX_ZOOM)
         val maxX = box.width * (zoom - 1) / 2
         val maxY = box.height * (zoom - 1) / 2
@@ -342,15 +372,19 @@ private fun Comparison(original: Bitmap, result: EnhanceResult?) {
     val enhanced = result?.takeIf { showEnhanced }?.preview
     val shown = enhanced ?: original
     val image = remember(shown) { shown.asImageBitmap() }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // At most 60 % of the window height, so options and buttons stay reachable in landscape.
+    val density = LocalDensity.current
+    val maxHeight = LocalWindowInfo.current.containerSize.height.takeIf { it > 0 }?.let { with(density) { (it * 0.6f).toDp() } } ?: Dp.Infinity
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .fillMaxWidth()
+                .heightIn(max = maxHeight)
                 .aspectRatio(original.width.toFloat() / original.height)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color.Black)
                 .onSizeChanged { box = it }
-                .transformable(transform),
+                // Unzoomed, one-finger drags scroll the screen instead of panning the image.
+                .transformable(transform, canPan = { zoom > 1f }),
         ) {
             Image(
                 image,
