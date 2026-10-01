@@ -13,31 +13,34 @@ class MlKitPlateRecognizer(maxWidth: Int = 1280) : PlateRecognizer          // H
 @Singleton class PlateRepository {                                           // Hilt
   fun history(): Flow<List<Plate>>                                           // newest first
   fun search(query: String): Flow<List<Plate>>                               // partial match on normalized, e.g. "BMK" or "4821"
-  fun plate(id: Long): Flow<PlateWithSightings?>                             // sightings unordered
+  fun plate(id: Long): Flow<PlateWithSightings?>                             // sightings unordered, each with its own display
   suspend fun recordSightings(detections, source: SightingSource, mediaId: String? = null, positionMs: Long? = null,
-                              frame: Bitmap? = null, seenAt: Long = now): Int // returns sightings written
+                              frame: Bitmap? = null, seenAt: Long = now, frameScale: Float = 1f): Int // sightings written
+  suspend fun forgetClip(mediaId: String)                                    // drop in-memory dedupe state after a scan
   suspend fun clear()                                                        // rows + every crop
   suspend fun clearForMedia(mediaId: String)                                 // sightings of one recording + their crops
 }
-class Frame(val bitmap: Bitmap, val timestampMs: Long)
+class Frame(val bitmap: Bitmap, val timestampMs: Long)                       // software ARGB_8888 bitmap
 data class ProcessingStats(val processedFps: Float, val avgMs: Float, val busyFraction: Float, val dropped: Long)
 class AdaptiveThrottle(budget: Float = 0.3f)
 class LivePlateProcessor(recognizer, repository: PlateRepository?, scope, throttle = AdaptiveThrottle()) {
   val detections: StateFlow<List<PlateDetection>>; val stats: StateFlow<ProcessingStats>
   val wantsFrame: Boolean                                                    // check before grabbing a bitmap from the player
-  fun submit(frame: Frame): Boolean                                          // false = dropped (busy or throttled)
+  fun submit(frame: Frame): Boolean                                          // false = dropped (busy, throttled, or closed)
   fun close()
 }
 class ClipPlateScanner {                                                     // Hilt
   suspend fun scan(uri: Uri, mediaId: String, fps: Int = 2, clipStartMs: Long? = null, onProgress: (ScanProgress) -> Unit = {}): ScanSummary
-}
-class PlateExport { suspend fun forMedia(mediaId: String): List<SidecarPlate> }  // Hilt; @Serializable SidecarPlate(text, normalized, positionMs, confidence, box)
+}                                                                            // boxes in video pixels; last progress = 1.0
+class PlateExport { suspend fun forMedia(mediaId: String): List<SidecarPlate> }  // Hilt; empty unless backupIncludePlateMetadata
 ```
 
-Room (`AppDatabase` v2, migration 1→2 in `AppDatabase.MIGRATION_1_2`, schema `app/schemas/…/2.json`):
-`plate(id, normalized UNIQUE, display, firstSeen, lastSeen, count)`, `plate_sighting(id, plateId → plate ON DELETE CASCADE, mediaId, positionMs, source LIVE|CLIP, seenAt, confidence, cropPath, boxLeft/Top/Right/Bottom)`, indices on `normalized`, `plateId`, `mediaId`, `seenAt`.
+Room (`AppDatabase` v2, migration 1→2 in `AppDatabase.MIGRATION_1_2`, registered through `AppDatabase.MIGRATIONS`, schema `app/schemas/…/2.json`):
+`plate(id, normalized UNIQUE, display, firstSeen, lastSeen, count)`, `plate_sighting(id, plateId → plate ON DELETE CASCADE, display, mediaId, positionMs, source LIVE|CLIP, seenAt, confidence, cropPath, boxLeft/Top/Right/Bottom)`, indices on `normalized`, `plateId`, `mediaId`, `seenAt`.
 
-Additions to CONTRACTS §11 (documented deviations): `PlateDetection.format`; sighting box columns (needed for the sidecar `box`); `recordSightings(…, frame, seenAt)` (crop source, and the road time for clips: `seenAt = clipStart + positionMs` when the clip start is known); `confidence` is averaged over the plate's **characters** (ML Kit symbols) instead of its elements, because an element often contains the seal glyph whose low score is not about the plate. Crops: `filesDir/plates/<uuid>.jpg`, ≤ 320 px wide, JPEG 85, `cropPath` relative to `filesDir` (same convention as `LocalProfile.avatarPath`).
+Additions to CONTRACTS §11 (documented deviations): `PlateDetection.format`; `PlateSighting.display` (each sighting keeps its own reading; the sidecar `text` is that reading) and the box columns (sidecar `box`); `recordSightings(…, frame, seenAt, frameScale)` (crop source, the road time for clips: `seenAt = clipStart + positionMs` when known, and the crop scale when a clip frame was decoded smaller than the video); `confidence` is averaged over the plate's **characters** (ML Kit symbols), not its elements. Crops: `filesDir/plates/<uuid>.jpg`, ≤ 320 px wide, JPEG 85, `cropPath` relative to `filesDir` (same convention as `LocalProfile.avatarPath`); a failed or cancelled write deletes its crop.
+
+**History merging:** sightings merge into a plate by `normalized` (the OCR's own uppercase alphanumerics, separators and `?` marks do not count). A reading with `?` keeps its own `display` on the sighting; the plate's `display` is the first reading and is replaced by the first later reading without `?`, never the other way round. Because `normalized` keeps the OCR's guess for an unsure glyph, an unsure reading only merges with the clean one when that guess was right: `B ?K 4821` (guess M) joins `B MK 4821`, but `HH? JK 553` (seal guessed as S, key `HHSJK553`) and `?-MK 4821` (key `8MK4821`) are separate entries from `HH JK 553` / `B-MK 4821`.
 
 Dedupe: a plate detected again within 2 s of its previous detection is one sighting (sliding: a plate in view for 10 s live is one sighting, not five). LIVE compares wall time; CLIP compares the position inside the same clip and additionally skips a position within 2 s of an existing sighting of that plate in that clip, so scanning a clip again (any fps) adds nothing.
 
@@ -46,74 +49,90 @@ Dedupe: a plate detected again within 2 s of its previous detection is one sight
 - `com.google.mlkit:text-recognition:16.0.1` (Text Recognition v2, Latin, **bundled** model). 16.0.1 is the newest release on Google Maven (Aug 2024). Works offline from the first launch; the unbundled Play-services variant would download the model on first use, so it was not chosen. Passes `checkDebugAarMetadata` with compileSdk 36.
 - Licence: [ML Kit Terms of Service](https://developers.google.com/ml-kit/terms) (Google proprietary SDK, free of charge, not open source).
 - Privacy note: frames and recognised text never leave the phone through this code. ML Kit itself merges `INTERNET`, `ACCESS_NETWORK_STATE` and Google `datatransport` (CCT) services into the manifest; per its terms ML Kit sends API usage/performance metrics to Google (no image content). Whether to suppress that (manifest `tools:node="remove"` of the transport services) is an owner decision, not done here.
-- Size: `libmlkit_google_ocr_pipeline.so` is 11.1 MB (arm64-v8a), 6.8 MB (armeabi-v7a), 11.6 MB (x86/x86_64) uncompressed, models ~1.5 MB; the debug APK with all four ABIs is 58 MB. The release build should ship an AAB or set `abiFilters` (arm64-v8a, armeabi-v7a).
-- API facts checked in the AAR (`play-services-mlkit-text-recognition-common` 19.1.0): `Text.Line/Element/Symbol.getConfidence()` return a primitive `float`, never null. Measured: v2 Latin fills them (plates: 0.68–0.93 per plate after averaging; single glyphs 0.07–0.98).
+- **APK size (for the release phase):** the OCR native library `libmlkit_google_ocr_pipeline.so` is 11.1 MB (arm64-v8a), 6.8 MB (armeabi-v7a), 11.6 MB (x86) and 11.6 MB (x86_64) uncompressed, **41 MB across the four ABIs**, plus ~1.5 MB of models; the debug APK is 58 MB. The release build should set `abiFilters` to arm64-v8a/armeabi-v7a or ship an AAB.
+- API facts checked in the AAR (`play-services-mlkit-text-recognition-common` 19.1.0): `Text.Line/Element/Symbol.getConfidence()` return a primitive `float`, never null. Measured: v2 Latin fills them (single glyphs 0.07–0.98).
+- District codes: `GermanDistrictCodes.kt`, the 769 Unterscheidungszeichen of Kraftfahrt-Bundesamt, ["Kfz-Kennzeichen und auslaufende Kennzeichen in Deutschland", Stand 16.04.2026](https://www.kba.de/SharedDocs/Downloads/DE/Presse/kfz_kennzeichenliste_faltblatt.pdf) (sections "Festgelegte" and "Aufgehobene Unterscheidungszeichen"), extracted with `pdftotext -layout`. Special series without a letter group (Y, THW, BP, diplomatic 0) never match the pattern and are not listed. Update the set when the KBA publishes a new list.
 
 ## Recognition rules (`PlateText`, `MlKitPlateRecognizer`)
 
-1. Frames wider than 1280 px are downscaled before OCR; boxes are mapped back to the caller's frame.
-2. Per ML Kit symbol: a **coloured** glyph (≥ 40 % clearly saturated pixels: EU band, coloured stickers; plate characters are black on white) becomes a separator; a glyph scored **< 0.4** is shown as `?` (its OCR guess is kept for `normalized`).
+1. Frames wider than 1280 px are downscaled before OCR; boxes are mapped back to the caller's frame (clip boxes to video pixels).
+2. Per ML Kit symbol: a glyph scored **< 0.4** is unsure and shown as `?` (its OCR guess is kept for `normalized`). An unsure glyph whose **ink** is coloured (EU band, coloured stickers; plate characters are black) becomes a separator instead, unless most glyphs of the line are coloured (green/red plates). Ink = pixels darker than 0.8 × the glyph box's median brightness, or the darkest 10 % for thin glyphs and the evenly blue band, so black characters on yellow plates are not coloured. A letter at least as wide as it is high (merged seal, measured 1.09–2.09 vs ≤ 0.91 for plate letters) adds a possible seal gap that is tried as a separator and as nothing.
 3. A confidently read **lowercase** letter rejects the text (plates are uppercase; signs and ads are mostly mixed case).
 4. Text is uppercased, separators unified (`-` if a dash was read, else space); `normalized` = uppercase A–Z, 0–9, ÄÖÜ of the OCR reading.
-5. German: `^[A-ZÄÖÜ]{1,3}[- ]?[A-Z]{1,2}[- ]?[0-9]{1,4}[HE]?$` with `?` standing for one unreadable character, at most 8 characters before the H/E suffix. One `?` with only letters before it and a letter right after it is first tried as the **seal** (registration/inspection stickers between city code and letters, which OCR reads as "8", "S", "&", "3" …) and then becomes a separator.
-6. Ambiguity: if the reading fits only after O↔0 / I↔1 / B↔8 swaps (at most 2, each swap must fit its block: a digit in an all-letter block or vice versa), the swapped positions are shown as `?` and nothing is corrected: `8-MK 4821` → display `?-MK 4821`, normalized `8MK4821`.
-7. Generic EU fallback (`format = GENERIC`): 2–3 blocks, letters and digits, 5–9 characters, no unreadable glyph, letter-only blocks ≤ 3 characters.
-8. Per OCR line, every window of up to 4 elements is tried; overlaps resolve German > generic, then more elements, then certain > uncertain.
+5. German: an official **district code** (1–3 letters, `?` as wildcard), a **visible boundary** (separators and at most one `?` between letters), 1–2 letters, optional separator, 1–4 digits with **at least one read digit**, optional H/E; at most 8 characters before the suffix, a boundary `?` not counted. Joined text such as `BMK 4821` is not German (indistinguishable from `BUS 42` = B-US 42, `RAST 500` = RA-ST 500); it can still pass as generic, and the recognizer splits a merged seal (rule 2).
+6. **Seal rule:** an unsure glyph with only letters before it and a letter after it is left out as the seal (registration/inspection stickers between city code and letters) **only if its OCR guess is not a letter** (seals come out as `8`, `3`, `&`). A glyph guessed as a letter stays `?` and the reading stays uncertain (`K?LT 207`, `OF? NB 512`). Any reading that left out a glyph (seal or coloured) has no confidence.
+7. Ambiguity: if the reading fits only after O↔0 / I↔1 / B↔8 swaps (at most 2 unsure or swapped characters, each swap must fit its block), the swapped positions are shown as `?` and nothing is corrected: `8-MK 4821` → display `?-MK 4821`, normalized `8MK4821`.
+8. Generic EU fallback (`format = GENERIC`): 2–3 blocks, letters and digits, 5–9 characters (two-block readings ≥ 7: the two-block EU formats PL, I, E, UK have 7), no unreadable glyph, letter-only blocks ≤ 3 characters.
+9. Per OCR line, every window of up to 4 elements is tried; overlaps resolve German > generic, then more elements, then certain > uncertain.
 
-**What `confidence` means:** ML Kit's own per-character recognition score (model output, not calibrated, not a probability that the plate is right), averaged over the plate's characters. It is **null** when any character is `?` (unreadable or ambiguous) or when ML Kit reports no score (0 or NaN). The UI should show it as a coarse quality hint at most and never for `?` readings.
+**What `confidence` means:** ML Kit's own per-character recognition score (model output, not calibrated, not a probability), averaged over the plate's characters, present only when every character of the reading was read with a score and nothing was left out. It is **null** when any character is `?`, a glyph was left out (seal, coloured glyph), or ML Kit reports no score (0 or NaN). **It does not separate right from wrong readings:** in the evaluation wrong readings scored 0.76–0.90 (before the review fixes) and 0.84 (after), right ones 0.68–0.93 / 0.84–0.93. The UI must not show it as a percentage or probability; at most use "has confidence" vs "uncertain (`?`)".
 
 ## Synthetic evaluation (no real footage yet)
 
-Instrumented `PlateEvaluationTest` renders a deterministic set with `Canvas`: 42 plates on 1920×1080 dashcam-like scenes (EU band with stars, the two seals, fictional German plates in five system fonts, widths 140–420 px) and 15 negatives (12 street/shop/ad texts + 3 uppercase hard negatives). System fonts stand in for the FE-Schrift; the renderer is mine, so these numbers show the filter works as designed, not real-world accuracy.
+Instrumented `PlateEvaluationTest` renders a deterministic set with `Canvas`: 44 plates on 1920×1080 dashcam-like scenes (EU band with stars, the two seals, fictional German plates in five system fonts, widths 140–420 px, one yellow NL plate, one green-ink German plate) and 16 negatives (12 street/shop/ad texts, 4 uppercase hard negatives incl. `TAXI 4711` on yellow and on white). System fonts stand in for the FE-Schrift; the renderer is mine, so these numbers show the filter works as designed, not real-world accuracy.
 
-Result (identical in every run; emulator `Pixel_10_Pro_XL` AVD, API 36, x86_64, 4 vCPU on an i9-14900K host, shared with another agent):
+Categories per positive: **exact**; **`?`-consistent** (every `?` stands for one character, the rest matches); **seal shown as `?`** (the `?` stands where the seal is, i.e. for no plate character: consistent once that `?` is removed; uncertain, no confidence, but `normalized` carries the OCR's guess for the seal); **missed**. Wrong detections are readings that fit none of these.
 
-| condition | n | exact | `?`-marked, consistent | missed | wrong detections |
-| --- | --- | --- | --- | --- | --- |
-| clean | 8 | 8 | 0 | 0 | 0 |
-| small (140–240 px wide) | 4 | 3 | 1 | 0 | 0 |
-| skew / perspective / rotation | 5 | 4 | 0 | 1 | 2 (both `?`, no confidence) |
-| blur (defocus ×3/×4, motion 12/24 px) | 4 | 3 | 0 | 1 | 0 |
-| noise | 4 | 4 | 0 | 0 | 0 |
-| night (contrast 0.3, noise) | 4 | 4 | 0 | 0 | 0 |
-| occlusion (20–50 % covered) | 3 | 0 | 0 | 3 | 3 (`B MK 48` certain; 2 with `?`) |
-| EU generic (F, PL, I, E) | 4 | 4 | 0 | 0 | 0 |
-| H/E suffix | 2 | 2 | 0 | 0 | 0 |
-| umlaut city code (TÜ, MÜ) | 2 | 2 | 0 | 0 | 0 |
-| two-line (motorbike) | 2 | 0 | 0 | 2 | 0 |
-| negatives | 15 | – | – | – | 2 (`ZONE 30` German, `TGX 18 510` generic) |
+Result after the review fixes (identical in both runs; emulator `Pixel_10_Pro_XL` AVD, API 36, x86_64, 4 vCPU on an i9-14900K host, shared with another agent):
 
-- Recall (exact or `?`-marked and consistent with the truth): **35/42 = 0.83** (exact 34/42). Precision (correct / all detections): **35/42 = 0.83**. Negatives with a detection: 2/15. Expected format among found: 35/35. Detections with a confidence: 37/42 (range 0.68–0.93).
-- Before the glyph rules (2, 3, 5) the same set gave recall 15/42 and precision 15/46: OCR read the seal as a character on every clean plate (`B8MK`, `FSZO`, `HH3JK`) and 6/12 mixed-case negatives were accepted. The 0.4 threshold comes from that run's symbol scores: seal/band glyphs 0.07–0.36, plate characters mostly ≥ 0.5 (lowest 0.30–0.43 on small/skewed plates).
-- Regression guards in the test: clean ≥ 7/8 exact, recall ≥ 0.75, ≤ 3 negatives with a detection.
+| condition | n | exact | `?`-consistent | seal shown as `?` | missed | wrong detections |
+| --- | --- | --- | --- | --- | --- | --- |
+| clean | 8 | 7 | 0 | 1 | 0 | 0 |
+| small (140–240 px wide) | 4 | 1 | 1 | 2 | 0 | 0 |
+| skew / perspective / rotation | 5 | 2 | 0 | 2 | 1 | 1 (`L006 AX 1` generic, no confidence) |
+| blur (defocus ×3/×4, motion 12/24 px) | 4 | 1 | 0 | 1 | 2 | 0 |
+| noise | 4 | 3 | 0 | 1 | 0 | 0 |
+| night (contrast 0.3, noise) | 4 | 4 | 0 | 0 | 0 | 0 |
+| occlusion (20–50 % covered) | 3 | 0 | 0 | 0 | 3 | 1 (`B MK 48`, no confidence) |
+| EU generic (F, PL, I, E, NL yellow) | 5 | 5 | 0 | 0 | 0 | 0 |
+| green ink | 1 | 1 | 0 | 0 | 0 | 0 |
+| H/E suffix | 2 | 1 | 1 | 0 | 0 | 0 |
+| umlaut city code (TÜ, MÜ) | 2 | 1 | 0 | 1 | 0 | 0 |
+| two-line (motorbike) | 2 | 0 | 0 | 0 | 2 | 0 |
+| negatives | 16 | – | – | – | – | 1 (`TGX 18 510` generic) |
+
+| metric | before review (42 + 15) | after review (44 + 16) |
+| --- | --- | --- |
+| recall strict (exact or `?`-consistent) | 35/42 = 0.83 (34 exact) | 28/44 = 0.64 (26 exact) |
+| recall incl. seal shown as `?` | – | 36/44 = 0.82 |
+| precision strict | 35/42 = 0.83 | 28/39 = 0.72 |
+| precision counting seal-as-`?` readings | – | 36/39 = 0.92 |
+| negatives with a detection | 2/15 (`ZONE 30`, `TGX 18 510`) | 1/16 (`TGX 18 510`) |
+| detections with a confidence | 37/42 | 13/39 |
+
+- The strict recall drop is the price of the stricter seal rule: 8 plates whose seal ML Kit guessed as a letter (`S`, `O`, `E`) are now shown as `K?LT 207`, `N?PQ 45`, `TÜ? AB 123` … instead of being silently cleaned up. They are found and marked, but their history key contains the guess (see History merging). Most clean readings now have no confidence because their seal glyph was left out.
+- Before the glyph rules the very first run gave recall 15/42 and precision 15/46: OCR read the seal as a character on every clean plate (`B8MK`, `FSZO`, `HH3JK`) and 6/12 mixed-case negatives were accepted. The 0.4 threshold comes from that run's symbol scores: seal/band glyphs 0.07–0.36, plate characters mostly ≥ 0.5 (lowest 0.30–0.43 on small/skewed plates).
+- Test guards: no reading with `?` has a confidence; clean ≥ 6/8 exact; recall incl. seal-as-`?` ≥ 0.75; ≤ 3 negatives with a detection.
 
 ## Measured timings (emulator, indicative only)
 
-x86_64 emulator numbers run on a desktop CPU and say nothing reliable about a phone; they only compare settings with each other.
+x86_64 emulator numbers run on a desktop CPU and say nothing reliable about a phone; they only compare settings with each other. The emulator instance was restarted during the review fixes; the post-review numbers below are from that instance and are higher than the earlier runs on the previous instance (1280 px: avg 47–101 ms), so compare within a row only.
 
-| measurement | result |
+| measurement | result (2 runs after the review fixes) |
 | --- | --- |
-| `PlateBenchmark.widths`, OCR + filter per 1920×1080 frame, 4 runs | 1280 px: avg 47–101 ms, p95 98–174 ms, recall 35/42 · 960 px: avg 44–62 ms, p95 84–126 ms, recall 34/42 · 640 px: avg 50–63 ms, p95 81–138 ms, recall 33/42 |
-| first `recognize` in a fresh process (model init included) | 263–282 ms |
-| `PlateBenchmark.liveThrottle` (30 fps offered for 6 s, budget 0.30, 1920×1080 frames) | 3.2–5.2 frames/s processed, 52–73 ms/frame, busy share 0.23–0.27, 146–157 of ~175 frames dropped |
-| `ClipPlateScanner` on the generated 3 s 1280×720 H.264 clip at 2 fps | `getFrameAtTime(OPTION_CLOSEST)` 44–58 ms/frame, OCR 94–101 ms/frame, whole clip 0.9–1.0 s |
+| `PlateBenchmark.widths`, OCR + filter per 1920×1080 frame | 1280 px: avg 93–95 ms, p95 152–176 ms, recall strict 28/44 + 8 seal-as-`?` · 960 px: avg 63–66 ms, p95 97–124 ms, 27/44 + 8 · 640 px: avg 73–93 ms, p95 143–260 ms, 29/44 + 6 |
+| first `recognize` in a fresh process (model init included) | 164–1127 ms |
+| `PlateBenchmark.liveThrottle` (30 fps offered for 6 s, budget 0.30, 1920×1080 frames) | 3.6 frames/s processed, 75–78 ms/frame, busy share 0.27–0.28, 155 of 176 frames dropped |
+| `ClipPlateScanner` on the generated 3 s 1280×720 H.264 clip at 2 fps | decode (`OPTION_CLOSEST`) 71–90 ms/frame, OCR 158–191 ms/frame, whole clip 1.5–1.8 s |
 
 ## Adaptive policy
 
-- Live: drop-if-busy (one frame in flight) plus `AdaptiveThrottle`: after a frame that took d ms (exponentially smoothed, α = 0.3) the next frame is accepted d × (1/budget − 1) ms later, so processing occupies ≈ budget (default 30 %) of wall time on any device; a slow phone simply processes fewer frames. `wantsFrame` lets the live view skip the bitmap copy for frames that would be dropped. `stats` exposes processed fps, mean ms, busy share and dropped frames over the last 5 s.
-- Resolution stays at 1280 px: on the emulator 960/640 px saved little and inconsistent time and lost recall (34, 33 of 42). Re-check on a phone; if 640 px is clearly faster there, step down when the throttled rate falls below ~1 frame/s.
-- Clips: 2 fps by default, `MediaMetadataRetriever.getFrameAtTime(OPTION_CLOSEST)`; every sample decodes from the previous key frame, which at 2 fps is about one decode of the clip. A sequential `MediaCodec` decode is only worth it for higher fps.
+- Live: drop-if-busy (one frame in flight) plus `AdaptiveThrottle`: after a frame that took d ms (exponentially smoothed, α = 0.3) the next frame is accepted d × (1/budget − 1) ms later, so processing occupies ≈ budget (default 30 %) of wall time on any device; a slow phone simply processes fewer frames. `wantsFrame` lets the live view skip the bitmap copy for frames that would be dropped. `stats` exposes processed fps, mean ms, busy share and dropped frames over the last 5 s. After `close()` frames are dropped silently.
+- Resolution stays at 1280 px: on the emulator 960/640 px gave no consistent saving and recall moved by ±1. Re-check on a phone; if 640 px is clearly faster there, step down when the throttled rate falls below ~1 frame/s.
+- Clips: 2 fps by default via `MediaMetadataRetriever` (`getScaledFrameAtTime` to 1280 px on API 27+, full-size `getFrameAtTime` on API 26), `OPTION_CLOSEST`; every sample decodes from the previous key frame, which at 2 fps is about one decode of the clip. A sequential `MediaCodec` decode is only worth it for higher fps.
 
 ## Known failure modes
 
-- **Seal not read as its own glyph but merged into a letter, or a real character scored < 0.4 right after the city code:** the seal rule can then drop a real character (e.g. `BX-MK` read as `B MK`). Not seen in the synthetic set; watch for it in real footage.
-- **Partial occlusion** (tow bar, bike rack, dirt) can leave a shorter but valid plate (`B MK 48` for `B MK 4821`), reported as certain. The filter cannot know characters are missing.
+- **Seal guessed as a letter** (`S`, `O`, `E`): shown as `?`, uncertain, no confidence, and filed under a key containing the guess (`HHSJK553` next to `HHJK553`); in the generated clip one of three frames did this.
+- **Seal merged into a letter, or a real character after the city code with a non-letter guess below 0.4:** the seal rule can still drop a real character (`BX-MK` read as `B MK`), but such readings carry no confidence. Not seen in the synthetic set.
+- **Partial occlusion** (tow bar, bike rack, dirt) can leave a shorter but valid plate (`B MK 48` for `B MK 4821`). Future work: an occlusion check that marks the reading uncertain when the strip right of the last glyph is darker than the plate background. Not done: a fixed strip width crosses the plate border on long plates, so it needs the plate outline first.
 - **Two-line plates** (motorbikes, some imports, square rear plates) are not joined across OCR lines: missed.
-- **Umlaut city codes** (TÜ, MÜ, FÜ, LÖ …) work when OCR keeps the dots (both synthetic cases did); if it reads `TU`, the plate is stored as `TU…` and a search for `TÜ` misses it (search for the digits instead).
-- **Uppercase street text** shaped like a plate (`ZONE 30`, truck model `TGX 18.510`) passes; an official city-code list (Unterscheidungszeichen) would remove most of these and is the next precision step.
-- **EU band glyph without colour** (night, IR, washed-out) is not recognised as the band; it then shows up as a leading `?` and the reading counts as a different plate.
+- **Umlaut city codes** (TÜ, MÜ, FÜ, LÖ …) work when OCR keeps the dots; if it reads `TU`, the plate fails the district check or is stored as `TU…` (search for the digits instead).
+- **Joined readings** without seal evidence (`BMK 4821`, blur sample) are reported as GENERIC; joined readings that are not valid generic plates (`MZTT 6006`) are missed.
+- **Uppercase text shaped like a generic plate** (truck model `TGX 18.510`) passes as GENERIC.
+- **EU band glyph without colour** (night, IR, washed-out) shows up as a leading `?`.
 - **Lowercase OCR on real plates** (small or skewed text read as `s`, `o`, `x` with a confident score) rejects the reading.
-- `?` readings keep the OCR's characters in `normalized`, so `?-MK 4821` (`8MK4821`) and `B-MK 4821` (`BMK4821`) are separate history entries.
+- Swap readings can produce an odd split while keeping the right key: `MAB 123H` (joined) → `MAB ?23H` (MAB is a district code).
 - Generic plates with an unreadable glyph are dropped.
 - Night/IR frames, real motion blur, compression artefacts, glare and real plate fonts are not covered by the synthetic set.
 
@@ -123,7 +142,7 @@ Needs a USB-debuggable phone and the debug + test APKs (`./gradlew :app:assemble
 
 1. Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk` and `adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`.
 2. Speed on the phone: `adb logcat -c`, then `adb shell am instrument -w -e class to.axolotl.cam.plates.PlateBenchmark to.axolotl.cam.test/androidx.test.runner.AndroidJUnitRunner`, then `adb logcat -d -s PlateEval`. Note avg/p95 per width and the live-throttle line (processed fps, busy share). Repeat 3×.
-3. Accuracy sanity on the phone: same with `-e class to.axolotl.cam.plates.PlateEvaluationTest` (the recall/precision lines must match the table above; a difference means a different ML Kit build).
+3. Accuracy sanity on the phone: same with `-e class to.axolotl.cam.plates.PlateEvaluationTest`. ARM and x86 builds of the ML Kit model may differ slightly, so the recall/precision lines should be close to the table above, not necessarily identical; a large difference means a different ML Kit build or a bug.
 4. CPU while live (after feature/plates-ui; until then step 2's `liveThrottle` is the proxy): live view with plates **off** for 10 min, then **on** for 10 min, phone on USB. Per block: `adb shell dumpsys battery unplug` (USB charging otherwise stops battery stats) and `adb shell dumpsys batterystats --reset` at the start; at the end `adb shell dumpsys batterystats to.axolotl.cam > plates-off.txt` (or `plates-on.txt`) and `adb shell dumpsys battery reset`. Compare the `Proc to.axolotl.cam: CPU: … usr + … krn` lines. During the block sample `adb shell top -b -d 5 -n 12 | grep to.axolotl.cam` for %CPU.
 5. Thermal: `adb shell dumpsys thermalservice` before and after each 10-min block; record "Thermal Status" and the CPU/skin temperatures. Plates on should not raise the thermal status above the plates-off block.
 6. Real footage, once available: copy 3–5 clips with readable plates (day, night, rain, motorway) to the phone, scan them through the app (plates-ui) or a one-off instrumented test calling `ClipPlateScanner.scan`, and write down per clip: plates truly visible, found exact, found with `?`, wrong, scan time. Those numbers replace the synthetic table as the reference.
@@ -131,6 +150,6 @@ Needs a USB-debuggable phone and the debug + test APKs (`./gradlew :app:assemble
 ## Hardware / owner verification items
 
 - Measurements 2–6 above on the owner's phone (synthetic numbers are emulator-only).
-- Real dashcam footage evaluation (recall, `?` rate, false positives, especially the seal rule and night/IR).
+- Real dashcam footage evaluation (recall, `?` rate, false positives), especially the seal rule (how often real seals are guessed as letters), the wide-glyph seal gap and night/IR.
 - Decide on ML Kit usage metrics (keep, or remove the transport services from the merged manifest).
-- Release: ABI split / AAB to avoid shipping four copies of the 7–12 MB OCR library.
+- Release: `abiFilters` arm64-v8a/armeabi-v7a or an AAB (41 MB of OCR libraries across four ABIs otherwise).
