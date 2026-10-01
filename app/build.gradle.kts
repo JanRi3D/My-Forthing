@@ -79,11 +79,16 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    // dashcam
+    implementation(project(":recorder"))
+    implementation(libs.okhttp)
+    implementation(libs.androidx.lifecycle.process)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)
+    testImplementation(testFixtures(project(":recorder"))) // dashcam: RecorderSimulator
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }
