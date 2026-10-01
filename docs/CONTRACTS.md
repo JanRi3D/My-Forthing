@@ -16,9 +16,10 @@ Binding for every agent. Producers implement exactly these shapes (improvements 
 | `app/.../backup/` | feature/drive-backup | rules, transfer queue, status |
 | `app/.../plates/` | feature/plates-core then feature/plates-ui | engine, history, UI |
 | `app/.../enhance/` | feature/enhance-core then feature/enhance-ui | models, pipelines, UI |
-| `docs/`, `.claude/` | project manager | plans, contracts, reports |
+| `docs/features/<feature>.md` | the feature's owner | setup notes, decisions, measurements, hardware-verification items for that feature |
+| `docs/` (rest), `.claude/` | project manager | plans, contracts, reports |
 
-Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gradle.kts`, `AndroidManifest.xml`, `core/navigation/Routes.kt`, `core/navigation/AxoNavHost.kt` (one registration line / slot argument per feature), `core/FeatureFlags.kt` (flip your own flag only), `core/data/AppDatabase.kt` (add entities + migration), `res/values/strings.xml`, `res/xml/data_extraction_rules.xml` (add excludes only)): owned by foundation; other agents may **append** (new deps, new routes, new entities, new strings in their own `<!-- feature -->` block) and must list every such change in their report. Android Auto Backup is disabled (`allowBackup="false"`, cloud and device-transfer excludes): local data stays on the phone, as the UI promises. Hilt: each feature provides its own `@Module` in its package; never edit another feature's module.
+Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gradle.kts`, `AndroidManifest.xml`, `core/navigation/Routes.kt`, `core/navigation/AxoNavHost.kt` (one registration line / slot argument per feature), `core/FeatureFlags.kt` (flip your own flag only), `core/data/AppDatabase.kt` (add entities + migration), `res/values/strings.xml`, `res/xml/data_extraction_rules.xml` (add excludes only), `core/settings/SettingsScreen.kt` (append one row per feature in the App section, nothing else)): owned by foundation; other agents may **append** (new deps, new routes, new entities, new strings in their own `<!-- feature -->` block) and must list every such change in their report. Android Auto Backup is disabled (`allowBackup="false"`, cloud and device-transfer excludes): local data stays on the phone, as the UI promises. Hilt: each feature provides its own `@Module` in its package; never edit another feature's module.
 
 ## 2. Naming, branding, localisation
 
@@ -243,7 +244,7 @@ Outputs are new `MediaItem`s (`ENHANCED_FRAME` / `UPSCALED_CLIP` with `parentId`
 
 ## 13a. Build-version rule
 
-One `kotlin` version key in `gradle/libs.versions.toml` drives `kotlin-jvm`, `kotlin-compose` and `kotlin-serialization` (currently 2.4.10, the Compose-compiler release; AGP 9.3.3 bundles KGP 2.2.10 but the plugin on the root classpath wins). kotlinx libraries must be releases built for that Kotlin line. Every AndroidX dependency must accept compileSdk 36 (`checkDebugAarMetadata`); do not raise compileSdk. Emulator (`emulator-5554`, x86_64, API 36) is shared: install with `adb install -r`, keep sessions short, treat performance numbers from it as indicative only.
+One `kotlin` version key in `gradle/libs.versions.toml` drives `kotlin-jvm`, `kotlin-compose` and `kotlin-serialization` (currently 2.4.10, the Compose-compiler release; AGP 9.3.3 bundles KGP 2.2.10 but the plugin on the root classpath wins). kotlinx libraries must be releases compatible with that Kotlin line (currently coroutines 1.10.2, serialization 1.11.0; move to serialization 1.12.0 once final and re-run the `:recorder` -204 tests). Every AndroidX dependency must accept compileSdk 36 (`checkDebugAarMetadata`); do not raise compileSdk. Emulator (`emulator-5554`, x86_64, API 36) is shared: install with `adb install -r`, keep sessions short, treat performance numbers from it as indicative only.
 
 ## 13. Testing conventions
 
