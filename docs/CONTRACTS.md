@@ -212,9 +212,9 @@ No Firebase call anywhere in `drive/`. Scope `https://www.googleapis.com/auth/dr
 ### Drive format v1 (documented for the web app in `docs/DRIVE_FORMAT.md`, written by feature/drive-auth)
 
 ```
-<Drive>/Axolotl Cam/                 root folder; appProperties: axo.format=1, axo.role=root
-  axolotlcam.json                    { "format": 1, "app": "to.axolotl.cam", "createdAt": "ISO-8601" }
-  media/<yyyy-MM>/<mediaId>.<ext>    original or derived file; appProperties: axo.id, axo.kind, axo.category, axo.parent (optional), axo.format=1
+<Drive>/My Forthing/                 root folder; appProperties: mf.format=1, mf.role=root
+  myforthing.json                    { "format": 1, "app": "me.ri3d.cam", "createdAt": "ISO-8601" }
+  media/<yyyy-MM>/<mediaId>.<ext>    original or derived file; appProperties: mf.id, mf.kind, mf.category, mf.parent (optional), mf.format=1
   media/<yyyy-MM>/<mediaId>.json     sidecar, written ONLY after the media upload is verified (md5Checksum match)
 ```
 Sidecar schema v1:
@@ -227,9 +227,9 @@ Sidecar schema v1:
   "plates": [ { "text": "B-MK 4821", "normalized": "BMK4821", "positionMs": 37000, "confidence": 0.93, "box": [0, 0, 0, 0] } ],
   "backup": { "complete": true, "completedAt": "ISO-8601" } }
 ```
-`parent` and `plates` may be `null`; `confidence` may be `null`. `recorderTimeZone` stays `null` unless the recorder reports one. Incomplete backups are visible as media files without a sidecar (or sidecar `complete=false`). Discovery: `files.list` with `q="appProperties has { key='axo.format' and value='1' }"`.
+`parent` and `plates` may be `null`; `confidence` may be `null`. `recorderTimeZone` stays `null` unless the recorder reports one. Incomplete backups are visible as media files without a sidecar (or sidecar `complete=false`). Discovery: `files.list` with `q="appProperties has { key='mf.format' and value='1' }"`.
 
-Backup queue: `BackupQueue` (WorkManager unique work per mediaId, constraints from `AppPreferences`), states in `MediaItem.backupState`, resumable-upload session URI persisted for restart recovery, duplicate prevention by querying `axo.id` before upload. Rules from the drive-auth review: when `DriveAuthState.Connected.accountEmail` changes (account switch), reset every `driveFileId`/`backupState`/`driveMd5` and drop stored upload-session URIs (they can complete an upload without the auth header); `DriveApi.delete()` treats 404 as success, so never use it to infer that a file existed in the current account; `deleteOnDrive(id)` removes the sidecar together with the media file; uploads run one at a time (no folder cache/lock in `DriveApi`). As implemented in `drive/`: `DriveAuth.connect(activity, chooseAccount = false)`, `invalidate(token, revoked)`, `NeedsReconnect(reason, accountEmail?)`, `DriveApi.ensureMonthFolder(rootId, month)`, `uploadResumable(..., sessionUri, onSessionUri, onProgress)`, `DriveError` sealed hierarchy (`NotConnected, NeedsReconnect, InsufficientStorage, Offline, Cancelled, Authorization(statusCode), ScopeNotGranted, Http(code, reason)`), every v1 file carries `axo.role` (root/manifest/folder/media/sidecar), `DriveFormatReader.scan(api)` → `DriveBackupEntry(mediaId, media, sidecar) { complete }`.
+Backup queue: `BackupQueue` (WorkManager unique work per mediaId, constraints from `AppPreferences`), states in `MediaItem.backupState`, resumable-upload session URI persisted for restart recovery, duplicate prevention by querying `mf.id` before upload. Rules from the drive-auth review: when `DriveAuthState.Connected.accountEmail` changes (account switch), reset every `driveFileId`/`backupState`/`driveMd5` and drop stored upload-session URIs (they can complete an upload without the auth header); `DriveApi.delete()` treats 404 as success, so never use it to infer that a file existed in the current account; `deleteOnDrive(id)` removes the sidecar together with the media file; uploads run one at a time (no folder cache/lock in `DriveApi`). As implemented in `drive/`: `DriveAuth.connect(activity, chooseAccount = false)`, `invalidate(token, revoked)`, `NeedsReconnect(reason, accountEmail?)`, `DriveApi.ensureMonthFolder(rootId, month)`, `uploadResumable(..., sessionUri, onSessionUri, onProgress)`, `DriveError` sealed hierarchy (`NotConnected, NeedsReconnect, InsufficientStorage, Offline, Cancelled, Authorization(statusCode), ScopeNotGranted, Http(code, reason)`), every v1 file carries `mf.role` (root/manifest/folder/media/sidecar), `DriveFormatReader.scan(api)` → `DriveBackupEntry(mediaId, media, sidecar) { complete }`.
 
 ## 11. Plates (feature/plates-core → feature/plates-ui, `plates/`)
 

@@ -46,9 +46,9 @@ Without these steps "Mit Google Drive verbinden" ends with **"Google-Cloud-Konfi
 - `DriveApi.ensureMonthFolder(rootId, month)` – `media/<yyyy-MM>`; month from `DriveFormat.monthFolderName(recorderTimeEpochGuess, downloadedAt ?: createdAt)`.
 - `DriveError` sealed class: `NotConnected`, `NeedsReconnect`, `InsufficientStorage`, `Offline`, `Cancelled`, `Authorization(statusCode)`, `ScopeNotGranted`, `Http(code, reason)`.
 - Connect fails unless the account e-mail can be read from Drive `about.user`: network problems and a missing e-mail → `Offline`, HTTP errors keep their reason (403 `accessNotConfigured` → "Drive API nicht aktiviert"). The grant at Google stays, so the retry is silent.
-- Format: every v1 file also carries `axo.role` (root / manifest / folder / media / sidecar) so readers can tell media from sidecars without downloading content; sidecars carry `axo.format`, `axo.role`, `axo.id`. Files without `axo.role` are not part of the format.
+- Format: every v1 file also carries `mf.role` (root / manifest / folder / media / sidecar) so readers can tell media from sidecars without downloading content; sidecars carry `mf.format`, `mf.role`, `mf.id`. Files without `mf.role` are not part of the format.
 - `delete(id)` deletes permanently (frees quota) and treats 404 as done. The backup feature should delete the sidecar too.
-- Root folder found by `axo.role=root` (preferring the current name), so a renamed root is reused.
+- Root folder found by `mf.role=root` (preferring the current name), so a renamed root is reused.
 - The account e-mail is read from Drive `about.user` because `AuthorizationResult.toGoogleSignInAccount()` is deprecated in play-services-auth 22.
 - OkHttp pinned to 5.4.0: 5.5.0 (`okhttp-android`) requires compileSdk 37.
 - `kotlinx-coroutines-play-services` (for `Task.await`) is declared explicitly, on the coroutines version line.

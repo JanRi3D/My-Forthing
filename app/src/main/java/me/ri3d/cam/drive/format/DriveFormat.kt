@@ -15,17 +15,17 @@ import java.time.format.DateTimeFormatter
 object DriveFormat {
     const val VERSION = 1
     const val APP_ID = "me.ri3d.cam"
-    const val MANIFEST_NAME = "axolotlcam.json"
+    const val MANIFEST_NAME = "myforthing.json"
     const val MEDIA_FOLDER_NAME = "media"
     const val FOLDER_MIME = "application/vnd.google-apps.folder"
     const val JSON_MIME = "application/json"
 
-    const val KEY_FORMAT = "axo.format"
-    const val KEY_ROLE = "axo.role"
-    const val KEY_ID = "axo.id"
-    const val KEY_KIND = "axo.kind"
-    const val KEY_CATEGORY = "axo.category"
-    const val KEY_PARENT = "axo.parent"
+    const val KEY_FORMAT = "mf.format"
+    const val KEY_ROLE = "mf.role"
+    const val KEY_ID = "mf.id"
+    const val KEY_KIND = "mf.kind"
+    const val KEY_CATEGORY = "mf.category"
+    const val KEY_PARENT = "mf.parent"
 
     const val ROLE_ROOT = "root"
     const val ROLE_MANIFEST = "manifest"
@@ -129,7 +129,7 @@ data class DriveBackupEntry(val mediaId: String, val media: DriveFile?, val side
 object DriveFormatReader {
     suspend fun scan(api: DriveApi): Result<List<DriveBackupEntry>> = api.list(DriveFormat.BACKUP_FILES_QUERY).map(::pair)
 
-    /** Groups by `axo.id`; with duplicates the oldest file of each role wins. Entries are sorted by media id. */
+    /** Groups by `mf.id`; with duplicates the oldest file of each role wins. Entries are sorted by media id. */
     fun pair(files: List<DriveFile>): List<DriveBackupEntry> =
         files.filter { it.appProperties[DriveFormat.KEY_FORMAT] == DriveFormat.VERSION.toString() }
             .groupBy { it.appProperties[DriveFormat.KEY_ID] }

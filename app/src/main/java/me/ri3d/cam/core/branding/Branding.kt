@@ -9,7 +9,7 @@ object Branding {
     val appName: Int = R.string.app_name
 
     /** Root folder in the user's Google Drive (Drive format v1). */
-    const val driveRootFolderName = "Axolotl Cam"
+    const val driveRootFolderName = "My Forthing"
 
     // TODO(owner): the owner sets the real support URL (still the old placeholder domain); terms/privacy links derive from it.
     const val supportUrl = "https://axolotl.to"

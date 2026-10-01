@@ -75,9 +75,9 @@ class DriveFormatTest {
         assertThat(DriveFormat.mediaFileName("id", "screenshot", "image/jpeg")).isEqualTo("id.jpg")
         assertThat(DriveFormat.sidecarFileName("id")).isEqualTo("id.json")
         assertThat(DriveFormat.mediaAppProperties("id", "SCREENSHOT", "USER", parentId = null)).containsExactly(
-            "axo.format", "1", "axo.role", "media", "axo.id", "id", "axo.kind", "SCREENSHOT", "axo.category", "USER",
+            "mf.format", "1", "mf.role", "media", "mf.id", "id", "mf.kind", "SCREENSHOT", "mf.category", "USER",
         )
-        assertThat(DriveFormat.mediaAppProperties("id", "UPSCALED_CLIP", "NORMAL", "p")).containsEntry("axo.parent", "p")
+        assertThat(DriveFormat.mediaAppProperties("id", "UPSCALED_CLIP", "NORMAL", "p")).containsEntry("mf.parent", "p")
         assertThat(DriveFormat.isoTimestamp(1_790_848_980_000, ZoneId.of("Europe/Berlin"))).isEqualTo("2026-10-01T12:03:00+02:00")
         assertThat(DriveFormat.isoTimestamp(1_790_848_980_123, ZoneId.of("Europe/Berlin"))).isEqualTo("2026-10-01T12:03:00.123+02:00")
         assertThat(DriveFormat.isoTimestamp(1_790_848_980_900, ZoneOffset.UTC)).isEqualTo("2026-10-01T10:03:00.9Z")
@@ -117,7 +117,7 @@ class DriveFormatTest {
             file("m4old", DriveFormat.mediaAppProperties("d", "ORIGINAL_VIDEO", "EVENT", null), "2026-10-01T00:00:00Z"),
             file("root", DriveFormat.roleAppProperties(DriveFormat.ROLE_ROOT)),
             file("manifest", DriveFormat.roleAppProperties(DriveFormat.ROLE_MANIFEST)),
-            file("v2", mapOf("axo.format" to "2", "axo.role" to "media", "axo.id" to "f")),
+            file("v2", mapOf("mf.format" to "2", "mf.role" to "media", "mf.id" to "f")),
         )
 
         val entries = DriveFormatReader.pair(files).associateBy { it.mediaId }

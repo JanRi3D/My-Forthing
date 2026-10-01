@@ -10,7 +10,7 @@ import java.io.File
  * 429 / 5xx / rate-limit 403 → bounded exponential backoff; network failures → [DriveError.Offline].
  */
 interface DriveApi {
-    /** Finds (or creates) the `Axolotl Cam` root folder including its `axolotlcam.json` manifest. Returns the folder id. */
+    /** Finds (or creates) the `My Forthing` root folder including its `myforthing.json` manifest. Returns the folder id. */
     suspend fun ensureRootFolder(): Result<String>
 
     /** Finds (or creates) `media/<month>` below [rootId], e.g. month = `2026-10` (see `DriveFormat.monthFolderName`). */

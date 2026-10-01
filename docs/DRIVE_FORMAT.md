@@ -1,6 +1,6 @@
-# Axolotl Cam – Google Drive format v1
+# My Forthing – Google Drive format v1
 
-Normative description of what the Android app writes to the user's Google Drive, so a web app can discover, list and play the backups **through Drive alone** (no server, no Firebase). Source of truth in code: `app/src/main/java/to/axolotl/cam/drive/format/` (`DriveFormat`, `DriveSidecar`, `DriveFormatReader`) and `DriveRestApi`. Contract: `docs/CONTRACTS.md` §10.
+Normative description of what the Android app writes to the user's Google Drive, so a web app can discover, list and play the backups **through Drive alone** (no server, no Firebase). Source of truth in code: `app/src/main/java/me/ri3d/cam/drive/format/` (`DriveFormat`, `DriveSidecar`, `DriveFormatReader`) and `DriveRestApi`. Contract: `docs/CONTRACTS.md` §10.
 
 ## 1. Access: same Google Cloud project, scope `drive.file`
 
@@ -12,30 +12,30 @@ Normative description of what the Android app writes to the user's Google Drive,
 ## 2. Folder layout
 
 ```
-<My Drive>/Axolotl Cam/                      root folder      appProperties: axo.format=1, axo.role=root
-  axolotlcam.json                            manifest         appProperties: axo.format=1, axo.role=manifest
-  media/                                     folder           appProperties: axo.format=1, axo.role=folder
-    2026-10/                                 month folder     appProperties: axo.format=1, axo.role=folder
+<My Drive>/My Forthing/                      root folder      appProperties: mf.format=1, mf.role=root
+  myforthing.json                            manifest         appProperties: mf.format=1, mf.role=manifest
+  media/                                     folder           appProperties: mf.format=1, mf.role=folder
+    2026-10/                                 month folder     appProperties: mf.format=1, mf.role=folder
       <mediaId>.<ext>                        media file       appProperties: see §3
       <mediaId>.json                         sidecar          appProperties: see §3
 ```
 
-- The root folder name comes from `Branding.driveRootFolderName` ("Axolotl Cam"). The user may rename or move it; the app identifies it by `axo.role=root` (preferring the one with the current name, else the oldest). A trashed root is ignored and a new one is created.
+- The root folder name comes from `Branding.driveRootFolderName` ("My Forthing"). The user may rename or move it; the app identifies it by `mf.role=root` (preferring the one with the current name, else the oldest). A trashed root is ignored and a new one is created.
 - Month folder `yyyy-MM`: the month of the recorder time (`recorderTimeEpochGuess`, the recorder wall clock parsed in the phone's zone), else of the download time (derived files: creation time). Informational only – **readers must not rely on folder placement**; use the queries in §5.
 - `<mediaId>` is the app's stable UUID v4 (`MediaItem.id`). `<ext>` is the lower-cased extension of the recorder file name (`MP4` → `mp4`), else derived from the MIME type (`video/mp4` → `mp4`, `image/jpeg` → `jpg`, `image/png` → `png`, otherwise `bin`).
-- Manifest `axolotlcam.json`: `{"format":1,"app":"to.axolotl.cam","createdAt":"2026-10-01T12:00:00.317+02:00"}` (`createdAt` = when the root was set up).
+- Manifest `myforthing.json`: `{"format":1,"app":"me.ri3d.cam","createdAt":"2026-10-01T12:00:00.317+02:00"}` (`createdAt` = when the root was set up).
 - **Timestamps** (`createdAt`, `downloadedAt`, `backup.completedAt`) are ISO-8601 with offset as `DriveFormat.isoTimestamp` writes them: milliseconds appear when non-zero, with trailing zeros dropped (`2026-10-01T12:03:00.123+02:00`, `…:03.9+02:00`, else `2026-10-01T12:03:00+02:00`), and UTC is written as `Z`. Parse them with a full ISO-8601 parser (`new Date(…)` / `Temporal.Instant.from` both work). `recorderTime` is different: see §4.
 
 ## 3. appProperties
 
 | Key | On | Value |
 | --- | --- | --- |
-| `axo.format` | everything | `"1"` – format major version |
-| `axo.role` | everything | `root`, `manifest`, `folder`, `media`, `sidecar` |
-| `axo.id` | media, sidecar | media UUID; pairs a media file with its sidecar |
-| `axo.kind` | media | `ORIGINAL_VIDEO`, `ORIGINAL_PHOTO`, `SCREENSHOT`, `ENHANCED_FRAME`, `UPSCALED_CLIP` |
-| `axo.category` | media | `NORMAL`, `EVENT`, `USER`, `UNKNOWN` |
-| `axo.parent` | media, optional | UUID of the source item of an `ENHANCED_FRAME` / `UPSCALED_CLIP` |
+| `mf.format` | everything | `"1"` – format major version |
+| `mf.role` | everything | `root`, `manifest`, `folder`, `media`, `sidecar` |
+| `mf.id` | media, sidecar | media UUID; pairs a media file with its sidecar |
+| `mf.kind` | media | `ORIGINAL_VIDEO`, `ORIGINAL_PHOTO`, `SCREENSHOT`, `ENHANCED_FRAME`, `UPSCALED_CLIP` |
+| `mf.category` | media | `NORMAL`, `EVENT`, `USER`, `UNKNOWN` |
+| `mf.parent` | media, optional | UUID of the source item of an `ENHANCED_FRAME` / `UPSCALED_CLIP` |
 
 All values are strings (Drive limit: key + value ≤ 124 bytes UTF-8).
 
@@ -45,10 +45,10 @@ Written **only after** the media upload has been verified (Drive `md5Checksum` e
 
 | Field | Type | Null | Meaning |
 | --- | --- | --- | --- |
-| `format` | int | no | `1` (equals `axo.format`) |
-| `id` | string | no | media UUID (equals `axo.id` and the file name) |
-| `kind` | string | no | as `axo.kind`; unknown future values → treat as generic file |
-| `category` | string | no | as `axo.category`: `NORMAL` loop recording, `EVENT` incident (locked clip), `USER` user data such as photos, `UNKNOWN` |
+| `format` | int | no | `1` (equals `mf.format`) |
+| `id` | string | no | media UUID (equals `mf.id` and the file name) |
+| `kind` | string | no | as `mf.kind`; unknown future values → treat as generic file |
+| `category` | string | no | as `mf.category`: `NORMAL` loop recording, `EVENT` incident (locked clip), `USER` user data such as photos, `UNKNOWN` |
 | `recorderType` | int | yes | raw recorder listing type (0 normal video, 1 event video, 2 user data); null for files made by the app |
 | `originalFileName` | string | no | file name on the SD card (or the app-generated name) |
 | `recorderPath` | string | yes | full path on the recorder, e.g. `/mnt/sd/EVENT/…MP4`; null for app-made files |
@@ -90,7 +90,7 @@ Example (enhanced frame taken from that clip at 0:12, plate metadata off):
  "backup":{"complete":true,"completedAt":"2026-10-01T18:20:03.9+02:00"}}
 ```
 
-The media file's appProperties for the second example: `axo.format=1, axo.role=media, axo.id=0b6f…2f70, axo.kind=ENHANCED_FRAME, axo.category=EVENT, axo.parent=7f9c…4d55`.
+The media file's appProperties for the second example: `mf.format=1, mf.role=media, mf.id=0b6f…2f70, mf.kind=ENHANCED_FRAME, mf.category=EVENT, mf.parent=7f9c…4d55`.
 
 ## 5. Discovery (Drive REST v3 `files.list`)
 
@@ -99,11 +99,11 @@ Always add `trashed = false`, `spaces=drive`, `pageSize=1000`, and follow `nextP
 
 | Purpose | `q` |
 | --- | --- |
-| Everything of format v1 | `appProperties has { key='axo.format' and value='1' } and trashed = false` |
+| Everything of format v1 | `appProperties has { key='mf.format' and value='1' } and trashed = false` |
 | Media + sidecars (what the app's `DriveFormatReader` uses) | the above `and mimeType != 'application/vnd.google-apps.folder'` |
-| Media only | `appProperties has { key='axo.role' and value='media' } and appProperties has { key='axo.format' and value='1' } and trashed = false` |
-| One item | `appProperties has { key='axo.id' and value='<uuid>' } and trashed = false` |
-| Root folder | `mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='axo.role' and value='root' } and trashed = false` |
+| Media only | `appProperties has { key='mf.role' and value='media' } and appProperties has { key='mf.format' and value='1' } and trashed = false` |
+| One item | `appProperties has { key='mf.id' and value='<uuid>' } and trashed = false` |
+| Root folder | `mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='mf.role' and value='root' } and trashed = false` |
 
 Sidecar content: `GET https://www.googleapis.com/drive/v3/files/<sidecarId>?alt=media`. Media bytes: the same with the media id; send the token in the `Authorization: Bearer` header (Range requests work for seeking). Thumbnails and video resolution come from Drive itself (`thumbnailLink`, `videoMediaMetadata.width/height/durationMillis`), not from the sidecar.
 
@@ -117,7 +117,7 @@ Mapping for the web artboards (`docs/design/Web*.dc.html`): tabs Loop / Photos /
 
 ## 6. Completeness rules
 
-Group the media + sidecar listing by `axo.id`:
+Group the media + sidecar listing by `mf.id`:
 
 | Found | State | Web app |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ Resumable uploads only appear in Drive once the last byte is received, so a list
 
 ## 7. Versioning policy
 
-- `axo.format` / `format` is the **major** version. v1 readers query `value='1'` and therefore never see files of another major version.
-- **No bump** (additive, v1 readers stay correct): new optional sidecar fields, new appProperties keys, new `axo.role` values for files readers can skip, new `kind` / `category` values (readers must tolerate unknown values), new manifest fields. Readers must ignore unknown JSON fields and keys.
+- `mf.format` / `format` is the **major** version. v1 readers query `value='1'` and therefore never see files of another major version.
+- **No bump** (additive, v1 readers stay correct): new optional sidecar fields, new appProperties keys, new `mf.role` values for files readers can skip, new `kind` / `category` values (readers must tolerate unknown values), new manifest fields. Readers must ignore unknown JSON fields and keys.
 - **Bump to 2** for anything a v1 reader would misread: removing or renaming a field or key, changing a type or meaning (e.g. time-zone semantics of `recorderTime`, units of `box`), changing file naming or the media/sidecar pairing, writing sidecars before verification.
-- A v2 writer sets `axo.format=2` on new files, keeps reading v1, and may migrate v1 files by rewriting them with `axo.format=2`. The manifest's `format` is the highest version written into that root.
+- A v2 writer sets `mf.format=2` on new files, keeps reading v1, and may migrate v1 files by rewriting them with `mf.format=2`. The manifest's `format` is the highest version written into that root.

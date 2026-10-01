@@ -61,6 +61,6 @@ data class DriveSidecar(
     }
 }
 
-/** `axolotlcam.json` in the root folder. */
+/** `myforthing.json` in the root folder. */
 @Serializable
 data class DriveManifest(val format: Int = DriveFormat.VERSION, val app: String = DriveFormat.APP_ID, val createdAt: String)

@@ -47,14 +47,14 @@ class DriveRestApiTest {
         server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build()) // chunk sent, connection drops
 
         var persisted: String? = null
-        val first = api.uploadResumable(file, "id.mp4", "video/mp4", "month", mapOf("axo.id" to "id"), null, { persisted = it }) { _, _ -> }
+        val first = api.uploadResumable(file, "id.mp4", "video/mp4", "month", mapOf("mf.id" to "id"), null, { persisted = it }) { _, _ -> }
 
         assertThat(first.exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
         assertThat(persisted).isEqualTo(session)
         val start = server.takeRequest()
         assertThat(start.url.queryParameter("uploadType")).isEqualTo("resumable")
         assertThat(start.headers["X-Upload-Content-Length"]).isEqualTo("$total")
-        assertThat(start.body!!.utf8()).contains("\"axo.id\":\"id\"")
+        assertThat(start.body!!.utf8()).contains("\"mf.id\":\"id\"")
         assertThat(server.takeRequest().headers["Content-Range"]).isEqualTo("bytes 0-${CHUNK - 1}/$total")
         drain()
 
@@ -227,13 +227,13 @@ class DriveRestApiTest {
     @Test
     fun `list follows pageToken with restricted fields and retries a 503`() = runTest {
         server.enqueue(MockResponse.Builder().code(503).build())
-        server.enqueue(MockResponse.Builder().code(200).body("""{"nextPageToken":"p2","files":[{"id":"a","appProperties":{"axo.id":"1"}}]}""").build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"nextPageToken":"p2","files":[{"id":"a","appProperties":{"mf.id":"1"}}]}""").build())
         server.enqueue(MockResponse.Builder().code(200).body("""{"files":[{"id":"b","unknownField":true}]}""").build())
 
         val files = api.list(DriveFormat.DISCOVERY_QUERY).getOrThrow()
 
         assertThat(files.map { it.id }).containsExactly("a", "b").inOrder()
-        assertThat(files[0].appProperties).containsExactly("axo.id", "1")
+        assertThat(files[0].appProperties).containsExactly("mf.id", "1")
         server.takeRequest() // the 503
         val page1 = server.takeRequest()
         assertThat(page1.url.queryParameter("q")).isEqualTo(DriveFormat.DISCOVERY_QUERY)
@@ -253,10 +253,10 @@ class DriveRestApiTest {
         assertThat(server.takeRequest().url.queryParameter("q")).isEqualTo(DriveFormat.ROOT_FOLDER_QUERY)
         val folder = server.takeRequest().body!!.utf8()
         assertThat(folder).contains("\"mimeType\":\"application/vnd.google-apps.folder\"")
-        assertThat(folder).contains("\"axo.role\":\"root\"")
-        assertThat(folder).contains("\"axo.format\":\"1\"")
+        assertThat(folder).contains("\"mf.role\":\"root\"")
+        assertThat(folder).contains("\"mf.format\":\"1\"")
         assertThat(folder).doesNotContain("parents")
-        assertThat(server.takeRequest().url.queryParameter("q")).contains("name = 'axolotlcam.json' and 'root1' in parents")
+        assertThat(server.takeRequest().url.queryParameter("q")).contains("name = 'myforthing.json' and 'root1' in parents")
         val manifest = server.takeRequest()
         assertThat(manifest.method).isEqualTo("POST")
         assertThat(manifest.url.queryParameter("uploadType")).isEqualTo("multipart")
@@ -270,7 +270,7 @@ class DriveRestApiTest {
         server.enqueue(MockResponse.Builder().code(200).body("""{"files":[{"id":"s1"}]}""").build())
         server.enqueue(MockResponse.Builder().code(200).body("""{"id":"s1"}""").build())
 
-        assertThat(api.writeJson("x.json", "month", "{}", mapOf("axo.role" to "sidecar")).getOrThrow().id).isEqualTo("s1")
+        assertThat(api.writeJson("x.json", "month", "{}", mapOf("mf.role" to "sidecar")).getOrThrow().id).isEqualTo("s1")
         server.takeRequest()
         val update = server.takeRequest()
         assertThat(update.method).isEqualTo("PATCH")
