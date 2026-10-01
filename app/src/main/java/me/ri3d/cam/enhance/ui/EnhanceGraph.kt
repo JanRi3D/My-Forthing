@@ -15,7 +15,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,22 +57,13 @@ fun NavGraphBuilder.enhanceGraph(navController: NavController) {
 
 /**
  * Clip screen slot: "Bild verbessern" (videos at [positionMs], photos, screenshots) and "Clip hochskalieren" (original
- * videos). Derived items are not enhanced again; they link to their original instead.
+ * videos). Derived items get nothing: they are never processed again, and the clip screen already shows their
+ * "rekonstruiert, kein Beweis" tag and the link to the original.
  */
 @Composable
 fun EnhanceClipActions(item: MediaItem, positionMs: Long, onNavigate: (Route) -> Unit) {
+    if (item.isDerived) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (item.isDerived) {
-            Text(
-                stringResource(if (item.kind == MediaKind.UPSCALED_CLIP) R.string.enhance_already_upscaled else R.string.enhance_already_enhanced),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            item.parentId?.let { parent ->
-                TextButton(onClick = { onNavigate(Clip(parent, item.parentPositionMs ?: 0)) }) { Text(stringResource(R.string.enhance_open_original)) }
-            }
-            return
-        }
         val onPhone = item.localFile?.isFile == true
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(onClick = { onNavigate(Enhance(item.id, if (item.isVideo) positionMs else 0)) }, enabled = onPhone) {

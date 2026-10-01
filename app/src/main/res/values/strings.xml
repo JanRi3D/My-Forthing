@@ -610,9 +610,6 @@
     <string name="enhance_action_frame">Bild verbessern</string>
     <string name="enhance_action_clip">Clip hochskalieren</string>
     <string name="enhance_actions_need_copy">Erst aufs Handy herunterladen, dann verbessern oder hochskalieren.</string>
-    <string name="enhance_already_enhanced">Bereits verbessert – rekonstruiert, kein Beweis.</string>
-    <string name="enhance_already_upscaled">Bereits hochskaliert – rekonstruiert, kein Beweis.</string>
-    <string name="enhance_open_original">Zum Original</string>
     <string name="enhance_duration_seconds">%1$d s</string>
     <string name="enhance_duration_minutes">%1$d min</string>
     <string name="enhance_duration_hours">%1$d h %2$d min</string>
@@ -626,7 +623,7 @@
     <string name="enhance_scale_too_large">Zu groß für den Speicher dieses Handys</string>
     <string name="enhance_engine">Verfahren</string>
     <string name="enhance_engine_ml">KI-Modell</string>
-    <string name="enhance_engine_ml_text">QuickSRNet, rekonstruiert Strukturen, dauert länger</string>
+    <string name="enhance_engine_ml_text">QuickSRNet, errechnet plausible Strukturen, dauert länger</string>
     <string name="enhance_engine_classical">Klassisch</string>
     <string name="enhance_engine_classical_text">Geschärfte Interpolation, schnell</string>
     <string name="enhance_engine_ml_unavailable">Das KI-Modell ist auf diesem Handy nicht verfügbar; es wird klassisch verbessert.</string>
@@ -646,6 +643,7 @@
     <string name="enhance_save">Verbessertes Bild speichern</string>
     <string name="enhance_saving">Wird gespeichert …</string>
     <string name="enhance_honesty">Verbessern errechnet Pixel, die nicht aufgezeichnet wurden. Das Ergebnis ist eine Rekonstruktion und kein Beweis; das Original bleibt unverändert.</string>
+    <string name="enhance_error_derived">Das ist bereits eine Rekonstruktion; nur Originale werden verbessert.</string>
     <string name="enhance_error_no_copy">Keine Kopie auf diesem Handy. Erst herunterladen.</string>
     <string name="enhance_error_source">Das Bild konnte nicht gelesen werden.</string>
     <string name="enhance_error_too_large">Das Ergebnis wäre zu groß für den Speicher dieses Handys. Bitte 2× wählen.</string>
@@ -680,7 +678,7 @@
     <string name="upscale_output_estimate">Ergebnis etwa %1$s</string>
     <string name="upscale_done">In den Aufnahmen gespeichert – hochskaliert, rekonstruiert, kein Beweis.</string>
     <string name="upscale_open">In Aufnahmen öffnen</string>
-    <string name="upscale_cancelled">Abgebrochen. Es wurde nichts gespeichert.</string>
+    <string name="upscale_cancelled">Abgebrochen. Unfertige Dateien wurden gelöscht.</string>
     <string name="upscale_failed_title">Hochskalieren fehlgeschlagen</string>
     <string name="upscale_failure_decoder">Der Clip konnte nicht gelesen werden.</string>
     <string name="upscale_failure_encoder">Dieses Handy konnte das Video in dieser Größe nicht erzeugen (Encoder). Eine kleinere Ausgabe wählen.</string>
@@ -689,6 +687,9 @@
     <string name="upscale_failure_target_not_larger">Die Ausgabe ist nicht größer als das Original.</string>
     <string name="upscale_failure_source_gone">Die Kopie auf diesem Handy ist nicht mehr da.</string>
     <string name="upscale_failure_interrupted">Vom System mehrfach unterbrochen.</string>
+    <string name="upscale_failure_not_original">Nur Original-Videos werden hochskaliert.</string>
+    <string name="upscale_failure_unknown">Unerwarteter Fehler beim Hochskalieren.</string>
+    <string name="upscale_too_long">Über 5 h Rechenzeit: länger, als Android diese Aufgabe laufen lässt</string>
     <string name="upscale_other_running">Es läuft bereits eine Hochskalierung eines anderen Clips. Es läuft immer nur eine.</string>
     <string name="upscale_show_other">Laufende Hochskalierung anzeigen</string>
     <string name="upscale_channel">Hochskalierung</string>

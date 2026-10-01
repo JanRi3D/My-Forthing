@@ -80,7 +80,9 @@ class LiveSharpening @Inject constructor(
         .map(::read)
         .stateIn(scope, SharingStarted.Eagerly, null)
 
-    // ponytail: on the Live screen the probe can overlap the stream start (≈ 1 s of GPU work); a busy GPU errs towards "no".
+    // ponytail: started by the first Live or Settings screen, so on Live it can overlap the stream start: ≈ 1 s of GPU
+    // work plus, on the very first run per device and model, the CPU benchmark inside `capabilities()` (≈ 1 s on the
+    // emulator). A busy device errs towards "no" until the next start; move it to app start if that proves annoying.
     fun ensureProbed(): Job? {
         if (!started.compareAndSet(false, true)) return null
         return scope.launch {
@@ -191,6 +193,10 @@ fun liveSharpenEffect(videoRect: Rect, viewModel: EnhanceSettingsViewModel = hil
     val decision by viewModel.decision.collectAsStateWithLifecycle()
     val prefs by viewModel.prefs.collectAsStateWithLifecycle()
     val videoSize by viewModel.videoSize.collectAsStateWithLifecycle()
-    val scale = videoSize?.takeIf { decision.offered() && prefs.liveUpscale && videoRect.width > 0 }?.let { videoRect.width / it.width }
+    val scale = sharpenScale(decision.offered() && prefs.liveUpscale, videoRect.width, videoSize?.width)
     return remember(scale) { scale?.let { LiveSharpen.effect(it) } }
 }
+
+/** Displayed ÷ stream width while sharpening applies; null when off or not offered, before layout, or without a stream. */
+internal fun sharpenScale(active: Boolean, displayedWidth: Float, streamWidth: Int?): Float? =
+    if (active && displayedWidth > 0 && streamWidth != null && streamWidth > 0) displayedWidth / streamWidth else null
