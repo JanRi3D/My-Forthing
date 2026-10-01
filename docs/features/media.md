@@ -134,7 +134,10 @@ feature/live-view writes, feature/media imports:
   (`CLOSE_WRITE` / `MOVED_TO` of `*.json`). Known ids are skipped. Item: `kind = SCREENSHOT`, `category = UNKNOWN`,
   `createdAt = capturedAt`, local thumbnail generated.
 - Deleting the phone copy deletes the JPEG and the JSON (so it is not imported again). live-view must not rewrite or
-  reuse a `<uuid>` once its JSON exists.
+  reuse a `<uuid>` once its JSON exists. The gallery copy live-view writes to `Pictures/` (Android 10+) is not part of
+  the library and is never touched.
+- Matches the producer side as merged in `main` (CONTRACTS §7a, `docs/features/live.md`): `*.tmp` + rename (the JSON's
+  rename arrives as `MOVED_TO`), `capturedAt` ISO-8601 with offset.
 
 ## Simulator HTTP (debug, emulator)
 
