@@ -4,7 +4,10 @@ import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.net.Uri
+import android.os.SystemClock
+import androidx.core.graphics.createBitmap
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -24,6 +27,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.nio.ByteBuffer
 import kotlin.math.abs
 
 /** Runs on a device/emulator (`ANDROID_SERIAL=emulator-5556`). Emulator encoders stop at ≈ 2048×1024, so clips go to 720p. */
@@ -177,7 +181,7 @@ class EnhanceInstrumentedTest {
     @Test
     fun clipWithoutAudioUsesMlEngine() = runBlocking<Unit> {
         val input = clip("in-ml.mp4", 320, 180, 0.4, audio = false)
-        val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, engine = EnhanceEngine.ML), 720) {}
+        val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "clip-ml", engine = EnhanceEngine.ML), 720) {}
             .awaitResult()
         val done = result as? UpscaleResult.Done ?: return@runBlocking fail("$result")
         created += done.output.file
@@ -193,7 +197,7 @@ class EnhanceInstrumentedTest {
     @Test
     fun targetBeyondEncoderLimitsFailsTyped() = runBlocking<Unit> {
         val input = clip("in-limit.mp4", 640, 360, 0.5)
-        val result = upscaler.upscale(Uri.fromFile(input), Resolution.P2160) {}.awaitResult()
+        val result = upscaler.upscale(Uri.fromFile(input), Resolution.P2160, "clip-limit") {}.awaitResult()
         when (result) {
             is UpscaleResult.Done -> {
                 created += result.output.file
@@ -210,27 +214,135 @@ class EnhanceInstrumentedTest {
         val input = clip("in-cancel.mp4", 640, 360, 6.0, audio = false)
         val before = enhanceDir(context).listFiles().orEmpty().toSet()
         val firstFrame = CompletableDeferred<Unit>()
-        val job = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440), 1080) { if (it.fraction > 0) firstFrame.complete(Unit) }
+        var last = 0f
+        val job = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "clip-cancel"), 1080) {
+            last = it.fraction
+            if (it.fraction > 0) firstFrame.complete(Unit)
+        }
         firstFrame.await()
+        val cancelledAt = SystemClock.elapsedRealtime()
         job.cancel()
         assertEquals(UpscaleResult.Failed(UpscaleError.Cancelled), job.awaitResult())
+        job.join() // the pipeline has released codecs and files once the job is complete
+        val stopMs = SystemClock.elapsedRealtime() - cancelledAt
+        assertTrue("stopped after $stopMs ms", stopMs < 3_000) // at most one frame plus the 2.5 s frame wait
+        assertTrue("progress $last", last < 1f) // 180 frames: cancelled long before the end
         assertEquals(before, enhanceDir(context).listFiles().orEmpty().toSet())
         input.delete()
     }
 
     @Test
+    fun rotatedSourcesKeepCodedOrientationAndHint() = runBlocking<Unit> {
+        val plain = clip("in-rot.mp4", 320, 180, 0.5, audio = false)
+        for (rotation in listOf(90, 180)) {
+            val rotated = File(context.cacheDir, "in-rot$rotation.mp4").also { remux(plain, it, rotation) }
+            for (engine in EnhanceEngine.entries) {
+                val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(rotated), Resolution.P1440, "rot", engine = engine), 720) {}
+                    .awaitResult()
+                val done = result as? UpscaleResult.Done ?: return@runBlocking fail("$rotation $engine: $result")
+                created += done.output.file
+                val format = videoFormat(done.output.file)
+                assertEquals("$rotation $engine", 1280 to 720, format.getInteger(MediaFormat.KEY_WIDTH) to format.getInteger(MediaFormat.KEY_HEIGHT))
+                assertEquals("$rotation $engine", rotation, format.getInteger(MediaFormat.KEY_ROTATION))
+                assertTrue("$rotation $engine orientation", decode(done.output.file).second)
+            }
+            rotated.delete()
+        }
+        plain.delete()
+    }
+
+    @Test
+    fun hevcIsEncodedOrFailsTyped() = runBlocking<Unit> {
+        val input = clip("in-hevc.mp4", 320, 180, 0.5)
+        when (val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "hevc", codec = VideoCodec.HEVC), 720) {}.awaitResult()) {
+            is UpscaleResult.Done -> {
+                created += result.output.file
+                assertEquals(MediaFormat.MIMETYPE_VIDEO_HEVC, videoFormat(result.output.file).getString(MediaFormat.KEY_MIME))
+            }
+            // The emulator's HEVC encoder stops at 512×512.
+            is UpscaleResult.Failed -> assertTrue("${result.error}", result.error is UpscaleError.Encoder)
+        }
+        assertTrue(leftovers().isEmpty())
+        input.delete()
+    }
+
+    @Test
+    fun singleFrameClipCompletes() = runBlocking<Unit> {
+        val input = clip("in-one.mp4", 320, 180, 1.0 / 30, audio = false)
+        val progress = mutableListOf<UpscaleProgress>()
+        val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "one"), 720) { progress += it }.awaitResult()
+        val done = result as? UpscaleResult.Done ?: return@runBlocking fail("$result")
+        created += done.output.file
+        assertEquals(1, decode(done.output.file).first)
+        assertEquals(1f, progress.last().fraction)
+        input.delete()
+    }
+
+    @Test
+    fun targetNotAboveSourceFailsTyped() = runBlocking<Unit> {
+        val input = clip("in-same.mp4", 320, 180, 0.5)
+        val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "same"), 180) {}.awaitResult()
+        assertTrue("$result", (result as UpscaleResult.Failed).error is UpscaleError.TargetNotLarger)
+        assertTrue(leftovers().isEmpty())
+        input.delete()
+    }
+
+    @Test
+    fun frameAboveTheMemoryLimitFailsTyped() = runBlocking<Unit> {
+        val caps = enhancer.capabilities()
+        val side = kotlin.math.sqrt(caps.maxInputPixels(4).toDouble()).toInt() + 2
+        val src = createBitmap(side, side)
+        try {
+            enhancer.enhanceFrame(src, 4).bitmap.recycle()
+            fail("expected EnhanceException")
+        } catch (e: EnhanceException) {
+            assertEquals(EnhanceError.TooLarge, e.error)
+        } finally {
+            src.recycle()
+        }
+    }
+
+    /** Copies all tracks unchanged into a new MP4 with a rotation hint (how phones store portrait/rotated video). */
+    private fun remux(src: File, dst: File, rotation: Int) {
+        val extractor = MediaExtractor().apply { setDataSource(src.path) }
+        val muxer = MediaMuxer(dst.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).apply { setOrientationHint(rotation) }
+        val tracks = (0 until extractor.trackCount).associateWith { muxer.addTrack(extractor.getTrackFormat(it)) }
+        tracks.keys.forEach { extractor.selectTrack(it) }
+        muxer.start()
+        val buffer = ByteBuffer.allocate(1 shl 20)
+        val info = MediaCodec.BufferInfo()
+        while (true) {
+            val n = extractor.readSampleData(buffer, 0)
+            if (n < 0) break
+            val key = extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0
+            info.set(0, n, extractor.sampleTime, if (key) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+            muxer.writeSampleData(tracks.getValue(extractor.sampleTrackIndex), buffer, info)
+            extractor.advance()
+        }
+        muxer.stop()
+        muxer.release()
+        extractor.release()
+    }
+
+    private fun videoFormat(file: File): MediaFormat {
+        val extractor = MediaExtractor().apply { setDataSource(file.path) }
+        val track = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("video/") }
+        return extractor.getTrackFormat(track).also { extractor.release() }
+    }
+
+    @Test
     fun unreadableInputFailsAsDecoder() = runBlocking<Unit> {
         val junk = File(context.cacheDir, "junk.mp4").apply { writeText("not a video") }
-        val result = upscaler.upscale(Uri.fromFile(junk), Resolution.P1440) {}.awaitResult()
+        val result = upscaler.upscale(Uri.fromFile(junk), Resolution.P1440, "junk") {}.awaitResult()
         assertTrue("$result", (result as UpscaleResult.Failed).error is UpscaleError.Decoder)
-        assertTrue(upscaler.estimate(UpscaleRequest(Uri.fromFile(junk), Resolution.P1440)).isFailure)
+        assertTrue(upscaler.estimate(UpscaleRequest(Uri.fromFile(junk), Resolution.P1440, "junk")).isFailure)
         junk.delete()
     }
 
     @Test
     fun estimateGivesSizeAlwaysAndTimeOnlyAfterAMeasuredRun() = runBlocking<Unit> {
         val input = clip("in-estimate.mp4", 320, 180, 1.0)
-        val request = UpscaleRequest(Uri.fromFile(input), Resolution.P1440)
+        val request = UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "clip-estimate")
         val before = upscaler.estimate(request).getOrThrow()
         assertEquals(2560 to 1440, before.width to before.height)
         assertNull(before.etaMs)

@@ -170,7 +170,7 @@ class EnhanceBenchmark {
             val input = File(context.cacheDir, "bench-${src.first}.mp4")
             TestMedia.writeClip(input, src.first, src.second, 30, seconds, audio = true)
             val t = SystemClock.elapsedRealtime()
-            val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440), target) {}.awaitResult()
+            val result = upscaler.upscale(UpscaleRequest(Uri.fromFile(input), Resolution.P1440, "bench"), target) {}.awaitResult()
             val ms = SystemClock.elapsedRealtime() - t
             log("CLIP | ${src.first}x${src.second} -> ${target}p classical | $frames frames | $ms ms | ${ms / frames} ms/frame | $result")
             (result as? UpscaleResult.Done)?.output?.file?.let { it.delete(); EnhancementInfo.sidecarOf(it).delete() }

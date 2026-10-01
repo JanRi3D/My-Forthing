@@ -22,13 +22,21 @@ import javax.inject.Singleton
 
 enum class EnhanceEngine { ML, CLASSICAL }
 
-/** CONTRACTS §12. Output pixels are reconstructed, never evidence; the original bitmap is not modified. */
+/**
+ * CONTRACTS §12. Output pixels are reconstructed, never evidence; the original bitmap is not modified.
+ * Failures that depend on the input or the phone throw [EnhanceException]. Results above ~100 MB (1080p×4 is
+ * 133 MB) cannot be drawn by a Canvas: show a downsampled preview or the saved JPEG.
+ */
 interface FrameEnhancer {
     /** [scale] is 2 or 4. Uses the best available engine; cancellable between tiles. */
     suspend fun enhance(src: Bitmap, scale: Int, onProgress: (Float) -> Unit): Bitmap =
         enhanceFrame(src, scale, onProgress = onProgress).bitmap
 
-    /** Like [enhance], plus which engine produced the pixels (for [EnhancementInfo]). [engine] null = best available. */
+    /**
+     * Like [enhance], plus which engine produced the pixels (for [EnhancementInfo]). [engine] null = best available;
+     * ML falls back to CLASSICAL (whole frame) if the model is missing or fails. `onProgress` runs on a
+     * `Dispatchers.Default` thread.
+     */
     suspend fun enhanceFrame(
         src: Bitmap,
         scale: Int,
@@ -36,11 +44,22 @@ interface FrameEnhancer {
         onProgress: (Float) -> Unit = {},
     ): EnhancedFrame
 
-    /** Engines, limits and measured cost; the first call on a device runs a short benchmark (a few seconds). */
+    /** Engines, limits and measured cost; the first call on a device runs a short benchmark (≈ 1 s on the emulator). */
     suspend fun capabilities(): EnhancerCapabilities
 }
 
 data class EnhancedFrame(val bitmap: Bitmap, val engine: EnhanceEngine, val model: String?)
+
+/** Typed frame failures for German UI messages. */
+sealed interface EnhanceError {
+    /** Output above [EnhancerCapabilities.maxOutputPixels] for this phone. */
+    data object TooLarge : EnhanceError
+
+    /** The phone ran out of memory while enhancing. */
+    data object Memory : EnhanceError
+}
+
+class EnhanceException(val error: EnhanceError) : Exception(error.toString())
 
 data class EngineCost(val engine: EnhanceEngine, val scale: Int, val msPerMegapixel: Float)
 
@@ -83,6 +102,8 @@ class DefaultFrameEnhancer @Inject constructor(
     private val mutex = Mutex()
     private var model: SrModel? = null
     private var modelTried = false
+
+    @Volatile
     private var cached: EnhancerCapabilities? = null
 
     /** Lazily loads the shipped model; null (classical only) when the asset is absent or LiteRT fails. */
@@ -106,10 +127,24 @@ class DefaultFrameEnhancer @Inject constructor(
         onProgress: (Float) -> Unit,
     ): EnhancedFrame = withContext(Dispatchers.Default) {
         require(scale == 2 || scale == 4) { "scale must be 2 or 4" }
-        require(src.width.toLong() * src.height * scale * scale <= maxOutputPixels(context)) { "frame too large" }
-        val input = if (src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, false)
-        val out = createBitmap(src.width * scale, src.height * scale)
+        if (src.width.toLong() * src.height * scale * scale > maxOutputPixels(context)) throw EnhanceException(EnhanceError.TooLarge)
         try {
+            enhanceInto(src, scale, engine, onProgress)
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "enhance failed: out of memory")
+            throw EnhanceException(EnhanceError.Memory)
+        }
+    }
+
+    private suspend fun enhanceInto(src: Bitmap, scale: Int, engine: EnhanceEngine?, onProgress: (Float) -> Unit): EnhancedFrame {
+        val input = if (src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, false)
+        val out = try {
+            createBitmap(src.width * scale, src.height * scale)
+        } catch (t: Throwable) {
+            if (input !== src) input.recycle()
+            throw t
+        }
+        return try {
             mutex.withLock {
                 val ml = if (engine != EnhanceEngine.CLASSICAL) model() else null
                 if (ml != null) {
@@ -133,7 +168,8 @@ class DefaultFrameEnhancer @Inject constructor(
         }
     }
 
-    override suspend fun capabilities(): EnhancerCapabilities = withContext(Dispatchers.Default) {
+    override suspend fun capabilities(): EnhancerCapabilities = cached ?: withContext(Dispatchers.Default) {
+        // The measurement shares the model with running enhancements, so it waits for the lock; later calls don't.
         mutex.withLock {
             cached ?: run {
                 val ml = model()
@@ -184,11 +220,18 @@ class DefaultFrameEnhancer @Inject constructor(
 
         internal fun threads() = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
 
-        /** 1080p×4 (≈33 MP, 133 MB ARGB) normally, 2160p on low-RAM devices. */
         internal fun maxOutputPixels(context: Context): Long {
-            val lowRam = context.getSystemService(ActivityManager::class.java)?.isLowRamDevice == true
-            return if (lowRam) 3840L * 2160 else 7680L * 4320
+            val am = context.getSystemService(ActivityManager::class.java)
+            val info = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+            return maxOutputPixels(info.totalMem, am.isLowRamDevice)
         }
+
+        /**
+         * The ARGB output may use at most 1/16 of the phone's RAM, capped at 1080p×4 (≈ 33 MP, 133 MB) and at 2160p
+         * on low-RAM devices: 2 GB phones keep 1080p×4, a 1.5 GB phone gets ≈ 25 MP.
+         */
+        internal fun maxOutputPixels(totalMemBytes: Long, lowRam: Boolean): Long =
+            minOf(if (lowRam) 3840L * 2160 else 7680L * 4320, totalMemBytes / 16 / 4)
     }
 }
 

@@ -34,28 +34,41 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import to.axolotl.cam.core.log.Log
+import to.axolotl.cam.core.model.ExportQuality
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 
-/** Target height of the shorter side. */
-enum class Resolution(val height: Int) { P1440(1440), P2160(2160) }
+/** Target height of the shorter side. P1080 serves 720p sources (e.g. a rear camera). */
+enum class Resolution(val height: Int) { P1080(1080), P1440(1440), P2160(2160) }
+
+/** The export-quality preference as an upscale target. */
+val ExportQuality.resolution: Resolution
+    get() = when (this) {
+        ExportQuality.Q1080 -> Resolution.P1080
+        ExportQuality.Q1440 -> Resolution.P1440
+        ExportQuality.Q2160 -> Resolution.P2160
+    }
 
 enum class VideoCodec(val mime: String) { H264(MediaFormat.MIMETYPE_VIDEO_AVC), HEVC(MediaFormat.MIMETYPE_VIDEO_HEVC) }
 
-/** [engine]: CLASSICAL = GPU sharpened-cubic (default); ML = model per frame on the CPU (very slow, see docs). */
+/**
+ * [sourceMediaId] is the original's `MediaItem.id` (required: outputs stay linked to their source).
+ * [engine]: CLASSICAL = GPU sharpened-cubic (default); ML = model per frame on the CPU (very slow, see docs).
+ */
 data class UpscaleRequest(
     val input: Uri,
     val target: Resolution,
+    val sourceMediaId: String,
     val engine: EnhanceEngine = EnhanceEngine.CLASSICAL,
     val codec: VideoCodec = VideoCodec.H264,
-    val sourceMediaId: String? = null,
 )
 
 /** CONTRACTS §12: [etaMs] and [outputBytesEstimate] only once ≥ 5 % has been measured. */
@@ -68,6 +81,13 @@ sealed interface UpscaleError {
     data class Decoder(override val detail: String?) : UpscaleError
     data class Encoder(override val detail: String?) : UpscaleError
     data class Storage(override val detail: String?) : UpscaleError
+
+    /** The phone ran out of memory (large target, ML path). */
+    data class Memory(override val detail: String?) : UpscaleError
+
+    /** The target is not larger than the source: nothing to upscale. */
+    data class TargetNotLarger(override val detail: String?) : UpscaleError
+
     data object Cancelled : UpscaleError {
         override val detail: String? = null
     }
@@ -83,11 +103,15 @@ sealed interface UpscaleResult {
 /** Before starting: [outputBytes] from the configured bitrates; [etaMs] only after a clip has been measured. */
 data class UpscaleEstimate(val width: Int, val height: Int, val durationMs: Long, val etaMs: Long?, val outputBytes: Long)
 
-/** CONTRACTS §12. Outputs go to `filesDir/enhance/<uuid>.mp4` with a sidecar; the input is only read. */
+/**
+ * CONTRACTS §12. Outputs go to `filesDir/enhance/<uuid>.mp4` with a sidecar; the input is only read.
+ * The returned [Deferred] is the cancellable job: either it completes with the result, or (cancelled) nothing of
+ * the job stays on disk. `onProgress` is called on the job's pipeline thread, not the main thread.
+ */
 interface ClipUpscaler {
-    /** The returned [Deferred] is the cancellable job; cancelling it deletes the temp file. */
-    fun upscale(input: Uri, target: Resolution, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult> =
-        upscale(UpscaleRequest(input, target), onProgress)
+    /** Contract §12 form, with the source id added so the output stays linked. */
+    fun upscale(input: Uri, target: Resolution, sourceMediaId: String, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult> =
+        upscale(UpscaleRequest(input, target, sourceMediaId), onProgress)
 
     fun upscale(request: UpscaleRequest, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult>
 
@@ -142,20 +166,28 @@ class DefaultClipUpscaler @Inject constructor(
         upscale(request, request.target.height, onProgress)
 
     /** Any even [targetHeight]; tests use 720p/1080p because emulator encoders stop at ≈ 2048×1024. */
-    internal fun upscale(request: UpscaleRequest, targetHeight: Int, onProgress: (UpscaleProgress) -> Unit) =
-        scope.async {
+    internal fun upscale(request: UpscaleRequest, targetHeight: Int, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult> {
+        val committed = AtomicReference<File?>()
+        return scope.async {
             mutex.withLock {
                 // EGL contexts are bound to a thread, so the whole pipeline runs on one.
                 Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { thread ->
-                    withContext(thread) { run(request, targetHeight, onProgress) }
+                    withContext(thread) { run(request, targetHeight, onProgress, committed) }
                 }
             }
+        }.apply {
+            // Cancelled after the output was renamed into place: the caller never sees Done, so nothing may remain.
+            invokeOnCompletion { cause ->
+                if (cause != null) committed.get()?.let { it.delete(); EnhancementInfo.sidecarOf(it).delete() }
+            }
         }
+    }
 
     override suspend fun estimate(request: UpscaleRequest): Result<UpscaleEstimate> = withContext(Dispatchers.IO) {
         runCatching {
             val source = Source.open(context, request.input)
             try {
+                source.requireLarger(request.target.height)
                 val (w, h) = outputSize(source.width, source.height, request.target.height)
                 val perMp = store.data.first()[clipCostKey(request.engine)]
                 val frames = source.durationUs * source.fps / 1_000_000.0
@@ -170,7 +202,12 @@ class DefaultClipUpscaler @Inject constructor(
         }
     }
 
-    private suspend fun run(request: UpscaleRequest, targetHeight: Int, onProgress: (UpscaleProgress) -> Unit): UpscaleResult {
+    private suspend fun run(
+        request: UpscaleRequest,
+        targetHeight: Int,
+        onProgress: (UpscaleProgress) -> Unit,
+        committed: AtomicReference<File?>,
+    ): UpscaleResult {
         val id = UUID.randomUUID().toString()
         val out = File(enhanceDir(context), "$id.mp4")
         val tmp = File(out.path + ".tmp")
@@ -184,6 +221,7 @@ class DefaultClipUpscaler @Inject constructor(
             )
             store.edit { it[clipCostKey(stats.engine)] = stats.msPerOutputMegapixelFrame }
             writeSidecar(out, info)
+            committed.set(out)
             moveAtomic(tmp, out)
             done = true
             UpscaleResult.Done(EnhancedOutput(id, out, info), stats.width, stats.height, stats.audioCopied, out.length())
@@ -194,6 +232,11 @@ class DefaultClipUpscaler @Inject constructor(
             UpscaleResult.Failed(UpscaleError.Storage(e.javaClass.simpleName))
         } catch (e: CancellationException) {
             throw e
+        } catch (e: EnhanceException) {
+            UpscaleResult.Failed(if (e.error == EnhanceError.Memory) UpscaleError.Memory("ML frame") else UpscaleError.Encoder("${e.error}"))
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "upscale failed: out of memory")
+            UpscaleResult.Failed(UpscaleError.Memory(null))
         } catch (e: Exception) {
             // Anything not attributed to a stage happened while producing frames (e.g. the ML path).
             Log.w(TAG, "upscale failed: ${e.javaClass.simpleName}")
@@ -245,6 +288,11 @@ private class Source(val extractor: MediaExtractor, val videoTrack: Int, val aud
 
     fun release() = extractor.release()
 
+    fun requireLarger(targetHeight: Int) {
+        val shorter = minOf(width, height)
+        if (targetHeight <= shorter) throw UpscaleFailure(UpscaleError.TargetNotLarger("source ${width}x$height, target ${targetHeight}p"))
+    }
+
     companion object {
         fun open(context: Context, uri: Uri): Source = decoding {
             val extractor = MediaExtractor()
@@ -290,6 +338,13 @@ private class Transcode(
 
     suspend fun run(): Stats {
         val source = Source.open(context, request.input)
+        try {
+            source.requireLarger(targetHeight)
+        } catch (e: UpscaleFailure) {
+            source.release()
+            throw e
+        }
+        // Coded orientation throughout: sizes from the coded frame, rotation only as the MP4 orientation hint.
         val (outW, outH) = outputSize(source.width, source.height, targetHeight)
         val fps = source.fps
         val format = MediaFormat.createVideoFormat(request.codec.mime, outW, outH).apply {
@@ -336,6 +391,8 @@ private class Transcode(
             decoderSurface = Surface(texture)
             decoder = decoding { MediaCodec.createDecoderByType(source.format.getString(MediaFormat.KEY_MIME)!!) }
             decoding {
+                // A surface decoder would apply rotation-degrees itself; the muxer hint below already carries it.
+                source.format.setInteger(MediaFormat.KEY_ROTATION, 0)
                 decoder.configure(source.format, decoderSurface, null, 0)
                 decoder.start()
             }
@@ -357,7 +414,6 @@ private class Transcode(
             val start = SystemClock.elapsedRealtime()
             val st = FloatArray(16)
             val mlScale = if (outH <= source.height * 2 && outW <= source.width * 2) 2 else 4
-            var mlFrames = 0
             var frames = 0
             var inputDone = false
             var decodeDone = false
@@ -377,7 +433,8 @@ private class Transcode(
                         }
                     }
                 }
-                encodeDone = drainEncoder(encoder, source)
+                // Once the decoder is done only the encoder has work left: wait for it instead of spinning.
+                encodeDone = drainEncoder(encoder, source, if (decodeDone) TIMEOUT_US else 0)
                 if (decodeDone) continue
                 val index = decoding { decoder.dequeueOutputBuffer(info, TIMEOUT_US) }
                 if (index < 0) continue
@@ -399,7 +456,11 @@ private class Transcode(
                         } finally {
                             frame.recycle()
                         }
-                        if (enhanced.engine == EnhanceEngine.ML) mlFrames++
+                        if (enhanced.engine != EnhanceEngine.ML) {
+                            // Never mix engines within one clip: the sidecar names exactly one.
+                            enhanced.bitmap.recycle()
+                            throw UpscaleFailure(UpscaleError.Encoder("ML engine failed on a frame"))
+                        }
                         try {
                             encoding { gl.drawBitmap(enhanced.bitmap, outW, outH) }
                         } finally {
@@ -422,11 +483,10 @@ private class Transcode(
             storing { muxer!!.stop() }
             onProgress(UpscaleProgress(1f, 0, bytes))
             val elapsed = SystemClock.elapsedRealtime() - start
-            val allMl = ml != null && mlFrames == frames && frames > 0
             return Stats(
                 width = outW, height = outH, sourceWidth = source.width,
-                engine = if (allMl) EnhanceEngine.ML else EnhanceEngine.CLASSICAL,
-                model = ShippedModel.ID.takeIf { mlFrames > 0 },
+                engine = if (ml != null) EnhanceEngine.ML else EnhanceEngine.CLASSICAL,
+                model = ShippedModel.ID.takeIf { ml != null },
                 audioCopied = audioTrack >= 0,
                 msPerOutputMegapixelFrame = elapsed / (maxOf(frames, 1) * outW * outH / 1e6f),
             )
@@ -447,9 +507,9 @@ private class Transcode(
     }
 
     /** Writes all available encoder output; returns true at end of stream. */
-    private fun drainEncoder(encoder: MediaCodec, source: Source): Boolean {
+    private fun drainEncoder(encoder: MediaCodec, source: Source, timeoutUs: Long): Boolean {
         while (true) {
-            val index = encoding { encoder.dequeueOutputBuffer(info, 0) }
+            val index = encoding { encoder.dequeueOutputBuffer(info, timeoutUs) }
             when {
                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> storing {
                     val mux = muxer!!

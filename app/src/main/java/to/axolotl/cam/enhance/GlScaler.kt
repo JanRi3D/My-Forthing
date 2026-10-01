@@ -20,37 +20,45 @@ import java.nio.ByteOrder
  */
 internal class GlScaler(surface: Surface) : Closeable {
     private val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
-    private val context: android.opengl.EGLContext
-    private val eglSurface: android.opengl.EGLSurface
+    private var context = EGL14.EGL_NO_CONTEXT
+    private var eglSurface = EGL14.EGL_NO_SURFACE
     private val quad = ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer()
         .put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)).apply { rewind() }
-    private val cubic: Int
-    private val copy: Int
-    private val plain: Int
-    val oesTexture: Int
+    private var cubic = 0
+    private var copy = 0
+    private var plain = 0
+    var oesTexture = 0
+        private set
     private var bitmapTexture = 0
     private var fbo = 0
     private var fboTexture = 0
 
     init {
-        val version = IntArray(2)
-        check(EGL14.eglInitialize(display, version, 0, version, 1)) { "eglInitialize" }
-        val attribs = intArrayOf(
-            EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
-            EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT, EGLExt.EGL_RECORDABLE_ANDROID, 1, EGL14.EGL_NONE,
-        )
-        val configs = arrayOfNulls<EGLConfig>(1)
-        val count = IntArray(1)
-        check(EGL14.eglChooseConfig(display, attribs, 0, configs, 0, 1, count, 0) && count[0] > 0) { "eglChooseConfig" }
-        context = EGL14.eglCreateContext(
-            display, configs[0], EGL14.EGL_NO_CONTEXT, intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE), 0,
-        )
-        eglSurface = EGL14.eglCreateWindowSurface(display, configs[0], surface, intArrayOf(EGL14.EGL_NONE), 0)
-        check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) { "eglMakeCurrent ${EGL14.eglGetError()}" }
-        cubic = program(OES_HEADER + CUBIC)
-        copy = program(OES_HEADER + COPY)
-        plain = program(PLAIN)
-        oesTexture = texture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES)
+        try {
+            val version = IntArray(2)
+            check(EGL14.eglInitialize(display, version, 0, version, 1)) { "eglInitialize" }
+            val attribs = intArrayOf(
+                EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
+                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT, EGLExt.EGL_RECORDABLE_ANDROID, 1, EGL14.EGL_NONE,
+            )
+            val configs = arrayOfNulls<EGLConfig>(1)
+            val count = IntArray(1)
+            check(EGL14.eglChooseConfig(display, attribs, 0, configs, 0, 1, count, 0) && count[0] > 0) { "eglChooseConfig" }
+            context = EGL14.eglCreateContext(
+                display, configs[0], EGL14.EGL_NO_CONTEXT, intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE), 0,
+            )
+            check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext ${EGL14.eglGetError()}" }
+            eglSurface = EGL14.eglCreateWindowSurface(display, configs[0], surface, intArrayOf(EGL14.EGL_NONE), 0)
+            check(eglSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface ${EGL14.eglGetError()}" }
+            check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) { "eglMakeCurrent ${EGL14.eglGetError()}" }
+            cubic = program(OES_HEADER + CUBIC)
+            copy = program(OES_HEADER + COPY)
+            plain = program(PLAIN)
+            oesTexture = texture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES)
+        } catch (t: Throwable) {
+            close() // the caller never gets an instance to close
+            throw t
+        }
     }
 
     val maxTextureSize: Int = IntArray(1).also { GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE, it, 0) }[0]
