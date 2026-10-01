@@ -1,0 +1,644 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "AppIcon.dc.html": {
+      "h": 780,
+      "title": "App icon – options",
+      "w": 1440,
+      "x": 0,
+      "y": 8412
+    },
+    "AppIconRoad.dc.html": {
+      "h": 780,
+      "title": "App icon – Road variants",
+      "w": 1440,
+      "x": 1520,
+      "y": 8412
+    },
+    "AppIconAxolotl.dc.html": {
+      "h": 780,
+      "title": "App icon – Axolotl (new logo)",
+      "w": 1440,
+      "x": 3040,
+      "y": 8412
+    },
+    "Clip.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Clip player",
+      "w": 390,
+      "x": 940,
+      "y": 3908
+    },
+    "CreateAccount.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Create account",
+      "w": 390,
+      "x": 0,
+      "y": 1204
+    },
+    "EmailCode.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Sign in with a code",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Enhance.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Enhance frame",
+      "w": 390,
+      "x": 1410,
+      "y": 3908
+    },
+    "EnterCode.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Enter sign-in code",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "ForgotPassword.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Forgot password",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "Home.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Home",
+      "w": 390,
+      "x": 0,
+      "y": 2408
+    },
+    "Live.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Live view",
+      "w": 390,
+      "x": 470,
+      "y": 2408
+    },
+    "M3Appearance.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Settings › Appearance",
+      "w": 390,
+      "x": 2820,
+      "y": 2408
+    },
+    "M3Clip.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Clip player",
+      "w": 390,
+      "x": 940,
+      "y": 4288
+    },
+    "M3CreateAccount.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Create account",
+      "w": 390,
+      "x": 0,
+      "y": 1204
+    },
+    "M3EmailCode.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Sign in with a code",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "M3Enhance.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Enhance frame",
+      "w": 390,
+      "x": 1410,
+      "y": 4288
+    },
+    "M3EnterCode.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Enter sign-in code",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "M3ForgotPassword.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Forgot password",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "M3Home.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Home",
+      "w": 390,
+      "x": 0,
+      "y": 2408
+    },
+    "M3Live.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Live view",
+      "w": 390,
+      "x": 470,
+      "y": 2408
+    },
+    "M3Offline.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Offline profile",
+      "w": 390,
+      "x": 1070,
+      "y": 1204
+    },
+    "M3PlateDetail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Plate history",
+      "w": 390,
+      "x": 470,
+      "y": 4288
+    },
+    "M3Plates.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Plate search",
+      "w": 390,
+      "x": 0,
+      "y": 4288
+    },
+    "M3Recordings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Recordings",
+      "w": 390,
+      "x": 940,
+      "y": 2408
+    },
+    "M3ResetSent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Reset link sent",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "M3SDCard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "SD card",
+      "w": 390,
+      "x": 1410,
+      "y": 2408
+    },
+    "M3SDFiles.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "SD card files",
+      "w": 390,
+      "x": 1880,
+      "y": 2408
+    },
+    "M3Settings.dc.html": {
+      "h": 1520,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Settings",
+      "w": 390,
+      "x": 2350,
+      "y": 2408
+    },
+    "M3SignIn.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Sign in",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "M3Upgrade.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Upgrade to online",
+      "w": 390,
+      "x": 1540,
+      "y": 1204
+    },
+    "M3Upscale.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Upscale clip",
+      "w": 390,
+      "x": 1880,
+      "y": 4288
+    },
+    "M3VerifyEmail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Verify email",
+      "w": 390,
+      "x": 470,
+      "y": 1204
+    },
+    "M3Welcome.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "m3",
+      "title": "Welcome",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Welcome",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Offline.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Offline profile",
+      "w": 390,
+      "x": 1070,
+      "y": 1204
+    },
+    "PlateDetail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Plate history",
+      "w": 390,
+      "x": 470,
+      "y": 3908
+    },
+    "Plates.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Plate search",
+      "w": 390,
+      "x": 0,
+      "y": 3908
+    },
+    "Recordings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Recordings",
+      "w": 390,
+      "x": 940,
+      "y": 2408
+    },
+    "ResetSent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Reset link sent",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "SDCard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "SD card",
+      "w": 390,
+      "x": 1410,
+      "y": 2408
+    },
+    "SDFiles.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "SD card files",
+      "w": 390,
+      "x": 1880,
+      "y": 2408
+    },
+    "Settings.dc.html": {
+      "h": 1140,
+      "is_interactive": true,
+      "title": "Dashcam settings",
+      "w": 390,
+      "x": 2350,
+      "y": 2408
+    },
+    "SignIn.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Sign in",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Upgrade.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Upgrade to online",
+      "w": 390,
+      "x": 1540,
+      "y": 1204
+    },
+    "Upscale.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Upscale clip",
+      "w": 390,
+      "x": 1880,
+      "y": 3908
+    },
+    "VerifyEmail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Verify email",
+      "w": 390,
+      "x": 470,
+      "y": 1204
+    },
+    "WebClip.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Web – Clip",
+      "w": 1440,
+      "x": 4560,
+      "y": 7152
+    },
+    "WebFootage.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Web – Footage",
+      "w": 1440,
+      "x": 3040,
+      "y": 7152
+    },
+    "WebFootageEmpty.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Web – Footage, no storage yet",
+      "w": 1440,
+      "x": 0,
+      "y": 7152
+    },
+    "WebHome.dc.html": {
+      "h": 1680,
+      "is_interactive": true,
+      "title": "Web – Download",
+      "w": 1440,
+      "x": 0,
+      "y": 5112
+    },
+    "WebSettings.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Web – Settings",
+      "w": 1440,
+      "x": 6080,
+      "y": 7152
+    },
+    "WebSignIn.dc.html": {
+      "h": 960,
+      "is_interactive": true,
+      "title": "Web – Sign in",
+      "w": 1440,
+      "x": 1520,
+      "y": 5112
+    },
+    "WebStorage.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Web – Connect storage",
+      "w": 1440,
+      "x": 1520,
+      "y": 7152
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-28T15:23:51Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "page": "m3",
+    "view": "canvas"
+  },
+  "notes": {
+    "m3RowApp": {
+      "kind": "title1",
+      "maxW": 3210,
+      "page": "m3",
+      "text": "Home, dashcam & appearance",
+      "w": 240,
+      "x": 0,
+      "y": 2148
+    },
+    "m3RowCreate": {
+      "kind": "title1",
+      "maxW": 860,
+      "page": "m3",
+      "text": "Create account",
+      "w": 240,
+      "x": 0,
+      "y": 944
+    },
+    "m3RowOffline": {
+      "kind": "title1",
+      "maxW": 860,
+      "page": "m3",
+      "text": "Offline profile",
+      "w": 240,
+      "x": 1070,
+      "y": 944
+    },
+    "m3RowPlates": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "m3",
+      "text": "Plate recognition & upscaling",
+      "w": 240,
+      "x": 0,
+      "y": 4028
+    },
+    "m3RowSignIn": {
+      "kind": "title1",
+      "maxW": 2740,
+      "page": "m3",
+      "text": "Welcome & sign in",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "m3Theme": {
+      "fill": "blue",
+      "page": "m3",
+      "size": 24,
+      "text": "Material You is the default: colours come from the phone's wallpaper. Every screen has a Theme tweak to preview it with a blue, purple or green wallpaper, or in the My Forthing black theme. In the app, people switch themes in Settings › Appearance.",
+      "w": 400,
+      "x": -500,
+      "y": 0
+    },
+    "rowApp": {
+      "kind": "title1",
+      "maxW": 2740,
+      "text": "Home & dashcam",
+      "w": 240,
+      "x": 0,
+      "y": 2148
+    },
+    "rowCreate": {
+      "kind": "title1",
+      "maxW": 860,
+      "text": "Create account",
+      "w": 240,
+      "x": 0,
+      "y": 944
+    },
+    "rowIcon": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "App icon",
+      "w": 240,
+      "x": 0,
+      "y": 8152
+    },
+    "rowOffline": {
+      "kind": "title1",
+      "maxW": 860,
+      "text": "Offline profile",
+      "w": 240,
+      "x": 1070,
+      "y": 944
+    },
+    "rowPlates": {
+      "kind": "title1",
+      "maxW": 2270,
+      "text": "Plate recognition & upscaling",
+      "w": 240,
+      "x": 0,
+      "y": 3648
+    },
+    "rowSignIn": {
+      "kind": "title1",
+      "maxW": 2740,
+      "text": "Welcome & sign in",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "rowWeb": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Website – download & sign in",
+      "w": 240,
+      "x": 0,
+      "y": 4852
+    },
+    "rowWebAccount": {
+      "kind": "title1",
+      "maxW": 7520,
+      "text": "Website – signed in: footage, storage & settings",
+      "w": 240,
+      "x": 0,
+      "y": 6892
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "SignIn.dc.html",
+    "EmailCode.dc.html",
+    "EnterCode.dc.html",
+    "ForgotPassword.dc.html",
+    "ResetSent.dc.html",
+    "CreateAccount.dc.html",
+    "VerifyEmail.dc.html",
+    "Offline.dc.html",
+    "Upgrade.dc.html",
+    "Home.dc.html",
+    "Live.dc.html",
+    "Recordings.dc.html",
+    "SDCard.dc.html",
+    "SDFiles.dc.html",
+    "Settings.dc.html",
+    "Plates.dc.html",
+    "PlateDetail.dc.html",
+    "Clip.dc.html",
+    "Enhance.dc.html",
+    "Upscale.dc.html",
+    "WebHome.dc.html",
+    "WebSignIn.dc.html",
+    "WebFootageEmpty.dc.html",
+    "WebStorage.dc.html",
+    "WebFootage.dc.html",
+    "WebClip.dc.html",
+    "WebSettings.dc.html",
+    "AppIcon.dc.html",
+    "AppIconRoad.dc.html",
+    "AppIconAxolotl.dc.html",
+    "M3Welcome.dc.html",
+    "M3SignIn.dc.html",
+    "M3EmailCode.dc.html",
+    "M3EnterCode.dc.html",
+    "M3ForgotPassword.dc.html",
+    "M3ResetSent.dc.html",
+    "M3CreateAccount.dc.html",
+    "M3VerifyEmail.dc.html",
+    "M3Offline.dc.html",
+    "M3Upgrade.dc.html",
+    "M3Home.dc.html",
+    "M3Live.dc.html",
+    "M3Recordings.dc.html",
+    "M3SDCard.dc.html",
+    "M3SDFiles.dc.html",
+    "M3Settings.dc.html",
+    "M3Appearance.dc.html",
+    "M3Plates.dc.html",
+    "M3PlateDetail.dc.html",
+    "M3Clip.dc.html",
+    "M3Enhance.dc.html",
+    "M3Upscale.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "main",
+      "name": "Black design, website & icon"
+    },
+    {
+      "id": "m3",
+      "name": "Material 3"
+    }
+  ],
+  "title": "My Forthing – Login & Sign-up"
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Plate history</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center">
+<a href="M3Plates.dc.html" aria-label="Back to plate search" style="width: 48px; height: 48px; margin-left: -12px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+</div>
+
+<div style="margin-top: 8px; padding: 24px 20px 20px; display: flex; flex-direction: column; gap: 20px; border-radius: 28px; background: var(--pc); color: var(--on-pc)">
+<div style="display: flex">
+<h1 style="margin: 0; height: 56px; padding: 0 16px; display: flex; align-items: center; border-radius: 10px; background: var(--inv-s); color: var(--inv-on-s); font-family: var(--mono); font-size: 28px; font-weight: 600; letter-spacing: 0.06em">B-MK 4821</h1>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<dt style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; opacity: 0.8">Sightings</dt>
+<dd style="margin: 0; font-size: 22px; line-height: 28px; font-variant-numeric: tabular-nums">4</dd>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<dt style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; opacity: 0.8">First seen</dt>
+<dd style="margin: 0; font-size: 22px; line-height: 28px">12 Sep</dd>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<dt style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; opacity: 0.8">Last seen</dt>
+<dd style="margin: 0; font-size: 22px; line-height: 28px; font-variant-numeric: tabular-nums">17:42</dd>
+</div>
+</dl>
+</div>
+
+<h2 style="margin: 24px 16px 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Sightings</h2>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{sightings}}" as="s" hint-placeholder-count="4">
+<li>
+<a href="M3Clip.dc.html" style="padding: 12px 12px 12px 12px; display: flex; align-items: center; gap: 14px; border-radius: {{s.radius}}; background: var(--scn); color: var(--on-s); text-decoration: none">
+<span style="position: relative; width: 96px; height: 54px; flex-shrink: 0; border-radius: 12px; background: var(--schh)">
+<span style="position: absolute; left: {{s.boxX}}; top: 30px; width: 24px; height: 10px; border: 2px solid var(--p); border-radius: 3px"></span>
+</span>
+<span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums">{{s.when}}</span>
+<sc-if value="{{s.locked}}" hint-placeholder-val="{{ false }}">
+<span style="height: 20px; padding: 0 6px; display: flex; align-items: center; border-radius: 6px; background: var(--err-c); color: var(--on-err-c); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px">Incident</span>
+</sc-if>
+</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">{{s.source}}</span>
+</span>
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"></path></svg>
+</a>
+</li>
+</sc-for>
+</ul>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    return {
+      theme: T[this.props.theme] || 't-blue',
+      sightings: [
+        { when: 'Today 17:42:05', source: 'Live view', locked: false, boxX: '22px', radius: '20px 20px 4px 4px' },
+        { when: 'Today 17:41:37', source: 'Loop clip 17:41 · at 0:37', locked: false, boxX: '40px', radius: '4px' },
+        { when: 'Today 17:36:14', source: 'Incident clip · at 0:08', locked: true, boxX: '56px', radius: '4px' },
+        { when: '12 Sep 08:40:10', source: 'Loop clip 08:40 · at 0:10', locked: false, boxX: '30px', radius: '4px 4px 20px 20px' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

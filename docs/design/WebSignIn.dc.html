@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing – Web sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#050506;color:#F4F5F7;font-family:Geist,'Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:#7B7F87}
+a{color:#F4F5F7}a:hover{color:#FFFFFF}
+:focus-visible{outline:2px solid #F4F5F7;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 960px; display: flex; flex-direction: column; background: #050506; color: #F4F5F7">
+
+<header style="height: 72px; flex-shrink: 0; padding: 0 64px; display: flex; align-items: center; justify-content: space-between">
+<a href="WebHome.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 10px; color: #F4F5F7; text-decoration: none">
+<span style="width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 9px; overflow: visible"><img src="/_blob/6f7fe73ba17cd958f5e1ee394389e440" alt="" style="width: 30px; height: 30px"></span>
+<span style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">My Forthing</span>
+</a>
+<a href="WebHome.dc.html" style="min-height: 44px; display: flex; align-items: center; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">Get the app</a>
+</header>
+
+<main style="flex-grow: 1; padding: 24px 0 64px; display: flex; align-items: center; justify-content: center">
+<div style="width: 400px; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h1 style="margin: 0; font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.03em; color: #F4F5F7">Sign in</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #9EA1A8">Use the same account as in the app.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<button type="button" style="height: 50px; border-radius: 10px; border: 1px solid #2C2F34; background: transparent; color: #F4F5F7; font-size: 15px; font-weight: 500; cursor: pointer">Continue with Apple</button>
+<button type="button" style="height: 50px; border-radius: 10px; border: 1px solid #2C2F34; background: transparent; color: #F4F5F7; font-size: 15px; font-weight: 500; cursor: pointer">Continue with Google</button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 14px; font-size: 13px; color: #7B7F87">
+<div style="height: 1px; flex-grow: 1; background: #1F2125"></div>
+<span>or</span>
+<div style="height: 1px; flex-grow: 1; background: #1F2125"></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="web-email" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Email</label>
+<input id="web-email" type="email" autocomplete="email" placeholder="you@example.com" style="height: 50px; padding: 0 16px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 44px; margin-top: -13px; margin-bottom: -13px; display: flex; align-items: center; justify-content: space-between">
+<label for="web-password" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Password</label>
+<button type="button" style="min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 13px; font-weight: 500; color: #9EA1A8; cursor: pointer">Forgot password?</button>
+</div>
+<div style="position: relative; display: flex; align-items: center">
+<input id="web-password" type="{{pwType}}" autocomplete="current-password" placeholder="Your password" style="width: 100%; height: 50px; padding: 0 54px 0 16px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+<button type="button" aria-label="{{pwLabel}}" aria-pressed="{{pwShown}}" onClick="{{togglePw}}" style="position: absolute; right: 3px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: #9EA1A8; cursor: pointer">
+<sc-if value="{{pwHidden}}" hint-placeholder-val="{{ true }}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+</sc-if>
+<sc-if value="{{pwShown}}" hint-placeholder-val="{{ false }}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2"></path><path d="M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.5"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+</sc-if>
+</button>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<a href="WebFootageEmpty.dc.html" style="height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #F4F5F7; color: #050506; font-size: 15px; font-weight: 600; text-decoration: none">Sign in</a>
+<button type="button" style="height: 44px; border: 0; background: transparent; color: #D5D7DB; font-size: 15px; font-weight: 500; cursor: pointer">Email me a sign-in code</button>
+</div>
+
+<div style="padding: 16px; display: flex; align-items: flex-start; gap: 12px; border-radius: 12px; border: 1px solid #1F2125; background: #0E0F11">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px; color: #9EA1A8; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"></rect><path d="M10.5 18.5h3"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 14px; font-weight: 600; color: #F4F5F7">Using an offline profile?</span>
+<span style="font-size: 13px; line-height: 1.5; color: #9EA1A8">Offline profiles stay on your phone. Upgrade to an online account in the app to sign in here. Your settings come with you.</span>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: #7B7F87">
+<span>New to My Forthing?</span>
+<a href="WebHome.dc.html" style="min-height: 44px; display: flex; align-items: center; font-weight: 500; text-decoration: none">Create an account in the app</a>
+</div>
+
+</div>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const shown = !!(this.state && this.state.showPw);
+    return {
+      pwType: shown ? 'text' : 'password',
+      pwShown: shown,
+      pwHidden: !shown,
+      pwLabel: shown ? 'Hide password' : 'Show password',
+      togglePw: () => this.setState({ showPw: !shown })
+    };
+  }
+}
+</script>
+</body>
+</html>

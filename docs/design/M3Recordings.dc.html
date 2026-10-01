@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Recordings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center; gap: 4px">
+<a href="M3Home.dc.html" aria-label="Back" style="width: 48px; height: 48px; margin-left: -12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+<h1 style="margin: 0; flex-grow: 1; font-size: 22px; line-height: 28px; font-weight: 400; color: var(--on-s)">Recordings</h1>
+<button type="button" style="min-height: 48px; padding: 0 12px; margin-right: -12px; border: 0; border-radius: 24px; background: transparent; color: var(--p); font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; cursor: pointer">Select</button>
+</div>
+
+<div style="margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr))">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{t.on}}" onClick="{{t.pick}}" style="height: 48px; margin-left: {{t.ml}}; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--ol); border-radius: {{t.radius}}; background: {{t.bg}}; color: {{t.fg}}; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; cursor: pointer">
+<sc-if value="{{t.on}}" hint-placeholder-val="{{ false }}">
+<svg width="18" height="18" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg>
+</sc-if>
+<span>{{t.label}}</span>
+</button>
+</sc-for>
+</div>
+
+<sc-if value="{{showList}}" hint-placeholder-val="{{ true }}">
+<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="6">
+<sc-if value="{{row.isHeader}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; padding: 20px 0 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">{{row.label}}</p>
+</sc-if>
+<sc-if value="{{row.isClip}}" hint-placeholder-val="{{ true }}">
+<div style="padding: 10px 4px 10px 12px; display: flex; align-items: center; gap: 4px; border-radius: {{row.radius}}; background: var(--scn)">
+<a href="M3Clip.dc.html" style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 14px; color: var(--on-s); text-decoration: none">
+<span style="position: relative; width: 96px; height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: var(--schh); color: var(--on-sv)">
+<svg width="20" height="20" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M320-258v-450q0-14 9-22t21-8q4 0 8 1t8 3l354 226q7 5 10.5 11t3.5 14q0 8-3.5 14T720-458L366-232q-4 2-8 3t-8 1q-12 0-21-8t-9-22Zm60-225Zm0 171 269-171-269-171v342Z"></path></svg>
+<span style="position: absolute; right: 4px; bottom: 4px; padding: 0 5px; border-radius: 6px; background: rgba(0, 0, 0, 0.65); color: #ffffff; font-family: var(--mono); font-size: 10px; line-height: 16px">{{row.duration}}</span>
+</span>
+<span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums">{{row.time}}</span>
+<sc-if value="{{row.locked}}" hint-placeholder-val="{{ false }}">
+<span style="height: 20px; padding: 0 6px 0 4px; display: flex; align-items: center; gap: 2px; border-radius: 6px; background: var(--err-c); color: var(--on-err-c); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px">
+<svg width="14" height="14" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M220-80q-24.75 0-42.37-17.63Q160-115.25 160-140v-434q0-24.75 17.63-42.38Q195.25-634 220-634h70v-96q0-78.85 55.61-134.42Q401.21-920 480.11-920q78.89 0 134.39 55.58Q670-808.85 670-730v96h70q24.75 0 42.38 17.62Q800-598.75 800-574v434q0 24.75-17.62 42.37Q764.75-80 740-80H220Zm0-60h520v-434H220v434Zm314.5-162.03Q557-324.06 557-355q0-30-22.67-54.5t-54.5-24.5q-31.83 0-54.33 24.5t-22.5 55q0 30.5 22.67 52.5t54.5 22q31.83 0 54.33-22.03ZM350-634h260v-96q0-54.17-37.88-92.08-37.88-37.92-92-37.92T388-822.08q-38 37.91-38 92.08v96ZM220-140v-434 434Z"></path></svg>
+<span>Locked</span>
+</span>
+</sc-if>
+</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv); font-variant-numeric: tabular-nums">{{row.meta}}</span>
+</span>
+</a>
+<button type="button" aria-label="{{row.dlLabel}}" style="width: 48px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--on-sv); cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M469-327q-5-2-10-7L308-485q-9-9.27-8.5-21.64.5-12.36 9.11-21.36 9.39-9 21.89-9t21.5 9l98 99v-341q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v341l99-99q8.8-9 20.9-8.5 12.1.5 21.49 9.5 8.61 9 8.61 21.5t-9 21.5L501-334q-5 5-10.13 7-5.14 2-11 2-5.87 0-10.87-2ZM220-160q-24 0-42-18t-18-42v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113h520v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113q0 24-18 42t-42 18H220Z"></path></svg>
+</button>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{showPhotos}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 4px; display: flex; flex-direction: column">
+<p style="margin: 0; padding: 20px 0 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Today</p>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
+<sc-for list="{{photos}}" as="p" hint-placeholder-count="9">
+<button type="button" aria-label="{{p.label}}" style="position: relative; aspect-ratio: 1 / 1; padding: 0; border: 0; border-radius: {{p.radius}}; background: var(--schh); cursor: pointer">
+<span style="position: absolute; left: 8px; bottom: 6px; font-family: var(--mono); font-size: 10px; color: var(--on-s); font-variant-numeric: tabular-nums">{{p.time}}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    const tab = (this.state && this.state.tab) || 'loop';
+    const ids = ['loop', 'photos', 'incidents'];
+    const labels = { loop: 'Loop', photos: 'Photos', incidents: 'Incidents' };
+    const radii = ['24px 0 0 24px', '0', '0 24px 24px 0'];
+    const tabs = ids.map((id, i) => {
+      const on = tab === id;
+      return {
+        label: labels[id],
+        on: on,
+        ml: i === 0 ? '0px' : '-1px',
+        radius: radii[i],
+        bg: on ? 'var(--sc)' : 'transparent',
+        fg: on ? 'var(--on-sc)' : 'var(--on-s)',
+        pick: () => this.setState({ tab: id })
+      };
+    });
+    const head = (label) => ({ isHeader: true, isClip: false, label: label });
+    const clip = (time, duration, size, plates, locked, pos) => ({
+      isHeader: false,
+      isClip: true,
+      time: time,
+      duration: duration,
+      meta: duration + ' · ' + size + ' · ' + plates + (plates === 1 ? ' plate' : ' plates'),
+      locked: locked,
+      radius: pos === 'only' ? '20px' : pos === 'first' ? '20px 20px 4px 4px' : pos === 'last' ? '4px 4px 20px 20px' : '4px',
+      dlLabel: 'Download clip ' + time
+    });
+    const loop = [
+      head('Today'),
+      clip('17:41 – 17:42', '1:00', '86 MB', 3, false, 'first'),
+      clip('17:40 – 17:41', '1:00', '86 MB', 1, false, 'mid'),
+      clip('17:39 – 17:40', '1:00', '86 MB', 0, false, 'last'),
+      head('Yesterday'),
+      clip('08:12 – 08:13', '1:00', '86 MB', 2, false, 'first'),
+      clip('08:11 – 08:12', '1:00', '86 MB', 4, false, 'last')
+    ];
+    const incidents = [
+      head('Today'),
+      clip('17:36:14', '0:30', '43 MB', 1, true, 'only'),
+      head('12 Sep'),
+      clip('09:05:52', '0:30', '43 MB', 1, true, 'only')
+    ];
+    const times = ['17:40:12', '17:38:55', '17:22:03', '16:58:41', '16:57:10', '12:31:48', '12:30:02', '08:14:37', '08:12:20'];
+    const corner = (i) => (i === 0 ? '20px 4px 4px 4px' : i === 2 ? '4px 20px 4px 4px' : i === 6 ? '4px 4px 4px 20px' : i === 8 ? '4px 4px 20px 4px' : '4px');
+    return {
+      theme: T[this.props.theme] || 't-blue',
+      tabs: tabs,
+      rows: tab === 'incidents' ? incidents : loop,
+      showList: tab !== 'photos',
+      showPhotos: tab === 'photos',
+      photos: times.map((t, i) => ({ time: t, label: 'Photo from ' + t, radius: corner(i) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

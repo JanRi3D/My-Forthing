@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Enter sign-in code</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center">
+<a href="M3EmailCode.dc.html" aria-label="Back" style="width: 48px; height: 48px; margin-left: -12px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+</div>
+
+<div style="margin-top: 8px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 400; color: var(--on-s)">Enter your code</h1>
+<p style="margin: 0; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-sv)">We sent a 6-digit code to <span style="color: var(--on-s)">you@example.com</span>.</p>
+</div>
+
+<fieldset style="margin: 0; padding: 0; border: 0; min-width: 0">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--on-sv)">Sign-in code</legend>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px">
+<input aria-label="Digit 1" inputmode="numeric" autocomplete="one-time-code" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 2px solid var(--p); background: var(--scn); text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+<input aria-label="Digit 2" inputmode="numeric" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 1px solid var(--ol); background: transparent; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+<input aria-label="Digit 3" inputmode="numeric" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 1px solid var(--ol); background: transparent; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+<input aria-label="Digit 4" inputmode="numeric" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 1px solid var(--ol); background: transparent; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+<input aria-label="Digit 5" inputmode="numeric" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 1px solid var(--ol); background: transparent; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+<input aria-label="Digit 6" inputmode="numeric" maxlength="1" style="width: 100%; min-width: 0; height: 64px; padding: 0; border-radius: 12px; border: 1px solid var(--ol); background: transparent; text-align: center; font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--on-s)">
+</div>
+</fieldset>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<a href="M3Home.dc.html" style="height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 28px; background: var(--p); color: var(--on-p); font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; text-decoration: none">Sign in</a>
+<button type="button" disabled="{{ true }}" style="min-height: 48px; border: 0; background: transparent; color: var(--on-s); opacity: 0.5; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; font-variant-numeric: tabular-nums">Resend code in 0:30</button>
+</div>
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">
+<span>Wrong email?</span>
+<a href="M3EmailCode.dc.html" style="min-height: 48px; display: flex; align-items: center; font-weight: 500; text-decoration: none">Change it</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    return { theme: T[this.props.theme] || 't-blue' };
+  }
+}
+</script>
+</body>
+</html>

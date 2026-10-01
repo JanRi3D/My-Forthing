@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 1520px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center; gap: 4px">
+<a href="M3Home.dc.html" aria-label="Back" style="width: 48px; height: 48px; margin-left: -12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+<h1 style="margin: 0; flex-grow: 1; font-size: 22px; line-height: 28px; font-weight: 400; color: var(--on-s)">Settings</h1>
+</div>
+
+<section style="margin-top: 8px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">App</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="M3Upgrade.dc.html" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border-radius: 20px 20px 4px 4px; background: var(--scn); color: var(--on-s); text-decoration: none">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M222-255q63-44 125-67.5T480-346q71 0 133.5 23.5T739-255q44-54 62.5-109T820-480q0-145-97.5-242.5T480-820q-145 0-242.5 97.5T140-480q0 61 19 116t63 109Zm160.5-234.5Q343-529 343-587t39.5-97.5Q422-724 480-724t97.5 39.5Q617-645 617-587t-39.5 97.5Q538-450 480-450t-97.5-39.5ZM480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm107.5-76Q640-172 691-212q-51-36-104-55t-107-19q-54 0-107 19t-104 55q51 40 103.5 56T480-140q55 0 107.5-16Zm-52-375.5Q557-553 557-587t-21.5-55.5Q514-664 480-664t-55.5 21.5Q403-621 403-587t21.5 55.5Q446-510 480-510t55.5-21.5ZM480-587Zm0 374Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Account</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Offline profile · Add an online account</span>
+</span>
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"></path></svg>
+</a>
+<a href="M3Appearance.dc.html" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border-radius: 4px 4px 20px 20px; background: var(--scn); color: var(--on-s); text-decoration: none">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-85 32-158t87.5-127q55.5-54 130-84.5T489-880q79 0 150 26.5T763.5-780q53.5 47 85 111.5T880-527q0 108-63 170.5T650-294h-75q-18 0-31 14t-13 31q0 27 14.5 46t14.5 44q0 38-21 58.5T480-80Zm0-400Zm-198 11q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm126-170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm214 0q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm131 170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15ZM480-140q11 0 15.5-4.5T500-159q0-14-14.5-26T471-238q0-46 30-81t76-35h73q76 0 123-44.5T820-527q0-132-100-212.5T489-820q-146 0-247.5 98.5T140-480q0 141 99.5 240.5T480-140Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Theme</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">{{themeName}}</span>
+</span>
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"></path></svg>
+</a>
+</div>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Recording</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<button type="button" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 20px 20px 4px 4px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h520q24 0 42 18t18 42v215l134-134q7-7 16.5-3.46T880-649v338q0 9.92-9.5 13.46Q861-294 854-301L720-435v215q0 24-18 42t-42 18H140Zm0-60h520v-520H140v520Zm0 0v-520 520Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Video resolution</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">1080p</span>
+</span>
+</button>
+<button type="button" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 4px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M390-860q-13 0-21.5-8.5T360-890q0-13 8.5-21.5T390-920h180q13 0 21.5 8.5T600-890q0 13-8.5 21.5T570-860H390Zm111.5 438.5Q510-430 510-443v-170q0-13-8.5-21.5T480-643q-13 0-21.5 8.5T450-613v170q0 13 8.5 21.5T480-413q13 0 21.5-8.5Zm-161 312Q275-138 226-187t-77.5-114.5Q120-367 120-441t28.5-139.5Q177-646 226-695t114.5-77.5Q406-801 480-801q67 0 126 22.5T711-716l30-30q9-9 21-9t21 9q9 9 9 21t-9 21l-30 30q36 40 61.5 97T840-441q0 74-28.5 139.5T734-187q-49 49-114.5 77.5T480-81q-74 0-139.5-28.5Zm352-119Q780-316 780-441t-87.5-212.5Q605-741 480-741t-212.5 87.5Q180-566 180-441t87.5 212.5Q355-141 480-141t212.5-87.5ZM480-440Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Loop clip length</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">1 min</span>
+</span>
+</button>
+<div style="min-height: 56px; padding: 4px 12px 4px 16px; display: flex; align-items: center; gap: 16px; border-radius: 4px 4px 20px 20px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M408-453.92q-29-30.91-29-75.08v-251q0-41.67 29.44-70.83Q437.88-880 479.94-880t71.56 29.17Q581-821.67 581-780v251q0 44.17-29 75.08Q523-423 480-423t-72-30.92ZM480-651Zm-30 501v-106q-96-11-166.5-77.5T202-498q-2-12.85 6.59-21.93 8.6-9.07 21.5-9.07 12.91 0 21.41 9t10.5 22q12 81 74.71 132.5Q399.42-314 479.65-314q81.35 0 143.85-51.5T698-498q2-13 10.68-22 8.67-9 21.5-9 12.82 0 21.32 9.07 8.5 9.08 6.5 21.93-11 97-81 164t-167 78v106q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37Zm59.5-346.5Q521-510 521-529v-251q0-17-11.79-28.5T480-820q-17.42 0-29.21 11.5T439-780v251q0 19 11.5 32.5T480-483q18 0 29.5-13.5Z"></path></svg>
+<span id="lbl-audio" style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">Record audio</span>
+<button type="button" role="switch" aria-checked="{{audio.on}}" aria-labelledby="lbl-audio" onClick="{{audio.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{audio.border}}; background: {{audio.track}}">
+<span style="position: absolute; top: 50%; left: {{audio.left}}; width: {{audio.size}}; height: {{audio.size}}; margin-top: {{audio.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{audio.thumb}}; color: var(--on-pc)">
+<sc-if value="{{audio.on}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+</div>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Incidents</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<button type="button" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 20px 20px 4px 4px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M140-224v-210 210ZM80-424q0-4.67.5-9.33Q81-438 83-443l82-247q5-14 16.5-22t26.5-8h195q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H218l-55 166h321q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H140v210h600v-181q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v285q0 16.67-11.74 28.33Q776.53-80 759.76-80 743-80 731.5-91.67 720-103.33 720-120v-44H160v44q0 16.67-11.74 28.33Q136.53-80 119.76-80 103-80 91.5-91.67 80-103.33 80-120v-304Zm556.76 150q23.24 0 38.74-15.75Q691-305.5 691-328q0-23.33-15.75-39.67Q659.5-384 637-384q-23.33 0-39.67 16.26Q581-351.47 581-328.24q0 23.24 16.26 38.74 16.27 15.5 39.5 15.5Zm-391 0q23.24 0 38.74-15.75Q300-305.5 300-328q0-23.33-15.75-39.67Q268.5-384 246-384q-23.33 0-39.67 16.26Q190-351.47 190-328.24q0 23.24 16.26 38.74 16.27 15.5 39.5 15.5Zm443.43-224Q610-498 554-554.01t-56-135.48Q498-768 554-824q56-56 135-56 80 0 135.5 55.5T880-689q0 80-55.81 135.5-55.82 55.5-135 55.5Zm15.31-166q4.5-5 4.5-13v-108q0-8-5-12.5t-13-4.5q-8 0-12.5 5t-4.5 13v108q0 8 5 12.5t13 4.5q8 0 12.5-5Zm-13 90q9.5 0 16-6t6.5-16q0-10-6.6-16t-15.4-6q-11 1-16.5 7t-5.5 15.5q0 9.5 6 15.5t15.5 6Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Collision sensitivity</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Medium</span>
+</span>
+</button>
+<div style="min-height: 56px; padding: 4px 12px 4px 16px; display: flex; align-items: center; gap: 16px; border-radius: 4px 4px 20px 20px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M360-376v196q0 25-17.5 42.5T300-120q-25 0-42.5-17.5T240-180v-600q0-25 17.5-42.5T300-840h228q98 0 165 67t67 165q0 98-67 165t-165 67H360Zm0-120h168q48 0 80-32t32-80q0-48-32-80t-80-32H360v224Z"></path></svg>
+<span id="lbl-parking" style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">Parking mode</span>
+<button type="button" role="switch" aria-checked="{{parking.on}}" aria-labelledby="lbl-parking" onClick="{{parking.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{parking.border}}; background: {{parking.track}}">
+<span style="position: absolute; top: 50%; left: {{parking.left}}; width: {{parking.size}}; height: {{parking.size}}; margin-top: {{parking.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{parking.thumb}}; color: var(--on-pc)">
+<sc-if value="{{parking.on}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+</div>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Plate recognition</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="min-height: 56px; padding: 4px 12px 4px 16px; display: flex; align-items: center; gap: 16px; border-radius: 20px 20px 4px 4px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M180-120q-24 0-42-18t-18-42v-142q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v142h142q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H180Zm600 0H638q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h142v-142q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v142q0 24-18 42t-42 18ZM120-638v-142q0-24 18-42t42-18h142q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H180v142q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37Zm660 0v-142H638q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h142q24 0 42 18t18 42v142q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37Z"></path></svg>
+<span id="lbl-lpr-live" style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">In live view</span>
+<button type="button" role="switch" aria-checked="{{lprLive.on}}" aria-labelledby="lbl-lpr-live" onClick="{{lprLive.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{lprLive.border}}; background: {{lprLive.track}}">
+<span style="position: absolute; top: 50%; left: {{lprLive.left}}; width: {{lprLive.size}}; height: {{lprLive.size}}; margin-top: {{lprLive.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{lprLive.thumb}}; color: var(--on-pc)">
+<sc-if value="{{lprLive.on}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+<div style="min-height: 56px; padding: 4px 12px 4px 16px; display: flex; align-items: center; gap: 16px; border-radius: 4px 4px 20px 20px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M655-521q11-6.8 11-18.9 0-12.1-11-19.1L459-685q-11-8-23-1.44-12 6.55-12 20.44v252q0 13.89 12 20.44 12 6.56 23-1.44l196-126ZM260-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h560q24 0 42 18t18 42v560q0 24-18 42t-42 18H260Zm0-60h560v-560H260v560ZM140-80q-24 0-42-18t-18-42v-590q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v590h590q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32Q742.75-80 730-80H140Zm120-740v560-560Z"></path></svg>
+<span id="lbl-lpr-clips" style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">In saved clips</span>
+<button type="button" role="switch" aria-checked="{{lprClips.on}}" aria-labelledby="lbl-lpr-clips" onClick="{{lprClips.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{lprClips.border}}; background: {{lprClips.track}}">
+<span style="position: absolute; top: 50%; left: {{lprClips.left}}; width: {{lprClips.size}}; height: {{lprClips.size}}; margin-top: {{lprClips.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{lprClips.thumb}}; color: var(--on-pc)">
+<sc-if value="{{lprClips.on}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+</div>
+<p style="margin: 8px 16px 0; font-size: 12px; line-height: 16px; letter-spacing: 0.4px; color: var(--on-sv)">Runs on this phone.</p>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Upscaling</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="min-height: 72px; padding: 8px 12px 8px 16px; display: flex; align-items: center; gap: 16px; border-radius: 20px 20px 4px 4px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M290-446h100v64q0 10.83 7.12 17.92 7.11 7.08 18 7.08 10.88 0 17.88-7.08 7-7.09 7-17.92v-196q0-10.83-7.12-17.92-7.11-7.08-18-7.08-10.88 0-17.88 7.08-7 7.09-7 17.92v82H290v-82q0-10.83-7.12-17.92-7.11-7.08-18-7.08-10.88 0-17.88 7.08-7 7.09-7 17.92v196q0 10.83 7.12 17.92 7.11 7.08 18 7.08 10.88 0 17.88-7.08 7-7.09 7-17.92v-64Zm245 89h135q20 0 35-15t15-35v-146q0-20-15-35t-35-15H535q-6 0-10.5 4.5T520-588v216q0 6 4.5 10.5T535-357Zm35-50v-146h100v146H570ZM140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span id="lbl-up-live" style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">Upscaled live view</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Uses more battery</span>
+</span>
+<button type="button" role="switch" aria-checked="{{upLive.on}}" aria-labelledby="lbl-up-live" onClick="{{upLive.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{upLive.border}}; background: {{upLive.track}}">
+<span style="position: absolute; top: 50%; left: {{upLive.left}}; width: {{upLive.size}}; height: {{upLive.size}}; margin-top: {{upLive.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{upLive.thumb}}; color: var(--on-pc)">
+<sc-if value="{{upLive.on}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+<button type="button" style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 4px 4px 20px 20px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="m654-454-91 147q-8 13-22.5 10T522-314l-33-133-306 305q-9 9-21 9t-21-9q-9-9-9-21t9-21l305-305-133-33q-14-4-17-18.5t10-22.5l147-92-12-172q-1-15 12.5-22t24.5 3l132 111 160-64q14-5 24 5t5 24l-65 160 111 132q10 11 3.5 24.5T827-441l-173-13ZM131-721q-5-5-5-11t5-11l46-46q5-5 11-5t11 5l45 45q5 5 5 11t-5 11l-46 46q-5 5-11 5t-11-5l-45-45Zm428 307 63-102 120 9-78-92 45-111-111 45-92-78 9 120-102 64 117 29 29 116Zm163 283-46-46q-5-5-4.5-11t5.5-11l45-45q5-5 11-5t11 5l46 46q5 5 4.5 11t-5.5 11l-45 45q-5 5-11 5t-11-5ZM578-579Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Default export quality</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">1440p</span>
+</span>
+</button>
+</div>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Camera</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="min-height: 56px; padding: 4px 12px 4px 16px; display: flex; align-items: center; gap: 16px; border-radius: 20px 20px 4px 4px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M513-492v-171q0-13-8.5-21.5T483-693q-13 0-21.5 8.5T453-663v183q0 6 2 11t6 10l144 149q9 10 22.5 9.5T650-310q9-9 9-22t-9-22L513-492ZM480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-82 31.5-155t86-127.5Q252-817 325-848.5T480-880q82 0 155 31.5t127.5 86Q817-708 848.5-635T880-480q0 82-31.5 155t-86 127.5Q708-143 635-111.5T480-80Zm0-400Zm0 340q140 0 240-100t100-240q0-140-100-240T480-820q-140 0-240 100T140-480q0 140 100 240t240 100Z"></path></svg>
+<span id="lbl-stamp" style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">Date and time stamp</span>
+<button type="button" role="switch" aria-checked="{{stamp.on}}" aria-labelledby="lbl-stamp" onClick="{{stamp.toggle}}" style="width: 52px; height: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; border: 0; background: transparent; cursor: pointer">
+<span style="position: relative; width: 52px; height: 32px; border-radius: 16px; border: 2px solid {{stamp.border}}; background: {{stamp.track}}">
+<span style="position: absolute; top: 50%; left: {{stamp.left}}; width: {{stamp.size}}; height: {{stamp.size}}; margin-top: {{stamp.mt}}; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{stamp.thumb}}; color: var(--on-pc)">
+<sc-if value="{{stamp.on}}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z"></path></svg></sc-if>
+</span>
+</span>
+</button>
+</div>
+<button type="button" style="min-height: 56px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 4px 4px 20px 20px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M417-154q-27-27-27-63t27-63q27-27 63-27t63 27q27 27 27 63t-27 63q-27 27-63 27t-63-27Zm209-378.5Q694-505 757-451q14 12 15 30.5T759-388q-14 14-32 13t-33-13q-53-44-106.5-63T480-470q-54 0-107.5 19T266-388q-15 12-33 13t-32-13q-14-14-13-32.5t15-30.5q63-54 131-81.5T480-560q78 0 146 27.5Zm95.5-219Q835-703 926-622q14 13 15.5 31.5T929-558q-14 14-33.5 13.5T861-558q-83-70-178-111t-203-41q-108 0-203 41T99-558q-15 13-34 13.5T32-558q-14-14-13-32.5T34-622q91-81 204.5-129.5T480-800q128 0 241.5 48.5Z"></path></svg>
+<span style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Wi-Fi name and password</span>
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"></path></svg>
+</button>
+</div>
+</section>
+
+<section style="margin-top: 16px">
+<h2 style="margin: 0; padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Device</h2>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="min-height: 72px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border-radius: 20px 20px 4px 4px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M377-407v-145q0-12.75 8.63-21.38Q394.25-582 407-582h145q12.75 0 21.38 8.62Q582-564.75 582-552v145q0 12.75-8.62 21.37Q564.75-377 552-377H407q-12.75 0-21.37-8.63Q377-394.25 377-407Zm60-30h85v-85h-85v85Zm-77 287v-50H260q-24 0-42-18t-18-42v-100h-50q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h50v-124h-50q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h50v-100q0-24 18-42t42-18h100v-46q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v46h124v-46q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v46h100q24 0 42 18t18 42v100h46q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5h-46v124h46q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5h-46v100q0 24-18 42t-42 18H604v50q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-50H420v50q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37Zm344-110v-444H260v444h444ZM480-480Z"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column">
+<span style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">Firmware</span>
+<span style="font-family: var(--mono); font-size: 13px; line-height: 20px; color: var(--on-sv)">[VERSION]</span>
+</span>
+</div>
+<button type="button" style="min-height: 56px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border: 0; border-radius: 4px 4px 20px 20px; background: var(--scn); color: var(--on-s); text-align: left; cursor: pointer">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M418-126q-111-21-184.5-109T160-439q0-71 30-134t85-107q8-6 19-5.5t19 8.5q10 10 9 23t-13 23q-42 35-65.5 85.5T220-439q0 94 58 163.5T425-186q11 2 18.5 11t7.5 20q0 14-10 22.5t-23 6.5Zm126 0q-13 2-23-6.5T511-155q0-11 7.5-20t18.5-11q90-20 147-89.5T741-439q0-109-75.5-184.5T481-699h-20l39 39q8 8 8 21t-8 21q-9 9-22 9t-21-9l-91-90q-5-5-7-10t-2-11q0-6 2-11t7-10l91-91q8-8 21-8t22 8q8 9 8 22t-8 21l-39 39h20q134 0 227 93.5T801-439q0 116-73 204T544-126Z"></path></svg>
+<span style="flex-grow: 1; font-size: 16px; line-height: 24px; letter-spacing: 0.5px">Restart dashcam</span>
+</button>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":1520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    const theme = T[this.props.theme] || 't-blue';
+    const s = Object.assign({ audio: true, parking: false, lprLive: true, lprClips: true, upLive: false, stamp: true }, this.state || {});
+    const sw = (key) => {
+      const on = !!s[key];
+      return {
+        on: on,
+        border: on ? 'var(--p)' : 'var(--ol)',
+        track: on ? 'var(--p)' : 'var(--schh)',
+        thumb: on ? 'var(--on-p)' : 'var(--ol)',
+        size: on ? '24px' : '16px',
+        left: on ? '22px' : '6px',
+        mt: on ? '-12px' : '-8px',
+        toggle: () => this.setState({ [key]: !on })
+      };
+    };
+    return {
+      theme: theme,
+      themeName: theme === 't-black' ? 'My Forthing black' : 'Material You · colours from your wallpaper',
+      audio: sw('audio'),
+      parking: sw('parking'),
+      lprLive: sw('lprLive'),
+      lprClips: sw('lprClips'),
+      upLive: sw('upLive'),
+      stamp: sw('stamp')
+    };
+  }
+}
+</script>
+</body>
+</html>

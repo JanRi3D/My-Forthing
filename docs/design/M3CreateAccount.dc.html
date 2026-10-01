@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Create account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center; gap: 4px">
+<a href="M3Welcome.dc.html" aria-label="Back" style="width: 48px; height: 48px; margin-left: -12px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+<span style="flex-grow: 1; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--on-sv)">Step 1 of 2</span>
+</div>
+<div aria-hidden="true" style="height: 4px; display: flex; gap: 4px">
+<span style="width: 50%; border-radius: 2px; background: var(--p)"></span>
+<span style="flex-grow: 1; border-radius: 2px; background: var(--sc)"></span>
+</div>
+
+<div style="margin-top: 20px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 400; color: var(--on-s)">Create your account</h1>
+<p style="margin: 0; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-sv)">Sign up with Google, Apple or email.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<button type="button" style="height: 56px; border-radius: 28px; border: 1px solid var(--olv); background: transparent; color: var(--on-s); font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; cursor: pointer">Continue with Google</button>
+<button type="button" style="height: 56px; border-radius: 28px; border: 1px solid var(--olv); background: transparent; color: var(--on-s); font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; cursor: pointer">Continue with Apple</button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 16px; font-size: 14px; line-height: 20px; color: var(--on-sv)">
+<div style="height: 1px; flex-grow: 1; background: var(--olv)"></div>
+<span>or</span>
+<div style="height: 1px; flex-grow: 1; background: var(--olv)"></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="position: relative">
+<input id="email" type="email" autocomplete="email" placeholder="you@example.com" style="width: 100%; height: 56px; padding: 0 16px; border-radius: 4px; border: 1px solid var(--ol); background: transparent; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">
+<label for="email" style="position: absolute; left: 12px; top: -8px; padding: 0 4px; background: var(--s); font-size: 12px; line-height: 16px; color: var(--on-sv)">Email</label>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="position: relative; display: flex; align-items: center">
+<input id="password" type="{{pwType}}" autocomplete="new-password" aria-describedby="pw-hint" placeholder="Choose a password" style="width: 100%; height: 56px; padding: 0 52px 0 16px; border-radius: 4px; border: 1px solid var(--ol); background: transparent; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: var(--on-s)">
+<label for="password" style="position: absolute; left: 12px; top: -8px; padding: 0 4px; background: var(--s); font-size: 12px; line-height: 16px; color: var(--on-sv)">Password</label>
+<button type="button" aria-label="{{pwLabel}}" aria-pressed="{{pwShown}}" onClick="{{togglePw}}" style="position: absolute; right: 4px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--on-sv); cursor: pointer">
+<sc-if value="{{pwHidden}}" hint-placeholder-val="{{ true }}">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M600.5-379.62q49.5-49.62 49.5-120.5T600.38-620.5Q550.76-670 479.88-670T359.5-620.38Q310-570.76 310-499.88t49.62 120.38q49.62 49.5 120.5 49.5t120.38-49.62Zm-200-41.12q-32.5-32.73-32.5-79.5 0-46.76 32.74-79.26 32.73-32.5 79.5-32.5 46.76 0 79.26 32.74 32.5 32.73 32.5 79.5 0 46.76-32.74 79.26-32.73 32.5-79.5 32.5-46.76 0-79.26-32.74ZM234.5-276Q124-352 57-470q-4-7.13-6-14.65-2-7.52-2-15.43 0-7.92 2-15.38 2-7.47 6-14.54 67-118 177.5-194T480-800q135 0 245.5 76T903-530q4 7.12 6 14.65 2 7.52 2 15.43 0 7.92-2 15.38-2 7.47-6 14.54-67 118-177.5 194T480-200q-135 0-245.5-76ZM480-500Zm222.5 174.5Q804-391 857-500q-53-109-154.33-174.5Q601.34-740 480.17-740T257.5-674.5Q156-609 102-500q54 109 155.33 174.5Q358.66-260 479.83-260t222.67-65.5Z"></path></svg>
+</sc-if>
+<sc-if value="{{pwShown}}" hint-placeholder-val="{{ false }}">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M600-620q29 29 42.5 71.5T647-464q0 13-8.5 21.5T617-434q-13 0-21.5-8.5T587-464q11-34 2.5-64.5T559-580q-21-22-52-30t-64 3q-13 0-21.5-8.5T413-637q0-13 8.5-21.5T443-667q42-9 85 4.5t72 42.5ZM490-740q-32 0-64 3t-63 13q-12 4-24-1t-17-16q-5-11 0-22.5t16-15.5q35-11 72-16t75-5q137 0 249.5 75.5T907-526q3 6 5 12.5t2 13.5q0 7-1.5 13.5T908-474q-23 49-55 90.5T779-307q-9 8-20 5.5T741-313q-7-9-5.5-20t10.5-19q36-30 65-66.5t46-81.5q-49-109-148-174.5T490-740Zm-10 540q-136 0-247.5-76T55-472q-4-7-5.5-13.5T48-500q0-8 2-14.5t5-13.5q24-48 55.5-90.5T182-696L77-801q-9-9-8.5-21t8.5-21q9-9 21.5-9t21.5 9l716 716q8 8 8 19.5T836-87q-8 10-20.5 10T794-86L648-229q-41 15-83 22t-85 7ZM223-654q-41 29-72 68t-49 86q52 112 156.5 176T488-260q29 0 58-1.5t55-14.5l-64-64q-14 6-28.5 8t-28.5 2q-71 0-120.5-49.5T310-500q0-14 2.5-28.5T320-557l-97-97Zm305 142Zm-116 58Z"></path></svg>
+</sc-if>
+</button>
+</div>
+<p id="pw-hint" style="margin: 0; padding: 0 16px; font-size: 12px; line-height: 16px; letter-spacing: 0.4px; color: var(--on-sv)">At least 8 characters</p>
+</div>
+<div style="min-height: 48px; display: flex; align-items: center; gap: 12px">
+<input id="terms" type="checkbox" style="width: 18px; height: 18px; margin: 0 3px; flex-shrink: 0; accent-color: var(--p)">
+<label for="terms" style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">I agree to the <a href="#">Terms</a> and the <a href="#">Privacy Policy</a>.</label>
+</div>
+</div>
+
+<a href="M3VerifyEmail.dc.html" style="height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 28px; background: var(--p); color: var(--on-p); font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; text-decoration: none">Create account</a>
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">
+<span>Already have an account?</span>
+<a href="M3SignIn.dc.html" style="min-height: 48px; display: flex; align-items: center; font-weight: 500; text-decoration: none">Sign in</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    const shown = !!(this.state && this.state.showPw);
+    return {
+      theme: T[this.props.theme] || 't-blue',
+      pwType: shown ? 'text' : 'password',
+      pwShown: shown,
+      pwHidden: !shown,
+      pwLabel: shown ? 'Hide password' : 'Show password',
+      togglePw: () => this.setState({ showPw: !shown })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing – Website</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#050506;color:#F4F5F7;font-family:Geist,'Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:#7B7F87}
+a{color:#F4F5F7}a:hover{color:#FFFFFF}
+:focus-visible{outline:2px solid #F4F5F7;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1680px; display: flex; flex-direction: column; background: #050506; color: #F4F5F7">
+
+<header style="height: 72px; flex-shrink: 0; padding: 0 64px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1F2125">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 9px; overflow: visible"><img src="/_blob/6f7fe73ba17cd958f5e1ee394389e440" alt="" style="width: 30px; height: 30px"></span>
+<span style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">My Forthing</span>
+</div>
+<nav aria-label="Main" style="display: flex; align-items: center; gap: 4px">
+<a href="#install" style="min-height: 44px; padding: 0 14px; display: flex; align-items: center; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">Install</a>
+<a href="#" style="min-height: 44px; padding: 0 14px; display: flex; align-items: center; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">GitHub</a>
+<a href="WebSignIn.dc.html" style="height: 44px; margin-left: 8px; padding: 0 18px; display: flex; align-items: center; border-radius: 10px; border: 1px solid #2C2F34; color: #F4F5F7; font-size: 15px; font-weight: 500; text-decoration: none">Sign in</a>
+</nav>
+</header>
+
+<section style="padding: 64px 64px 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 64px; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 28px">
+<p style="margin: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.16em; color: #9EA1A8">OPEN-SOURCE DASHCAM APP</p>
+<h1 style="margin: 0; max-width: 720px; font-size: 68px; font-weight: 600; line-height: 1.02; letter-spacing: -0.045em; color: #F4F5F7; text-wrap: balance">Live view, footage and settings for your dashcam.</h1>
+<p style="margin: 0; max-width: 540px; font-size: 18px; line-height: 1.55; color: #9EA1A8">My Forthing connects to your dashcam over its own Wi-Fi. Plate recognition and upscaling run on your phone.</p>
+<div style="display: flex; align-items: center; gap: 12px">
+<a href="#install" style="height: 52px; padding: 0 22px; display: flex; align-items: center; gap: 10px; border-radius: 10px; background: #F4F5F7; color: #050506; font-size: 15px; font-weight: 600; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4v11"></path><path d="M7 10.5l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+<span>Download APK</span>
+</a>
+<a href="#" style="height: 52px; padding: 0 20px; display: flex; align-items: center; gap: 8px; border-radius: 10px; border: 1px solid #2C2F34; color: #F4F5F7; font-size: 15px; font-weight: 500; text-decoration: none">
+<span>View source on GitHub</span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #7B7F87; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M7 17L17 7"></path><path d="M8 7h9v9"></path></svg>
+</a>
+</div>
+<div style="margin-top: 12px; max-width: 600px; padding-top: 28px; display: flex; align-items: center; gap: 24px; border-top: 1px solid #1F2125">
+<div style="width: 112px; height: 112px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px dashed #2C2F34; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; color: #7B7F87">[QR CODE]</div>
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #D5D7DB">On a computer? Scan this with your phone to download the APK there.</p>
+<p style="margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0.08em; color: #7B7F87">
+<span>VERSION [X.Y.Z]</span>
+<span>[SIZE] MB</span>
+<span>ANDROID [MIN]+</span>
+</p>
+<div style="margin: -10px 0 -12px; display: flex; align-items: center; gap: 10px; min-width: 0">
+<span style="flex-shrink: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0.08em; color: #7B7F87">SHA-256</span>
+<span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; color: #D5D7DB">[CHECKSUM]</span>
+<button type="button" aria-label="Copy SHA-256 checksum" style="width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 22px; background: transparent; color: #9EA1A8; cursor: pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"></path></svg>
+</button>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; justify-content: center">
+<div style="padding: 8px; border-radius: 48px; border: 1px solid #2C2F34; background: #0E0F11">
+<div style="position: relative; width: 312px; height: 675px; overflow: hidden; border-radius: 40px">
+<div style="width: 390px; height: 844px; transform: scale(0.8); transform-origin: 0 0">
+<dc-import name="Home" hint-size="390px,844px"></dc-import>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="features-title" style="padding: 88px 64px 0; display: flex; flex-direction: column; gap: 24px">
+<h2 id="features-title" style="margin: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.16em; color: #9EA1A8">WHAT IT DOES</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<div style="min-height: 196px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; border-radius: 14px; border: 1px solid #1F2125; background: #0E0F11">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: #F4F5F7; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="6" width="13" height="12" rx="2"></rect><path d="M15.5 10.5l6-3.5v10l-6-3.5"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Live view and recordings</h3>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9EA1A8">Watch the road, take screenshots, and download loop clips, photos and incidents.</p>
+</div>
+</div>
+<div style="min-height: 196px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; border-radius: 14px; border: 1px solid #1F2125; background: #0E0F11">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: #F4F5F7; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="2.5" y="7" width="19" height="10" rx="2"></rect><path d="M6.5 12h2.5"></path><path d="M11.5 12h6"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Plate recognition</h3>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9EA1A8">Finds plates in live view and saved clips, with a searchable history of every sighting.</p>
+</div>
+</div>
+<div style="min-height: 196px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; border-radius: 14px; border: 1px solid #1F2125; background: #0E0F11">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: #F4F5F7; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M4 20l6-6"></path><path d="M4 14v6h6"></path><path d="M20 4l-6 6"></path><path d="M20 10V4h-6"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Upscaling</h3>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9EA1A8">Enhance a single frame, or export a clip in 1440p or 4K.</p>
+</div>
+</div>
+<div style="min-height: 196px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; border-radius: 14px; border: 1px solid #1F2125; background: #0E0F11">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: #F4F5F7; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Footage in your browser</h3>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9EA1A8">Connect S3-compatible or WebDAV storage, then watch your recordings on this website.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section id="install" aria-labelledby="install-title" style="padding: 88px 64px 88px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h2 id="install-title" style="margin: 0; font-size: 36px; font-weight: 600; line-height: 1.1; letter-spacing: -0.03em; color: #F4F5F7">Install on Android</h2>
+<p style="margin: 0; max-width: 520px; font-size: 16px; line-height: 1.5; color: #9EA1A8">Install the APK straight from this page. It takes about a minute.</p>
+</div>
+<a href="#install" style="height: 52px; padding: 0 22px; display: flex; align-items: center; gap: 10px; border-radius: 10px; background: #F4F5F7; color: #050506; font-size: 15px; font-weight: 600; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4v11"></path><path d="M7 10.5l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+<span>Download APK</span>
+</a>
+</div>
+<ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+<li style="padding-top: 20px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #2C2F34">
+<span style="font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">01</span>
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Download</h3>
+<p style="margin: 0; max-width: 340px; font-size: 14px; line-height: 1.5; color: #9EA1A8">Tap Download APK on your phone, or scan the code from a computer.</p>
+</li>
+<li style="padding-top: 20px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #2C2F34">
+<span style="font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">02</span>
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Allow the install</h3>
+<p style="margin: 0; max-width: 340px; font-size: 14px; line-height: 1.5; color: #9EA1A8">Android asks once whether your browser may install apps. Allow it for this download.</p>
+</li>
+<li style="padding-top: 20px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #2C2F34">
+<span style="font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">03</span>
+<h3 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #F4F5F7">Connect to your dashcam</h3>
+<p style="margin: 0; max-width: 340px; font-size: 14px; line-height: 1.5; color: #9EA1A8">Open My Forthing and join the dashcam's Wi-Fi, FORTHING-XXXX.</p>
+</li>
+</ol>
+</section>
+
+<footer style="margin-top: auto; height: 88px; flex-shrink: 0; padding: 0 64px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #1F2125">
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 7px; overflow: visible"><img src="/_blob/6f7fe73ba17cd958f5e1ee394389e440" alt="" style="width: 24px; height: 24px"></span>
+<span style="font-size: 14px; font-weight: 600; color: #F4F5F7">My Forthing</span>
+<span style="font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.14em; color: #7B7F87">OPEN SOURCE · [LICENSE]</span>
+</div>
+<nav aria-label="Footer" style="display: flex; align-items: center; gap: 4px">
+<a href="#" style="min-height: 44px; padding: 0 12px; display: flex; align-items: center; color: #9EA1A8; font-size: 14px; font-weight: 500; text-decoration: none">GitHub</a>
+<a href="#install" style="min-height: 44px; padding: 0 12px; display: flex; align-items: center; color: #9EA1A8; font-size: 14px; font-weight: 500; text-decoration: none">Install</a>
+<a href="WebSignIn.dc.html" style="min-height: 44px; padding: 0 12px; display: flex; align-items: center; color: #9EA1A8; font-size: 14px; font-weight: 500; text-decoration: none">Sign in</a>
+</nav>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

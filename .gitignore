@@ -13,3 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Axolotl Cam: local reference material (vendor evidence archive, full report) - never commit
+/reference/
+# Signing and service credentials - never commit
+*.jks
+*.keystore
+/app/google-services.json
+/keystore.properties
+
+# Claude Code agent worktrees
+/.claude/worktrees/

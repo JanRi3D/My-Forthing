@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Appearance</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 40px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<div style="height: 64px; display: flex; align-items: center; gap: 4px">
+<a href="M3Settings.dc.html" aria-label="Back to settings" style="width: 48px; height: 48px; margin-left: -12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--on-s)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="m274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z"></path></svg>
+</a>
+<h1 style="margin: 0; flex-grow: 1; font-size: 22px; line-height: 28px; font-weight: 400; color: var(--on-s)">Appearance</h1>
+</div>
+
+<fieldset style="margin: 8px 0 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<legend style="padding: 8px 16px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: var(--p)">Theme</legend>
+
+<label for="theme-you" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-radius: 28px; border: 2px solid {{youBorder}}; background: var(--scn); cursor: pointer">
+<span class="{{youPreview}}" aria-hidden="true" style="width: 76px; height: 132px; flex-shrink: 0; padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; border-radius: 16px; border: 1px solid var(--olv); background: var(--s)">
+<span style="height: 10px; border-radius: 5px; background: var(--sch)"></span>
+<span style="height: 34px; border-radius: 8px; background: var(--pc)"></span>
+<span style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+</span>
+</span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; color: var(--on-s)">Material You</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Colours from your wallpaper. Follows your phone’s light and dark mode.</span>
+<span aria-hidden="true" style="display: flex; gap: 6px; margin-top: 2px">
+<span style="width: 18px; height: 18px; border-radius: 50%; background: #a9c7ff"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; background: #cfbdfe"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; background: #9bd4a0"></span>
+</span>
+</span>
+<input id="theme-you" type="radio" name="theme" checked="{{isYou}}" onChange="{{pickYou}}" style="width: 20px; height: 20px; margin: 0; flex-shrink: 0; accent-color: var(--p)">
+</label>
+
+<label for="theme-black" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-radius: 28px; border: 2px solid {{blackBorder}}; background: var(--scn); cursor: pointer">
+<span class="t-black" aria-hidden="true" style="width: 76px; height: 132px; flex-shrink: 0; padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; border-radius: 16px; border: 1px solid #2c2f34; background: var(--s)">
+<span style="height: 10px; border-radius: 5px; background: var(--sch)"></span>
+<span style="height: 34px; border-radius: 8px; background: var(--pc)"></span>
+<span style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+<span style="height: 30px; border-radius: 8px; background: var(--sch)"></span>
+</span>
+</span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px; color: var(--on-s)">My Forthing black</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Black and white with the Geist font. Always dark.</span>
+<span aria-hidden="true" style="display: flex; gap: 6px; margin-top: 2px">
+<span style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #5c6068; background: #050506"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; background: #f4f5f7"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; background: #ff453a"></span>
+</span>
+</span>
+<input id="theme-black" type="radio" name="theme" checked="{{isBlack}}" onChange="{{pickBlack}}" style="width: 20px; height: 20px; margin: 0; flex-shrink: 0; accent-color: var(--p)">
+</label>
+</fieldset>
+
+<div style="margin-top: 16px; padding: 16px; display: flex; align-items: flex-start; gap: 16px; border-radius: 20px; background: var(--scn)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-sv)"><path d="M504.5-288.63q8.5-8.62 8.5-21.37v-180q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v180q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm-1-314.57q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"></path></svg>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">{{infoText}}</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    const propTheme = T[this.props.theme] || 't-blue';
+    const youVariant = propTheme === 't-black' ? 't-blue' : propTheme;
+    const st = this.state || {};
+    const choice = st.choice || (propTheme === 't-black' ? 'black' : 'you');
+    const isBlack = choice === 'black';
+    return {
+      theme: isBlack ? 't-black' : youVariant,
+      youPreview: youVariant,
+      isYou: !isBlack,
+      isBlack: isBlack,
+      youBorder: isBlack ? 'transparent' : 'var(--p)',
+      blackBorder: isBlack ? 'var(--p)' : 'transparent',
+      pickYou: () => this.setState({ choice: 'you' }),
+      pickBlack: () => this.setState({ choice: 'black' }),
+      infoText: isBlack
+        ? 'The whole app switches to black and white with the Geist font. Your choice is saved on this phone.'
+        : 'Android picks the colours from your wallpaper. Change your wallpaper to change the app’s colours. On phones without wallpaper colours, My Forthing uses blue.'
+    };
+  }
+}
+</script>
+</body>
+</html>

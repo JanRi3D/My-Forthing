@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing – Web footage</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#050506;color:#F4F5F7;font-family:Geist,'Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:#7B7F87}
+a{color:#F4F5F7}a:hover{color:#FFFFFF}
+:focus-visible{outline:2px solid #F4F5F7;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: #050506; color: #F4F5F7">
+
+<aside style="width: 248px; flex-shrink: 0; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; border-right: 1px solid #1F2125">
+<a href="WebHome.dc.html" style="height: 44px; padding: 0 8px; display: flex; align-items: center; gap: 10px; color: #F4F5F7; text-decoration: none">
+<span style="width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 9px; overflow: visible"><img src="/_blob/6f7fe73ba17cd958f5e1ee394389e440" alt="" style="width: 30px; height: 30px"></span>
+<span style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">My Forthing</span>
+</a>
+<nav aria-label="Account" style="display: flex; flex-direction: column; gap: 4px">
+<a href="WebFootage.dc.html" aria-current="page" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; color: #F4F5F7; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 3v18"></path><path d="M17 3v18"></path><path d="M3 7.5h4"></path><path d="M3 12h4"></path><path d="M3 16.5h4"></path><path d="M17 7.5h4"></path><path d="M17 12h4"></path><path d="M17 16.5h4"></path></svg>
+<span>Footage</span>
+</a>
+<a href="WebSettings.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M4 7h9"></path><path d="M17 7h3"></path><circle cx="15" cy="7" r="2"></circle><path d="M4 17h3"></path><path d="M11 17h9"></path><circle cx="9" cy="17" r="2"></circle></svg>
+<span>Settings</span>
+</a>
+<a href="WebStorage.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.5"></ellipse><path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13"></path><path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5"></path></svg>
+<span>Storage</span>
+</a>
+<div style="height: 1px; margin: 12px 4px; background: #1F2125"></div>
+<a href="WebHome.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4v11"></path><path d="M7 10.5l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+<span>Get the app</span>
+</a>
+</nav>
+<div style="margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #1F2125">
+<div style="padding: 8px; display: flex; align-items: center; gap: 12px">
+<span style="width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid #2C2F34; color: #D5D7DB">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+</span>
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px; font-weight: 500; color: #F4F5F7">[NAME]</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #7B7F87">[EMAIL]</span>
+</span>
+</div>
+<a href="WebSignIn.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"></path><path d="M10 16l-4-4 4-4"></path><path d="M6 12h10"></path></svg>
+<span>Sign out</span>
+</a>
+</div>
+</aside>
+
+<main style="flex-grow: 1; min-width: 0; padding: 32px 48px 40px; display: flex; flex-direction: column">
+<div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+<h1 style="margin: 0; font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.03em; color: #F4F5F7">Footage</h1>
+<a href="WebStorage.dc.html" style="height: 44px; padding: 0 16px; display: flex; align-items: center; gap: 10px; border-radius: 999px; border: 1px solid #2C2F34; color: #D5D7DB; font-size: 14px; text-decoration: none">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #30D158"></span>
+<span>S3 · [BUCKET]</span>
+</a>
+</div>
+
+<div style="margin-top: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+<div style="width: 360px; padding: 2px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; border-radius: 12px; border: 1px solid #1F2125; background: #0E0F11">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{t.on}}" onClick="{{t.pick}}" style="height: 40px; border: 0; border-radius: 10px; background: {{t.bg}}; color: {{t.fg}}; font-size: 14px; font-weight: 500; cursor: pointer">{{t.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" style="height: 44px; padding: 0 12px 0 14px; display: flex; align-items: center; gap: 8px; border-radius: 10px; border: 1px solid #2C2F34; background: transparent; color: #F4F5F7; font-size: 14px; font-weight: 500; cursor: pointer">
+<span>All dates</span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #7B7F87; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M6 9l6 6 6-6"></path></svg>
+</button>
+<button type="button" style="height: 44px; padding: 0 14px; border: 0; background: transparent; color: #F4F5F7; font-size: 14px; font-weight: 500; cursor: pointer">Select</button>
+</div>
+</div>
+
+<sc-if value="{{showClips}}" hint-placeholder-val="{{ true }}">
+<div style="margin-top: 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 16px; row-gap: 20px">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="10">
+<sc-if value="{{row.isHeader}}" hint-placeholder-val="{{ false }}">
+<p style="grid-column: 1 / -1; margin: 8px 0 -8px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">{{row.label}}</p>
+</sc-if>
+<sc-if value="{{row.isClip}}" hint-placeholder-val="{{ true }}">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<a href="WebClip.dc.html" aria-label="{{row.playLabel}}" style="position: relative; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #16181B; color: #7B7F87; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" style="fill: currentColor"></path></svg>
+<sc-if value="{{row.locked}}" hint-placeholder-val="{{ false }}">
+<span style="position: absolute; left: 8px; top: 8px; height: 22px; padding: 0 7px; display: flex; align-items: center; gap: 5px; border-radius: 5px; border: 1px solid #5A2522; background: rgba(5, 5, 6, 0.8); font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.12em; color: #FF6961">
+<span style="width: 5px; height: 5px; border-radius: 50%; background: #FF453A"></span>
+<span>LOCKED</span>
+</span>
+</sc-if>
+<span style="position: absolute; right: 8px; bottom: 8px; padding: 2px 6px; border-radius: 4px; background: rgba(5, 5, 6, 0.8); font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; color: #F4F5F7">{{row.duration}}</span>
+</a>
+<div style="display: flex; align-items: center; gap: 4px">
+<a href="WebClip.dc.html" style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; color: #F4F5F7; text-decoration: none">
+<span style="font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums">{{row.time}}</span>
+<span style="font-size: 13px; color: #9EA1A8; font-variant-numeric: tabular-nums">{{row.meta}}</span>
+</a>
+<button type="button" aria-label="{{row.dlLabel}}" style="width: 44px; height: 44px; margin-right: -10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 22px; background: transparent; color: #D5D7DB; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4v11"></path><path d="M7 10.5l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+</button>
+</div>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{showPhotos}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 20px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{photos}}" as="p" hint-placeholder-count="13">
+<sc-if value="{{p.isHeader}}" hint-placeholder-val="{{ false }}">
+<p style="grid-column: 1 / -1; margin: 8px 0 -2px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">{{p.label}}</p>
+</sc-if>
+<sc-if value="{{p.isPhoto}}" hint-placeholder-val="{{ true }}">
+<button type="button" aria-label="{{p.aria}}" style="position: relative; aspect-ratio: 1 / 1; padding: 0; border: 0; border-radius: 8px; background: #16181B; cursor: pointer">
+<span style="position: absolute; left: 8px; bottom: 8px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; color: #D5D7DB; font-variant-numeric: tabular-nums">{{p.time}}</span>
+</button>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (this.state && this.state.tab) || 'loop';
+    const mk = (id, label) => {
+      const on = tab === id;
+      return {
+        label: label,
+        on: on,
+        bg: on ? '#F4F5F7' : 'transparent',
+        fg: on ? '#050506' : '#9EA1A8',
+        pick: () => this.setState({ tab: id })
+      };
+    };
+    const head = (label) => ({ isHeader: true, isClip: false, label: label });
+    const clip = (time, duration, size, locked) => ({
+      isHeader: false,
+      isClip: true,
+      time: time,
+      duration: duration,
+      meta: duration + ' · ' + size,
+      locked: locked,
+      playLabel: 'Play clip ' + time,
+      dlLabel: 'Download clip ' + time
+    });
+    const loop = [
+      head('TODAY'),
+      clip('17:41 – 17:42', '1:00', '86 MB', false),
+      clip('17:40 – 17:41', '1:00', '86 MB', false),
+      clip('17:39 – 17:40', '1:00', '86 MB', false),
+      clip('17:38 – 17:39', '1:00', '86 MB', false),
+      head('YESTERDAY'),
+      clip('08:12 – 08:13', '1:00', '86 MB', false),
+      clip('08:11 – 08:12', '1:00', '86 MB', false),
+      clip('08:10 – 08:11', '1:00', '86 MB', false),
+      clip('08:09 – 08:10', '1:00', '86 MB', false)
+    ];
+    const incidents = [
+      head('TODAY'),
+      clip('17:36:14', '0:30', '43 MB', true),
+      head('12 SEP'),
+      clip('09:05:52', '0:30', '43 MB', true)
+    ];
+    const ph = (time) => ({ isHeader: false, isPhoto: true, time: time, aria: 'Photo from ' + time });
+    const phHead = (label) => ({ isHeader: true, isPhoto: false, label: label });
+    const photos = [
+      phHead('TODAY'),
+      ph('17:40:12'), ph('17:38:55'), ph('17:22:03'), ph('16:58:41'), ph('16:57:10'), ph('12:31:48'),
+      ph('12:30:02'), ph('08:14:37'), ph('08:12:20'),
+      phHead('YESTERDAY'),
+      ph('18:02:44'), ph('17:59:31'), ph('08:40:05')
+    ];
+    return {
+      tabs: [mk('loop', 'Loop'), mk('photos', 'Photos'), mk('incidents', 'Incidents')],
+      rows: tab === 'incidents' ? incidents : loop,
+      showClips: tab !== 'photos',
+      showPhotos: tab === 'photos',
+      photos: photos
+    };
+  }
+}
+</script>
+</body>
+</html>

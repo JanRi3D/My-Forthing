@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing M3 – Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Roboto+Mono:wght@400..600&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#000}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:var(--on-sv)}
+a{color:var(--p)}
+:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.t-blue{--p:#a9c7ff;--on-p:#07305f;--pc:#264777;--on-pc:#d6e3ff;--sc:#3e4758;--on-sc:#d9e3f9;--t:#dcbce1;--s:#111318;--on-s:#e2e2e9;--on-sv:#c4c6cf;--ol:#8e9099;--olv:#43474e;--scl:#191c20;--scn:#1d2024;--sch:#282a2f;--schh:#33353a;--inv-s:#e2e2e9;--inv-on-s:#2e3035;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-purple{--p:#cfbdfe;--on-p:#36275d;--pc:#4d3d75;--on-pc:#e9ddff;--sc:#4a4458;--on-sc:#e8def8;--t:#efb8c8;--s:#141218;--on-s:#e6e0e9;--on-sv:#cac4cf;--ol:#948f99;--olv:#49454e;--scl:#1d1b20;--scn:#211f24;--sch:#2b292f;--schh:#36343a;--inv-s:#e6e0e9;--inv-on-s:#322f35;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-green{--p:#9bd4a0;--on-p:#003915;--pc:#1c5129;--on-pc:#b7f1ba;--sc:#3a4b3a;--on-sc:#d4e8d1;--t:#a1ced7;--s:#101510;--on-s:#e0e4dc;--on-sv:#c1c9be;--ol:#8b9389;--olv:#414941;--scl:#181d18;--scn:#1c211c;--sch:#262b26;--schh:#313630;--inv-s:#e0e4dc;--inv-on-s:#2d322c;--err:#ffb4ab;--err-c:#93000a;--on-err-c:#ffdad6;--rec:#ffb4ab;--ok:#8fd99a;--font:'Roboto Flex',Roboto,system-ui,sans-serif;--mono:'Roboto Mono',ui-monospace,monospace}
+.t-black{--p:#f4f5f7;--on-p:#050506;--pc:#1f2125;--on-pc:#f4f5f7;--sc:#2c2f34;--on-sc:#f4f5f7;--t:#9ea1a8;--s:#050506;--on-s:#f4f5f7;--on-sv:#9ea1a8;--ol:#5c6068;--olv:#1f2125;--scl:#0b0c0e;--scn:#0e0f11;--sch:#16181b;--schh:#1f2125;--inv-s:#f4f5f7;--inv-on-s:#050506;--err:#ff6961;--err-c:#3a1210;--on-err-c:#ff8a80;--rec:#ff453a;--ok:#30d158;--font:Geist,'Helvetica Neue',system-ui,sans-serif;--mono:'Geist Mono',ui-monospace,monospace}
+</style>
+</helmet>
+<div class="{{theme}}" style="width: 390px; height: 844px; padding: 48px 16px 24px; display: flex; flex-direction: column; background: var(--s); color: var(--on-s); font-family: var(--font)">
+
+<h1 style="margin: 0; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">My Forthing</h1>
+
+<div style="height: 56px; display: flex; align-items: center; border-radius: 28px; background: var(--sch)">
+<a href="M3Plates.dc.html" style="height: 56px; flex-grow: 1; padding-left: 16px; display: flex; align-items: center; gap: 16px; border-radius: 28px 0 0 28px; color: var(--on-sv); font-size: 16px; line-height: 24px; letter-spacing: 0.5px; text-decoration: none">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="flex-shrink: 0; fill: var(--on-s)"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.870-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z"></path></svg>
+<span>Search license plates</span>
+</a>
+<button type="button" aria-label="Profile" style="width: 48px; height: 48px; margin-right: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer">
+<span style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--pc); color: var(--on-pc); font-size: 14px; line-height: 20px; font-weight: 500">M</span>
+</button>
+</div>
+
+<section style="margin-top: 20px; padding: 20px; display: flex; flex-direction: column; gap: 16px; border-radius: 28px; background: var(--pc); color: var(--on-pc)">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: 22px; line-height: 28px; font-weight: 400">My dashcam</h2>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; letter-spacing: 0.25px">
+<svg width="18" height="18" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M417-154q-27-27-27-63t27-63q27-27 63-27t63 27q27 27 27 63t-27 63q-27 27-63 27t-63-27Zm209-378.5Q694-505 757-451q14 12 15 30.5T759-388q-14 14-32 13t-33-13q-53-44-106.5-63T480-470q-54 0-107.5 19T266-388q-15 12-33 13t-32-13q-14-14-13-32.5t15-30.5q63-54 131-81.5T480-560q78 0 146 27.5Zm95.5-219Q835-703 926-622q14 13 15.5 31.5T929-558q-14 14-33.5 13.5T861-558q-83-70-178-111t-203-41q-108 0-203 41T99-558q-15 13-34 13.5T32-558q-14-14-13-32.5T34-622q91-81 204.5-129.5T480-800q128 0 241.5 48.5Z"></path></svg>
+<span>Connected over Wi-Fi</span>
+</div>
+</div>
+<span style="height: 28px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border-radius: 14px; background: var(--s); color: var(--on-s); font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--rec)"></span>
+<span>Recording</span>
+</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; border-radius: 16px; background: var(--s); color: var(--on-s)">
+<span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; color: var(--on-sv)">Wi-Fi</span>
+<span style="font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px">FORTHING-XXXX</span>
+</div>
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; border-radius: 16px; background: var(--s); color: var(--on-s)">
+<span style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; color: var(--on-sv)">SD card</span>
+<span style="font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; font-variant-numeric: tabular-nums">22.9 GB free</span>
+</div>
+</div>
+</section>
+
+<nav aria-label="Dashcam" style="margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<a href="M3Live.dc.html" style="height: 196px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 28px; background: var(--sch); color: var(--on-s); text-decoration: none">
+<span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--sc); color: var(--on-sc)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h520q24 0 42 18t18 42v215l134-134q7-7 16.5-3.46T880-649v338q0 9.92-9.5 13.46Q861-294 854-301L720-435v215q0 24-18 42t-42 18H140Zm0-60h520v-520H140v520Zm0 0v-520 520Z"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px">Live view</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Watch, screenshots, plates</span>
+</span>
+</a>
+<a href="M3Recordings.dc.html" style="height: 196px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 28px; background: var(--sch); color: var(--on-s); text-decoration: none">
+<span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--sc); color: var(--on-sc)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M655-521q11-6.8 11-18.9 0-12.1-11-19.1L459-685q-11-8-23-1.44-12 6.55-12 20.44v252q0 13.89 12 20.44 12 6.56 23-1.44l196-126ZM260-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h560q24 0 42 18t18 42v560q0 24-18 42t-42 18H260Zm0-60h560v-560H260v560ZM140-80q-24 0-42-18t-18-42v-590q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v590h590q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32Q742.75-80 730-80H140Zm120-740v560-560Z"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px">Recordings</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Loop, photos, incidents</span>
+</span>
+</a>
+<a href="M3SDCard.dc.html" style="height: 196px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 28px; background: var(--sch); color: var(--on-s); text-decoration: none">
+<span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--sc); color: var(--on-sc)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M434.5-536.63q8.5-8.62 8.5-21.37v-97q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v97q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm119 0q8.5-8.62 8.5-21.37v-97q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v97q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm119 0q8.5-8.62 8.5-21.37v-97q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v97q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63ZM220-80q-24 0-42-18t-18-42v-476q0-12.44 5-23.72T178-659l203-203q8-8 19.28-13 11.28-5 23.72-5h316q24 0 42 18t18 42v680q0 24-18 42t-42 18H220Zm0-60h520v-680H426L220-613.88V-140Zm0 0h520-520Z"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px">SD card</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Storage and raw files</span>
+</span>
+</a>
+<a href="M3Settings.dc.html" style="height: 196px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 28px; background: var(--sch); color: var(--on-s); text-decoration: none">
+<span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--sc); color: var(--on-sc)">
+<svg width="24" height="24" viewBox="0 -960 960 960" aria-hidden="true" style="fill: currentColor"><path d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px">Settings</span>
+<span style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: var(--on-sv)">Camera, app, theme</span>
+</span>
+</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["Material You (blue)","Material You (purple)","Material You (green)","My Forthing black"],"default":"Material You (blue)"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { 'Material You (blue)': 't-blue', 'Material You (purple)': 't-purple', 'Material You (green)': 't-green', 'My Forthing black': 't-black' };
+    return { theme: T[this.props.theme] || 't-blue' };
+  }
+}
+</script>
+</body>
+</html>

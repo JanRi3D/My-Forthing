@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My Forthing – Web storage</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#050506;color:#F4F5F7;font-family:Geist,'Helvetica Neue',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+input::placeholder{color:#7B7F87}
+a{color:#F4F5F7}a:hover{color:#FFFFFF}
+:focus-visible{outline:2px solid #F4F5F7;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: #050506; color: #F4F5F7">
+
+<aside style="width: 248px; flex-shrink: 0; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; border-right: 1px solid #1F2125">
+<a href="WebHome.dc.html" style="height: 44px; padding: 0 8px; display: flex; align-items: center; gap: 10px; color: #F4F5F7; text-decoration: none">
+<span style="width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 9px; overflow: visible"><img src="/_blob/6f7fe73ba17cd958f5e1ee394389e440" alt="" style="width: 30px; height: 30px"></span>
+<span style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">My Forthing</span>
+</a>
+<nav aria-label="Account" style="display: flex; flex-direction: column; gap: 4px">
+<a href="WebFootageEmpty.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 3v18"></path><path d="M17 3v18"></path><path d="M3 7.5h4"></path><path d="M3 12h4"></path><path d="M3 16.5h4"></path><path d="M17 7.5h4"></path><path d="M17 12h4"></path><path d="M17 16.5h4"></path></svg>
+<span>Footage</span>
+</a>
+<a href="WebSettings.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M4 7h9"></path><path d="M17 7h3"></path><circle cx="15" cy="7" r="2"></circle><path d="M4 17h3"></path><path d="M11 17h9"></path><circle cx="9" cy="17" r="2"></circle></svg>
+<span>Settings</span>
+</a>
+<a href="WebStorage.dc.html" aria-current="page" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; color: #F4F5F7; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.5"></ellipse><path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13"></path><path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5"></path></svg>
+<span>Storage</span>
+</a>
+<div style="height: 1px; margin: 12px 4px; background: #1F2125"></div>
+<a href="WebHome.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; border: 1px solid transparent; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M12 4v11"></path><path d="M7 10.5l5 5 5-5"></path><path d="M5 20h14"></path></svg>
+<span>Get the app</span>
+</a>
+</nav>
+<div style="margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #1F2125">
+<div style="padding: 8px; display: flex; align-items: center; gap: 12px">
+<span style="width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid #2C2F34; color: #D5D7DB">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+</span>
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px; font-weight: 500; color: #F4F5F7">[NAME]</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #7B7F87">[EMAIL]</span>
+</span>
+</div>
+<a href="WebSignIn.dc.html" style="height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 12px; border-radius: 10px; color: #9EA1A8; font-size: 15px; font-weight: 500; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"></path><path d="M10 16l-4-4 4-4"></path><path d="M6 12h10"></path></svg>
+<span>Sign out</span>
+</a>
+</div>
+</aside>
+
+<main style="flex-grow: 1; min-width: 0; padding: 32px 48px 40px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="min-height: 44px; display: flex; align-items: center">
+<h1 style="margin: 0; font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.03em; color: #F4F5F7">Storage</h1>
+</div>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #9EA1A8">Where the app uploads your recordings. This website plays them from there.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 40px; align-items: start">
+
+<div style="display: flex; flex-direction: column; gap: 28px">
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">PROVIDER</h2>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{providers}}" as="p" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="min-height: 100px; padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; border-radius: 12px; border: 1px solid {{p.border}}; background: #0E0F11; color: #F4F5F7; text-align: left; cursor: pointer">
+<span style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid {{p.ring}}">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: {{p.dot}}"></span>
+</span>
+<span style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 15px; font-weight: 600; color: #F4F5F7">{{p.title}}</span>
+<span style="font-size: 13px; line-height: 1.4; color: #9EA1A8">{{p.sub}}</span>
+</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">CONNECTION</h2>
+
+<sc-if value="{{isS3}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px">
+<label for="s3-endpoint" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Endpoint URL</label>
+<input id="s3-endpoint" type="url" placeholder="https://s3.example.com" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="s3-region" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Region</label>
+<input id="s3-region" type="text" placeholder="eu-central-1" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="s3-bucket" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Bucket</label>
+<input id="s3-bucket" type="text" placeholder="my-dashcam" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="s3-key" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Access key ID</label>
+<input id="s3-key" type="text" autocomplete="off" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="s3-secret" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Secret access key</label>
+<input id="s3-secret" type="password" autocomplete="off" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px">
+<label for="s3-folder" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Folder <span style="font-weight: 400; color: #7B7F87">(optional)</span></label>
+<input id="s3-folder" type="text" placeholder="forthing/" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isWebdav}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px">
+<label for="dav-url" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Server URL</label>
+<input id="dav-url" type="url" placeholder="https://cloud.example.com/remote.php/dav" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="dav-user" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Username</label>
+<input id="dav-user" type="text" autocomplete="username" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="dav-pass" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Password or app password</label>
+<input id="dav-pass" type="password" autocomplete="off" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-size: 15px; color: #F4F5F7">
+</div>
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px">
+<label for="dav-folder" style="font-size: 13px; font-weight: 500; color: #D5D7DB">Folder <span style="font-weight: 400; color: #7B7F87">(optional)</span></label>
+<input id="dav-folder" type="text" placeholder="Dashcam/" style="height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid #1F2125; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 14px; color: #F4F5F7">
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isOther}}" hint-placeholder-val="{{ false }}">
+<div style="height: 160px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px dashed #2C2F34; background: #0E0F11; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.14em; color: #7B7F87">[FIELDS FOR THIS PROVIDER]</div>
+</sc-if>
+</section>
+
+<div style="padding-top: 24px; display: flex; align-items: center; gap: 16px; border-top: 1px solid #1F2125">
+<button type="button" onClick="{{test}}" style="height: 50px; padding: 0 20px; border-radius: 10px; border: 1px solid #2C2F34; background: transparent; color: #F4F5F7; font-size: 15px; font-weight: 500; cursor: pointer">Test connection</button>
+<sc-if value="{{tested}}" hint-placeholder-val="{{ false }}">
+<span role="status" style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #D5D7DB">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #30D158"></span>
+<span>Connection works</span>
+</span>
+</sc-if>
+<a href="WebFootage.dc.html" style="height: 50px; margin-left: auto; padding: 0 22px; display: flex; align-items: center; border-radius: 10px; background: #F4F5F7; color: #050506; font-size: 15px; font-weight: 600; text-decoration: none">Save and connect</a>
+</div>
+
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; color: #7B7F87">UPLOAD FROM THE APP</h2>
+<div style="display: flex; flex-direction: column; border-radius: 12px; border: 1px solid #1F2125; background: #0E0F11">
+<div style="min-height: 62px; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 8px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span id="lbl-up-incidents" style="font-size: 15px; color: #F4F5F7">Incidents</span>
+<span style="font-size: 13px; color: #9EA1A8">Locked clips after a collision</span>
+</span>
+<button type="button" role="switch" aria-checked="{{incidents.on}}" aria-labelledby="lbl-up-incidents" onClick="{{incidents.toggle}}" style="width: 52px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: flex-end; border: 0; background: transparent; cursor: pointer">
+<span style="width: 48px; height: 28px; padding: 3px; display: flex; align-items: center; border-radius: 14px; background: {{incidents.track}}">
+<span style="width: 22px; height: 22px; border-radius: 50%; background: {{incidents.knob}}; margin-left: {{incidents.ml}}"></span>
+</span>
+</button>
+</div>
+<div style="min-height: 50px; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #1F2125">
+<span id="lbl-up-photos" style="flex-grow: 1; font-size: 15px; color: #F4F5F7">Photos</span>
+<button type="button" role="switch" aria-checked="{{photos.on}}" aria-labelledby="lbl-up-photos" onClick="{{photos.toggle}}" style="width: 52px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: flex-end; border: 0; background: transparent; cursor: pointer">
+<span style="width: 48px; height: 28px; padding: 3px; display: flex; align-items: center; border-radius: 14px; background: {{photos.track}}">
+<span style="width: 22px; height: 22px; border-radius: 50%; background: {{photos.knob}}; margin-left: {{photos.ml}}"></span>
+</span>
+</button>
+</div>
+<div style="min-height: 62px; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #1F2125">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span id="lbl-up-loop" style="font-size: 15px; color: #F4F5F7">Loop recordings</span>
+<span style="font-size: 13px; color: #9EA1A8">Uses the most space</span>
+</span>
+<button type="button" role="switch" aria-checked="{{loop.on}}" aria-labelledby="lbl-up-loop" onClick="{{loop.toggle}}" style="width: 52px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: flex-end; border: 0; background: transparent; cursor: pointer">
+<span style="width: 48px; height: 28px; padding: 3px; display: flex; align-items: center; border-radius: 14px; background: {{loop.track}}">
+<span style="width: 22px; height: 22px; border-radius: 50%; background: {{loop.knob}}; margin-left: {{loop.ml}}"></span>
+</span>
+</button>
+</div>
+<div style="min-height: 62px; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #1F2125">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span id="lbl-up-mobile" style="font-size: 15px; color: #F4F5F7">Over mobile data</span>
+<span style="font-size: 13px; color: #9EA1A8">Otherwise waits for Wi-Fi</span>
+</span>
+<button type="button" role="switch" aria-checked="{{mobile.on}}" aria-labelledby="lbl-up-mobile" onClick="{{mobile.toggle}}" style="width: 52px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: flex-end; border: 0; background: transparent; cursor: pointer">
+<span style="width: 48px; height: 28px; padding: 3px; display: flex; align-items: center; border-radius: 14px; background: {{mobile.track}}">
+<span style="width: 22px; height: 22px; border-radius: 50%; background: {{mobile.knob}}; margin-left: {{mobile.ml}}"></span>
+</span>
+</button>
+</div>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #7B7F87">The app uploads new recordings once your phone is back online.</p>
+</section>
+
+</div>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = Object.assign({ provider: 's3', tested: false, incidents: true, photos: true, loop: false, mobile: false }, this.state || {});
+    const list = [
+      { id: 's3', title: 'S3-compatible', sub: 'AWS S3, Backblaze B2, Cloudflare R2, MinIO' },
+      { id: 'webdav', title: 'WebDAV', sub: 'Nextcloud, ownCloud or a NAS' },
+      { id: 'other', title: '[OTHER PROVIDER]', sub: '[DESCRIPTION]' }
+    ];
+    const providers = list.map((p) => {
+      const on = s.provider === p.id;
+      return {
+        id: p.id,
+        title: p.title,
+        sub: p.sub,
+        on: on,
+        border: on ? '#F4F5F7' : '#1F2125',
+        ring: on ? '#F4F5F7' : '#2C2F34',
+        dot: on ? '#F4F5F7' : 'transparent',
+        pick: () => this.setState({ provider: p.id, tested: false })
+      };
+    });
+    const sw = (key) => {
+      const on = !!s[key];
+      return {
+        on: on,
+        track: on ? '#F4F5F7' : '#2C2F34',
+        knob: on ? '#050506' : '#9EA1A8',
+        ml: on ? '20px' : '0px',
+        toggle: () => this.setState({ [key]: !on })
+      };
+    };
+    return {
+      providers: providers,
+      isS3: s.provider === 's3',
+      isWebdav: s.provider === 'webdav',
+      isOther: s.provider === 'other',
+      tested: !!s.tested,
+      test: () => this.setState({ tested: true }),
+      incidents: sw('incidents'),
+      photos: sw('photos'),
+      loop: sw('loop'),
+      mobile: sw('mobile')
+    };
+  }
+}
+</script>
+</body>
+</html>
