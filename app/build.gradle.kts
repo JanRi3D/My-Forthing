@@ -19,6 +19,19 @@ val localProperties = Properties().apply {
 fun String.asBuildConfigString() = "\"" +
     replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 
+// Firebase without the google-services plugin (accounts): app/google-services.json is git-ignored and only read if
+// present. Every value stays "" when the file is missing or still holds the example's PLACEHOLDER values, so Firebase
+// is never initialised and the app runs in guest mode only.
+val googleServices: Any? = providers.fileContents(layout.projectDirectory.file("google-services.json")).asText.orNull
+    ?.let { groovy.json.JsonSlurper().parseText(it) }
+fun Any?.json(key: String): Any? = (this as? Map<*, *>)?.get(key)
+val firebaseClient = (googleServices.json("client") as? List<*>)
+    ?.firstOrNull { it.json("client_info").json("android_client_info").json("package_name") == "to.axolotl.cam" }
+val firebaseWebClient = ((firebaseClient.json("oauth_client") as? List<*>).orEmpty() +
+    (firebaseClient.json("services").json("appinvite_service").json("other_platform_oauth_client") as? List<*>).orEmpty())
+    .firstOrNull { it.json("client_type") == 3 }
+fun firebaseValue(value: Any?) = (value as? String)?.takeUnless { "PLACEHOLDER" in it }.orEmpty().asBuildConfigString()
+
 android {
     namespace = "to.axolotl.cam"
     compileSdk {
@@ -36,6 +49,11 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DASHCAM_RSA_KEY", localProperties.getProperty("dashcam.rsaKey", "").asBuildConfigString())
+        buildConfigField("String", "FIREBASE_PROJECT_ID", firebaseValue(googleServices.json("project_info").json("project_id")))
+        buildConfigField("String", "FIREBASE_APP_ID", firebaseValue(firebaseClient.json("client_info").json("mobilesdk_app_id")))
+        buildConfigField("String", "FIREBASE_API_KEY", firebaseValue((firebaseClient.json("api_key") as? List<*>)?.firstOrNull().json("current_key")))
+        buildConfigField("String", "FIREBASE_STORAGE_BUCKET", firebaseValue(googleServices.json("project_info").json("storage_bucket")))
+        buildConfigField("String", "FIREBASE_WEB_CLIENT_ID", firebaseValue(firebaseWebClient.json("client_id")))
     }
 
     buildTypes {
@@ -79,12 +97,30 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    // drive
+    implementation(libs.play.services.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    // accounts
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    implementation(libs.androidx.exifinterface)
+    // plates
+    implementation(libs.mlkit.text.recognition)
+    // enhance
     implementation(libs.litert)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }

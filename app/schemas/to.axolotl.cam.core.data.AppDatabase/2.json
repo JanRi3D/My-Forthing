@@ -1,0 +1,240 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "459c0af4b8af73d572ed221e43274167",
+    "entities": [
+      {
+        "tableName": "local_profile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `displayName` TEXT NOT NULL, `avatarPath` TEXT, `createdAt` INTEGER NOT NULL, `linkedUid` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avatarPath",
+            "columnName": "avatarPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "linkedUid",
+            "columnName": "linkedUid",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "plate",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `normalized` TEXT NOT NULL, `display` TEXT NOT NULL, `firstSeen` INTEGER NOT NULL, `lastSeen` INTEGER NOT NULL, `count` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalized",
+            "columnName": "normalized",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "display",
+            "columnName": "display",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeen",
+            "columnName": "firstSeen",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeen",
+            "columnName": "lastSeen",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "count",
+            "columnName": "count",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_plate_normalized",
+            "unique": true,
+            "columnNames": [
+              "normalized"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_plate_normalized` ON `${TABLE_NAME}` (`normalized`)"
+          }
+        ]
+      },
+      {
+        "tableName": "plate_sighting",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plateId` INTEGER NOT NULL, `display` TEXT NOT NULL, `mediaId` TEXT, `positionMs` INTEGER, `source` TEXT NOT NULL, `seenAt` INTEGER NOT NULL, `confidence` REAL, `cropPath` TEXT, `boxLeft` REAL NOT NULL, `boxTop` REAL NOT NULL, `boxRight` REAL NOT NULL, `boxBottom` REAL NOT NULL, FOREIGN KEY(`plateId`) REFERENCES `plate`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plateId",
+            "columnName": "plateId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "display",
+            "columnName": "display",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaId",
+            "columnName": "mediaId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "positionMs",
+            "columnName": "positionMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seenAt",
+            "columnName": "seenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "cropPath",
+            "columnName": "cropPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "boxLeft",
+            "columnName": "boxLeft",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "boxTop",
+            "columnName": "boxTop",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "boxRight",
+            "columnName": "boxRight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "boxBottom",
+            "columnName": "boxBottom",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_plate_sighting_plateId",
+            "unique": false,
+            "columnNames": [
+              "plateId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plate_sighting_plateId` ON `${TABLE_NAME}` (`plateId`)"
+          },
+          {
+            "name": "index_plate_sighting_mediaId",
+            "unique": false,
+            "columnNames": [
+              "mediaId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plate_sighting_mediaId` ON `${TABLE_NAME}` (`mediaId`)"
+          },
+          {
+            "name": "index_plate_sighting_seenAt",
+            "unique": false,
+            "columnNames": [
+              "seenAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plate_sighting_seenAt` ON `${TABLE_NAME}` (`seenAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plate",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "plateId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '459c0af4b8af73d572ed221e43274167')"
+    ]
+  }
+}
