@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only (overrides src/main for the debug variant; keep the recorder entry identical): additionally
+     allows the desktop simulator's media HTTP server at 10.0.2.2 (feature/media, `:recorder:runSimulator`).
+     Release builds keep the main file: cleartext only for the recorder at 192.168.42.1. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.42.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

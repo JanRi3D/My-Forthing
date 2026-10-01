@@ -18,7 +18,7 @@ object FeatureFlags {
     const val live = true
 
     /** Home → Aufnahmen tile (feature/media). */
-    const val media = false
+    const val media = true
 
     /** Home → SD-Karte tile (feature/recorder-connection). */
     const val dashcam = true

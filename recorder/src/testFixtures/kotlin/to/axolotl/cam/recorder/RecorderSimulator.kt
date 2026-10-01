@@ -62,6 +62,9 @@ class RecorderSimulator(
     /** msgId → reply body (plain JSON); default `{"rval":0,"msgId":<id>}`. */
     val replies = ConcurrentHashMap<Int, String>()
 
+    /** msgId → reply computed from the request (e.g. 4100 paging by cursor, see [SimulatedFiles]); wins over [replies]. */
+    val handlers = ConcurrentHashMap<Int, (RecorderReply) -> String>()
+
     /** Every request received, decrypted, in order. */
     val received = CopyOnWriteArrayList<Received>()
 
@@ -150,9 +153,10 @@ class RecorderSimulator(
         val encrypted = !text.startsWith("{")
         val json = if (encrypted) SessionCrypto.decrypt(text, sessionKeyHex) else text
         received += Received(frame.seq, json, encrypted)
-        val msgId = RecorderReply.parse(json)?.msgId ?: return
+        val request = RecorderReply.parse(json) ?: return
+        val msgId = request.msgId
         if (msgId in silentMsgIds || msgId == RecorderNotification.MSG_EVENT) return // event acks get no answer
-        var reply = if (msgId == 1) sessionReply() else replies[msgId] ?: """{"rval":0,"msgId":$msgId}"""
+        var reply = if (msgId == 1) sessionReply() else handlers[msgId]?.invoke(request) ?: replies[msgId] ?: """{"rval":0,"msgId":$msgId}"""
         rvalOverrides[msgId]?.let { rval ->
             val o = Json.parseToJsonElement(reply).jsonObject
             reply = JsonObject(o + ("rval" to JsonPrimitive(rval))).toString()

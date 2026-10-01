@@ -470,4 +470,139 @@
         <item quantity="other">%1$s: %2$d weitere Antworten des Recorders (zuletzt: %3$s)</item>
     </plurals>
     <!-- /live -->
+
+    <!-- media -->
+    <string name="media_tab_loop">Schleife</string>
+    <string name="media_tab_events">Vorfälle</string>
+    <string name="media_tab_photos">Fotos</string>
+    <string name="media_tab_phone">Handy</string>
+    <string name="media_category_normal">Schleife</string>
+    <string name="media_category_event">Vorfall</string>
+    <string name="media_category_user">Foto</string>
+    <string name="media_category_user_video">Video aus „Fotos“</string>
+    <string name="media_category_unknown">Typ %1$s (unbekannt)</string>
+    <string name="media_kind_screenshot">Screenshot</string>
+    <string name="media_kind_enhanced">Verbessertes Bild</string>
+    <string name="media_kind_upscaled">Hochskalierter Clip</string>
+    <string name="media_reconstructed_enhanced">verbessert – rekonstruiert, kein Beweis</string>
+    <string name="media_reconstructed_upscaled">hochskaliert – rekonstruiert, kein Beweis</string>
+    <string name="media_reconstructed_short">rekonstruiert, kein Beweis</string>
+    <string name="media_enhancement_info">Erzeugt: %1$s (%2$s), Faktor %3$.2f – rekonstruiert, kein Beweis</string>
+    <string name="media_engine_ml">KI-Modell</string>
+    <string name="media_engine_classical">klassisch</string>
+    <string name="media_not_connected_text">Aufnahmen auf der Dashcam gibt es nur mit aktiver Verbindung.</string>
+    <string name="media_offline_hint">Heruntergeladene Dateien findest du unter „Handy“.</string>
+    <string name="media_empty">Keine Aufnahmen</string>
+    <string name="media_local_empty">Noch nichts auf dem Handy. Lade Aufnahmen herunter oder mach in der Live-Ansicht Screenshots.</string>
+    <string name="media_totals">%1$s Dateien · Größe %2$s (laut Recorder, Typ %3$d)</string>
+    <string name="media_time_note">Zeiten laut Recorder, Zeitzone unbekannt (als Handy-Zeit gelesen).</string>
+    <string name="media_raw_list">Rohliste</string>
+    <string name="media_listing_stopped">Die Liste endet hier: Die Dashcam lieferte keine neue Seite. „Aktualisieren“ lädt sie neu.</string>
+    <string name="media_day_today">Heute</string>
+    <string name="media_day_yesterday">Gestern</string>
+    <string name="media_day_unknown">Datum unbekannt</string>
+    <string name="media_on_phone">Auf dem Handy</string>
+    <string name="media_not_on_phone">Nicht auf dem Handy</string>
+    <string name="media_copy_recorder">Auf der Dashcam</string>
+    <string name="media_open">Öffnen</string>
+    <string name="media_select">Auswählen</string>
+    <string name="media_select_toggle">Auswahl umschalten</string>
+    <string name="media_photo_description">Foto %1$s, %2$s</string>
+    <string name="media_selection_end">Auswahl beenden</string>
+    <plurals name="media_selected">
+        <item quantity="one">%d ausgewählt</item>
+        <item quantity="other">%d ausgewählt</item>
+    </plurals>
+    <string name="media_download">Herunterladen</string>
+    <string name="media_download_named">%1$s herunterladen</string>
+    <string name="media_downloading">Wird heruntergeladen</string>
+    <string name="media_nothing_to_download">Schon auf dem Handy – nichts herunterzuladen.</string>
+    <string name="media_share">Teilen</string>
+    <string name="media_delete">Löschen</string>
+    <string name="media_delete_which">Welche Kopie löschen?</string>
+    <string name="media_delete_which_text">Jede Kopie wird einzeln gelöscht. Die anderen bleiben erhalten.</string>
+    <string name="media_delete_local">Handy-Kopie löschen</string>
+    <string name="media_delete_local_title">Handy-Kopie löschen?</string>
+    <plurals name="media_delete_local_text">
+        <item quantity="one">Die Kopie auf diesem Handy wird gelöscht. Die Kopie auf der Dashcam bzw. in Google Drive bleibt.</item>
+        <item quantity="other">%d Handy-Kopien werden gelöscht. Kopien auf der Dashcam und in Google Drive bleiben.</item>
+    </plurals>
+    <plurals name="media_delete_local_last_text">
+        <item quantity="one">Diese Datei gibt es nur auf diesem Handy. Sie wird endgültig gelöscht.</item>
+        <item quantity="other">%d Dateien werden von diesem Handy gelöscht. Mindestens eine gibt es nur hier; sie ist danach endgültig weg.</item>
+    </plurals>
+    <string name="media_delete_recorder">Recorder-Kopie löschen</string>
+    <string name="media_delete_recorder_title">Auf der Dashcam löschen?</string>
+    <plurals name="media_delete_recorder_text">
+        <item quantity="one">Die Datei wird auf der Dashcam gelöscht. Eine Kopie auf dem Handy oder in Google Drive bleibt.</item>
+        <item quantity="other">%d Dateien werden auf der Dashcam gelöscht. Kopien auf dem Handy und in Google Drive bleiben.</item>
+    </plurals>
+    <string name="media_delete_recorder_offline">Für die Recorder-Kopie mit der Dashcam verbinden.</string>
+    <string name="media_delete_failed">Nicht gelöscht: %1$s</string>
+    <plurals name="media_deleted_on_recorder">
+        <item quantity="one">Auf der Dashcam gelöscht</item>
+        <item quantity="other">%d Dateien auf der Dashcam gelöscht</item>
+    </plurals>
+    <plurals name="media_deleted_local">
+        <item quantity="one">Handy-Kopie gelöscht</item>
+        <item quantity="other">%d Handy-Kopien gelöscht</item>
+    </plurals>
+    <string name="media_detail_type">Typ laut Recorder</string>
+    <string name="media_detail_type_value">%1$s (%2$s)</string>
+    <string name="media_detail_time">Zeit laut Recorder</string>
+    <string name="media_detail_time_value">%1$s laut Recorder, Zeitzone unbekannt</string>
+    <string name="media_detail_time_guess">Als Handy-Zeit gelesen (Annahme)</string>
+    <string name="media_detail_time_unreadable">nicht lesbar</string>
+    <string name="media_detail_path">Pfad auf der Dashcam</string>
+    <string name="media_detail_thumb">Vorschaubild auf der Dashcam</string>
+    <string name="media_phone_time">%1$s (Handy-Zeit)</string>
+    <string name="media_sd_files_title">Dateien: %1$s</string>
+    <string name="media_clip_gone">Diese Datei gibt es nicht mehr.</string>
+    <string name="media_image_description">Bild %1$s</string>
+    <string name="media_original">Original</string>
+    <string name="media_original_gone">Original nicht mehr vorhanden</string>
+    <string name="media_at_position">bei %1$s</string>
+    <string name="media_derived">Daraus erzeugt</string>
+    <string name="media_transfers_title">Übertragungen</string>
+    <string name="media_transfers_channel">Übertragungen</string>
+    <plurals name="media_transfers_button">
+        <item quantity="one">Übertragungen, %d aktiv</item>
+        <item quantity="other">Übertragungen, %d aktiv</item>
+    </plurals>
+    <string name="media_transfers_empty">Keine Übertragungen</string>
+    <string name="media_transfer_queued">Wartet</string>
+    <string name="media_transfer_waiting">Wartet auf die Dashcam-Verbindung, neuer Versuch folgt</string>
+    <string name="media_transfer_done">Fertig</string>
+    <string name="media_failure_unknown_item">Fehlgeschlagen: Die Datei ist nicht mehr in der Bibliothek.</string>
+    <string name="media_failure_not_on_recorder">Fehlgeschlagen: Die Datei ist nicht mehr auf der Dashcam.</string>
+    <string name="media_failure_http">Fehlgeschlagen: Die Dashcam hat die Datei nicht geliefert.</string>
+    <string name="media_failure_not_media">Fehlgeschlagen: Die Antwort war keine Aufnahme. Ist das WLAN wirklich das der Dashcam?</string>
+    <string name="media_failure_incomplete">Fehlgeschlagen: Die Übertragung blieb unvollständig.</string>
+    <string name="media_failure_network">Fehlgeschlagen: Die Verbindung zur Dashcam brach immer wieder ab.</string>
+    <string name="media_failure_http_code">HTTP %1$d</string>
+    <string name="media_transfer_cancelled">Abgebrochen</string>
+    <string name="media_transfer_of">%1$s von %2$s</string>
+    <string name="media_download_notification_title">Download: %1$s</string>
+    <string name="media_storage_title">Speicher</string>
+    <string name="media_storage_settings_text">Downloads, Screenshots, Cache</string>
+    <string name="media_storage_on_phone">Auf diesem Handy</string>
+    <string name="media_storage_downloads">Downloads</string>
+    <string name="media_storage_screenshots">Screenshots</string>
+    <string name="media_storage_enhanced">Verbesserte Dateien</string>
+    <string name="media_storage_cache">Cache</string>
+    <string name="media_storage_plates">Kennzeichen-Ausschnitte</string>
+    <string name="media_storage_plates_text">%1$s · werden mit dem Kennzeichen-Verlauf gelöscht</string>
+    <string name="media_storage_free">Freigeben</string>
+    <string name="media_storage_free_title">%1$s freigeben?</string>
+    <string name="media_storage_free_downloads_text">Löscht alle heruntergeladenen Aufnahmen und Fotos auf diesem Handy, auch unvollständige Downloads. Kopien auf der Dashcam und in Google Drive bleiben.</string>
+    <string name="media_storage_free_screenshots_text">Löscht alle Screenshots auf diesem Handy. Kopien in Google Drive bleiben.</string>
+    <string name="media_storage_free_enhanced_text">Löscht alle verbesserten Bilder und hochskalierten Clips auf diesem Handy. Die Originale bleiben.</string>
+    <string name="media_storage_free_cache_text">Löscht zwischengespeicherte Vorschaubilder der Dashcam. Sie werden bei Bedarf neu geladen.</string>
+    <plurals name="media_storage_last_copies">
+        <item quantity="one">Achtung: Eine dieser Dateien gibt es nur auf diesem Handy. Sie ist danach endgültig weg.</item>
+        <item quantity="other">Achtung: %d dieser Dateien gibt es nur auf diesem Handy. Sie sind danach endgültig weg.</item>
+    </plurals>
+    <string name="media_storage_free_space">Frei auf dem Handy: %1$s</string>
+    <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
+    <!-- /media -->
 </resources>

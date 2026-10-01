@@ -121,6 +121,12 @@ dependencies {
     // live
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.rtsp)
+    // media
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
@@ -128,6 +134,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(testFixtures(project(":recorder"))) // dashcam: RecorderSimulator
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.androidx.work.testing) // media: download queue
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }

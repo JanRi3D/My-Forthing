@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- media: phone copies that may be shared (downloads, screenshots, enhanced outputs). -->
+<paths>
+    <files-path name="media" path="media/" />
+    <files-path name="screenshots" path="screenshots/" />
+    <files-path name="enhance" path="enhance/" />
+</paths>
