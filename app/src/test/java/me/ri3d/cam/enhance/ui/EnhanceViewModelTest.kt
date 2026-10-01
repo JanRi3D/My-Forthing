@@ -108,6 +108,21 @@ class EnhanceViewModelTest {
     }
 
     @Test
+    fun `another setting can be chosen after a result`() = runTest {
+        val s = setup()
+        s.vm.enhance()
+        eventually { s.vm.state.value.result != null }
+        s.vm.discard()
+        assertThat(s.vm.state.value.result).isNull()
+        s.vm.setScale(2)
+        s.vm.setEngine(EnhanceEngine.CLASSICAL)
+        s.vm.enhance()
+        eventually { s.vm.state.value.result != null }
+        assertThat(s.vm.state.value.result!!.scale).isEqualTo(2)
+        assertThat(s.vm.state.value.result!!.engine).isEqualTo(EnhanceEngine.CLASSICAL)
+    }
+
+    @Test
     fun `an ML failure falls back to classical and says so`() = runTest {
         enhancer.engineUsed = EnhanceEngine.CLASSICAL
         val s = setup()

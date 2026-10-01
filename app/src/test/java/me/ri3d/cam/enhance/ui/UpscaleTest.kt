@@ -9,6 +9,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.work.Configuration
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
@@ -83,6 +84,16 @@ class UpscaleTest {
 
     @After
     fun tearDown() {
+        // Workers still waiting on a fake job would touch WorkManager's database after the next test replaced it.
+        val workManager = WorkManager.getInstance(context)
+        workManager.cancelAllWork().result.get()
+        val end = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < end &&
+            (upscaler.handedOut.any { it.isActive } || workManager.getWorkInfosForUniqueWork(UpscaleJobs.WORK).get().any { !it.state.isFinished })
+        ) {
+            Thread.sleep(10)
+        }
+        Thread.sleep(200) // the cancelled worker's own bookkeeping on its thread
         Dispatchers.resetMain()
         db.close()
         listOf("media", "enhance", "thumbs").forEach { File(context.filesDir, it).deleteRecursively() }

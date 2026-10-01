@@ -62,12 +62,13 @@ class FakeClipUpscaler(private val sourceW: Int = 1920, private val sourceH: Int
     val requests = mutableListOf<UpscaleRequest>()
     var progress: UpscaleProgress? = null
     var job: (UpscaleRequest) -> Deferred<UpscaleResult> = { CompletableDeferred() }
-    var last: Deferred<UpscaleResult>? = null
+    val handedOut = mutableListOf<Deferred<UpscaleResult>>()
+    val last get() = handedOut.lastOrNull()
 
     override fun upscale(request: UpscaleRequest, onProgress: (UpscaleProgress) -> Unit): Deferred<UpscaleResult> {
         requests += request
         progress?.let(onProgress)
-        return job(request).also { last = it }
+        return job(request).also { handedOut += it }
     }
 
     override suspend fun estimate(request: UpscaleRequest): Result<UpscaleEstimate> {

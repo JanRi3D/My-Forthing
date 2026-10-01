@@ -210,6 +210,13 @@ class EnhanceViewModel @Inject constructor(
         job?.cancel()
     }
 
+    /** Back to the options (another scale or engine); the unsaved result is dropped. */
+    fun discard() {
+        if (_state.value.saving) return
+        dropResult()
+        _state.update { it.copy(result = null, error = null) }
+    }
+
     /** JPEG + sidecar, then a derived library item linked to the original; the original is untouched. */
     fun save() {
         val out = frame ?: return
@@ -300,7 +307,7 @@ fun EnhanceScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: Enha
                     Button(onClick = viewModel::save, enabled = !s.saving, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                         Text(stringResource(if (s.saving) R.string.enhance_saving else R.string.enhance_save))
                     }
-                    OutlinedButton(onClick = viewModel::enhance, enabled = !s.saving, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = viewModel::discard, enabled = !s.saving, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.enhance_again))
                     }
                 }
