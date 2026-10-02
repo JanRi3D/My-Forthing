@@ -8,6 +8,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import me.ri3d.dashcam.recorder.RecorderValues
 import java.io.File
@@ -74,6 +75,10 @@ enum class MediaCategory(val recorderType: Int?) {
 
 enum class BackupState { NONE, QUEUED, UPLOADING, DONE, FAILED }
 
+/** When a 4100 listing of [type] last ran to its end ("Stand" of the recorder tabs). */
+@Entity(tableName = "listing_stamp")
+data class ListingStamp(@PrimaryKey val type: Int, val listedAt: Long)
+
 @Dao
 interface MediaDao {
     @Query("SELECT * FROM media_item WHERE id = :id")
@@ -95,8 +100,13 @@ interface MediaDao {
     @Query("SELECT * FROM media_item WHERE localUri IS NOT NULL ORDER BY COALESCE(recorderTimeEpochGuess, createdAt) DESC")
     fun observeLocal(): Flow<List<MediaItem>>
 
-    @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL")
+    /** The recorder copies of one listing type as last known, newest recorder time first (unknown times last). */
+    @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL $RECORDER_ORDER")
     fun observeRecorderType(type: Int): Flow<List<MediaItem>>
+
+    /** Every known recorder copy in the same order (thumbnail prefetch). */
+    @Query("SELECT * FROM media_item WHERE recorderPath IS NOT NULL $RECORDER_ORDER")
+    fun observeRecorderCopies(): Flow<List<MediaItem>>
 
     @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL")
     suspend fun recorderType(type: Int): List<MediaItem>
@@ -122,4 +132,13 @@ interface MediaDao {
 
     @Query("DELETE FROM media_item WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT listedAt FROM listing_stamp WHERE type = :type")
+    fun observeListedAt(type: Int): Flow<Long?>
+
+    @Upsert
+    suspend fun setListedAt(stamp: ListingStamp)
 }
+
+/** Newest raw recorder time first ("yyyy-MM-dd HH:mm:ss" sorts as text), unknown times last; path as tie-break. */
+private const val RECORDER_ORDER = "ORDER BY recorderTime IS NULL, recorderTime DESC, recorderPath DESC"
