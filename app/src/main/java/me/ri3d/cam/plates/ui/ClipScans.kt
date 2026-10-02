@@ -98,7 +98,10 @@ class ClipScans internal constructor(
                 }
                 val next = id ?: continue
                 val result = check(next)
-                _state.update { it.copy(running = null, fraction = 0f, results = it.results + (next to result)) }
+                _state.update {
+                    // null: the phone copy went away while queued, so there is nothing to report
+                    it.copy(running = null, fraction = 0f, results = if (result == null) it.results - next else it.results + (next to result))
+                }
             }
         }
     }
@@ -122,20 +125,19 @@ class ClipScans internal constructor(
     }
 
     /**
-     * While `platesClips` is on, checks every original video downloaded since then (since process start when it was
-     * already on). Idempotent; runs for the life of the process.
+     * While `platesClips` is on, checks every original video downloaded since it was switched on (since process start
+     * when it was already on). Downloads made while it was off are never checked automatically. Idempotent; runs for
+     * the life of the process.
      */
     fun startAutoScan() {
         if (!autoStarted.compareAndSet(false, true)) return
         scope.launch {
             val handled = HashSet<String>()
-            var since = processStartMs
+            var first = true
             autoEnabled.distinctUntilChanged().collectLatest { on ->
-                if (!on) {
-                    since = clock() // switched off: what arrives meanwhile is not checked later
-                    return@collectLatest
-                }
-                val from = since
+                val from = if (first) processStartMs else clock()
+                first = false
+                if (!on) return@collectLatest
                 media.observe(MediaKind.ORIGINAL_VIDEO).collect { items ->
                     items.filter { (it.downloadedAt ?: -1L) >= from && it.localUri != null && handled.add(it.id) }.forEach(::enqueue)
                 }
@@ -143,8 +145,8 @@ class ClipScans internal constructor(
         }
     }
 
-    private suspend fun check(id: String): Result {
-        val item = media.get(id)?.takeIf(::scannable) ?: return Result.Failed
+    private suspend fun check(id: String): Result? {
+        val item = media.get(id)?.takeIf(::scannable) ?: return null
         val job = scope.async { scan(item) { f -> _state.update { if (it.running == id) it.copy(fraction = f) else it } } }
         current = job
         if (cancelled == id) job.cancel() // cancelled before the scan started

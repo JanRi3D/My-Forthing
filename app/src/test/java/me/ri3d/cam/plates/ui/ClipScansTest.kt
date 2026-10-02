@@ -52,12 +52,12 @@ class ClipScansTest {
         }
     }
 
-    private fun TestScope.scans(scanner: FakeScanner, platesClips: Flow<Boolean> = MutableStateFlow(false)) =
+    private fun TestScope.scans(scanner: FakeScanner, platesClips: Flow<Boolean> = MutableStateFlow(false), clock: () -> Long = { 5_000 }) =
         ClipScans(
             MediaRepository(context, db, managerFor(RecorderSimulator())),
             // A supervisor like the app's: a failed scan stays in its Deferred.
             CoroutineScope(backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job])),
-            processStartMs = 1_000, clock = { 5_000 }, autoEnabled = platesClips, scan = scanner::scan,
+            processStartMs = 1_000, clock = clock, autoEnabled = platesClips, scan = scanner::scan,
         )
 
     @Test
@@ -169,5 +169,40 @@ class ClipScansTest {
         dao.insert(mediaItem(context, "after-switch", downloadedAt = 6_000))
         eventually { scanner.started == listOf("after-switch") }
         assertThat(scanner.started).doesNotContain("while-off")
+    }
+
+    @Test
+    fun `downloads made while the switch was off are not checked when it goes on again`() = runTest {
+        val scanner = FakeScanner()
+        val platesClips = MutableStateFlow(true)
+        var now = 2_000L
+        val scans = scans(scanner, platesClips, clock = { now }) // process start 1 000
+        scans.startAutoScan()
+        testScheduler.runCurrent()
+        platesClips.value = false
+        testScheduler.runCurrent()
+        dao.insert(mediaItem(context, "while-off", downloadedAt = 3_000))
+        now = 4_000
+        platesClips.value = true
+        testScheduler.runCurrent()
+        dao.insert(mediaItem(context, "after-on", downloadedAt = 5_000))
+        eventually { scanner.started == listOf("after-on") }
+        assertThat(scans.state.value.queued).isEmpty()
+    }
+
+    @Test
+    fun `a queued clip whose phone copy went away is skipped without an outcome`() = runTest {
+        val scanner = FakeScanner()
+        val scans = scans(scanner)
+        val a = mediaItem(context, "a", downloadedAt = 10).also { dao.insert(it) }
+        val b = mediaItem(context, "b", downloadedAt = 10).also { dao.insert(it) }
+        scans.enqueue(a)
+        scans.enqueue(b)
+        eventually { scanner.started == listOf("a") }
+        b.localFile!!.delete()
+        scanner.gate("a").complete(0)
+        eventually { scans.state.value.running == null && scans.state.value.queued.isEmpty() && "a" in scans.state.value.results }
+        assertThat(scanner.started).containsExactly("a")
+        assertThat(scans.state.value.results).doesNotContainKey("b") // no "Prüfung fehlgeschlagen" for a deleted copy
     }
 }
