@@ -230,7 +230,7 @@ fun ClipScreen(
                             modifier = Modifier.fillMaxSize(),
                         )
                         else -> AsyncImage(
-                            file, contentDescription = stringResource(R.string.media_image_description, item.originalFileName),
+                            file, contentDescription = stringResource(R.string.media_image_description, kindLabel(context, item), title),
                             contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
                         )
                     }
