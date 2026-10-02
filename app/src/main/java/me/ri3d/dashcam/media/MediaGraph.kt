@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import me.ri3d.dashcam.core.navigation.Clip
 import me.ri3d.dashcam.core.navigation.Connection
+import me.ri3d.dashcam.core.navigation.DriveAccount
 import me.ri3d.dashcam.core.navigation.Recordings
 import me.ri3d.dashcam.core.navigation.SdFiles
 import me.ri3d.dashcam.core.navigation.Storage
@@ -33,6 +34,7 @@ fun NavGraphBuilder.mediaGraph(
             onOpen = { navController.navigate(Clip(it)) },
             onRawList = { navController.navigate(SdFiles(it.name)) },
             selectionActions = selectionActions,
+            onConnectDrive = { navController.navigate(DriveAccount) { launchSingleTop = true } },
         )
     }
     composable<SdFiles> { entry ->

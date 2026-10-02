@@ -34,12 +34,13 @@ import me.ri3d.dashcam.recorder.RecorderValues
 import java.io.File
 import javax.inject.Inject
 
-/** Recorder listing types 0/1/2 plus the phone library. The route argument is the enum name. */
+/** Recorder listing types 0/1/2 plus the phone library and the Drive copies. The route argument is the enum name. */
 enum class RecordingsTab(val type: Int?, @StringRes val label: Int) {
     NORMAL(RecorderValues.FILES_NORMAL, R.string.media_tab_loop),
     EVENT(RecorderValues.FILES_EVENT, R.string.media_tab_events),
     USER(RecorderValues.FILES_USER, R.string.media_tab_photos),
-    PHONE(null, R.string.media_tab_phone);
+    PHONE(null, R.string.media_tab_phone),
+    DRIVE(null, R.string.media_tab_drive);
 
     companion object {
         fun of(name: String?): RecordingsTab = entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: NORMAL
@@ -52,6 +53,10 @@ enum class RecordingsTab(val type: Int?, @StringRes val label: Int) {
  * asks the recorder only with a session and while no download runs, so the recorder serves only that one.
  */
 data class RecorderEntry(val item: MediaItem, val transfer: TransferProgress?, val thumb: Any? = null)
+
+/** Per item the running transfer, else the Drive one (recorder and Drive downloads of one item are rare). */
+private fun mergeTransfers(recorder: Map<String, TransferProgress>, drive: Map<String, TransferProgress>): Map<String, TransferProgress> =
+    recorder + drive.filter { (id, t) -> recorder[id]?.state !in DownloadQueue.ACTIVE || t.state in DownloadQueue.ACTIVE }
 
 /** One-shot results shown as snackbar. */
 sealed interface MediaNotice {
@@ -72,9 +77,13 @@ class RecordingsViewModel @Inject constructor(
     private val downloads: DownloadQueue,
     val http: RecorderHttp,
     prefetcher: ThumbnailPrefetcher,
+    private val driveDownloads: DriveDownloadQueue,
 ) : ViewModel() {
     val connection: StateFlow<RecorderConnectionState> = manager.state
-    val transfers: StateFlow<Map<String, TransferProgress>> = downloads.progress
+
+    /** Downloads from the recorder and from Drive ("Übertragungen", row progress). */
+    val transfers: StateFlow<Map<String, TransferProgress>> = combine(downloads.progress, driveDownloads.progress, ::mergeTransfers)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, mergeTransfers(downloads.progress.value, driveDownloads.progress.value))
     /** Everything with a phone copy; null until the library answered (nothing to show, rather than "empty"). */
     val local: StateFlow<List<MediaItem>?> = repository.observeLocal().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -89,6 +98,7 @@ class RecordingsViewModel @Inject constructor(
         )
     }
     private var shown: Int? = null // recorder type of the visible tab
+    private var shownTab: RecordingsTab? = null
 
     // Kept while the tab is away (WhileSubscribed keeps the last value), so coming back shows the list at once; a
     // reopened screen starts with the rows the process last saw, so its first frame has them.
@@ -143,7 +153,8 @@ class RecordingsViewModel @Inject constructor(
 
     /** The tab became visible: its type is listed once per session (refresh and notifications list it again). */
     fun show(tab: RecordingsTab) {
-        if (shown != tab.type) _selection.value = emptySet()
+        if (shownTab != tab) _selection.value = emptySet() // Handy and Drive share type null
+        shownTab = tab
         shown = tab.type
         if (focus.value.type != tab.type) focus.value = PrefetchFocus(tab.type)
         val browser = tab.type?.let(browsers::get) ?: return
@@ -203,8 +214,16 @@ class RecordingsViewModel @Inject constructor(
         }
     }
 
-    fun cancelTransfer(id: String) {
-        viewModelScope.launch { downloads.cancel(id) }
+    /** "Vom Drive laden" for the Drive copies among [ids]. */
+    fun downloadFromDrive(ids: Collection<String>) {
+        viewModelScope.launch {
+            if (ids.count { driveDownloads.enqueue(it) } == 0) _notices.send(MediaNotice.NothingToDownload)
+        }
+        clearSelection()
+    }
+
+    fun cancelTransfer(transfer: TransferProgress) {
+        viewModelScope.launch { if (transfer.fromDrive) driveDownloads.cancel(transfer.mediaId) else downloads.cancel(transfer.mediaId) }
     }
 
     /**

@@ -9,6 +9,7 @@ import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +37,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -67,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -84,13 +88,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.backup.BackupStateTag
+import me.ri3d.dashcam.backup.DriveLibraryViewModel
 import me.ri3d.dashcam.core.ui.AxoTopBar
 import me.ri3d.dashcam.core.ui.ConfirmDialog
 import me.ri3d.dashcam.core.ui.LocalSnackbarHostState
+import me.ri3d.dashcam.core.ui.UiText
 import me.ri3d.dashcam.core.ui.listRowShape
 import me.ri3d.dashcam.core.log.Log
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import me.ri3d.dashcam.dashcam.errorText
+import me.ri3d.dashcam.drive.DriveAuthState
+import me.ri3d.dashcam.drive.DriveStatusCard
 import java.io.File
 import java.time.LocalDate
 
@@ -106,6 +114,7 @@ fun RecordingsScreen(
     onOpen: (mediaId: String) -> Unit,
     onRawList: (RecordingsTab) -> Unit,
     selectionActions: SelectionActions,
+    onConnectDrive: () -> Unit = {},
     viewModel: RecordingsViewModel = hiltViewModel(),
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
@@ -121,7 +130,10 @@ fun RecordingsScreen(
     var details by remember { mutableStateOf<MediaItem?>(null) }
     var confirmRecorderDelete by remember { mutableStateOf<Set<String>?>(null) }
     var confirmLocalDelete by remember { mutableStateOf<Set<String>?>(null) }
-    val download = rememberDownload(viewModel)
+    val download = rememberDownload(viewModel::download)
+    val downloadFromDrive = rememberDownload(viewModel::downloadFromDrive)
+    val drive: DriveLibraryViewModel = hiltViewModel()
+    val driveAuth by drive.authState.collectAsStateWithLifecycle()
     NoticeSnackbars(viewModel)
     BackHandler(enabled = selection.isNotEmpty()) { viewModel.clearSelection() }
 
@@ -140,16 +152,20 @@ fun RecordingsScreen(
                         }
                     },
                     actions = {
-                        if (tab == RecordingsTab.PHONE) {
-                            IconButton(onClick = { confirmLocalDelete = selection }) {
+                        when (tab) {
+                            RecordingsTab.PHONE -> IconButton(onClick = { confirmLocalDelete = selection }) {
                                 Icon(painterResource(R.drawable.ic_media_delete), stringResource(R.string.media_delete_local))
                             }
-                        } else {
-                            IconButton(onClick = { download(selection) }, enabled = ready) {
-                                Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_download))
+                            RecordingsTab.DRIVE -> IconButton(onClick = { downloadFromDrive(selection) }, enabled = driveAuth is DriveAuthState.Connected) {
+                                Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_drive_download))
                             }
-                            IconButton(onClick = { confirmRecorderDelete = selection }, enabled = ready) {
-                                Icon(painterResource(R.drawable.ic_media_delete), stringResource(R.string.media_delete_recorder))
+                            else -> {
+                                IconButton(onClick = { download(selection) }, enabled = ready) {
+                                    Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_download))
+                                }
+                                IconButton(onClick = { confirmRecorderDelete = selection }, enabled = ready) {
+                                    Icon(painterResource(R.drawable.ic_media_delete), stringResource(R.string.media_delete_recorder))
+                                }
                             }
                         }
                         selectionActions(selectedItems, viewModel::clearSelection)
@@ -165,6 +181,7 @@ fun RecordingsScreen(
                         selected = t == tab,
                         onClick = { tab = t },
                         shape = SegmentedButtonDefaults.itemShape(index, RecordingsTab.entries.size),
+                        icon = {}, // five tabs: the label needs the room of the check mark (the fill shows the selection)
                         label = { Text(stringResource(t.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     )
                 }
@@ -173,16 +190,16 @@ fun RecordingsScreen(
             val onTap: (MediaItem) -> Unit = { item ->
                 when {
                     selection.isNotEmpty() -> viewModel.toggle(item.id)
-                    item.localUri != null -> onOpen(item.id)
+                    item.localUri != null || tab == RecordingsTab.DRIVE -> onOpen(item.id) // the clip screen shows the Drive copy
                     else -> details = item
                 }
             }
             // Each tab keeps its own scroll position (saved state) while another tab is shown.
             saveable.SaveableStateProvider(tab.name) {
-                if (type == null) {
-                    LocalLibrary(viewModel, selection, onTap, firstContent)
-                } else {
-                    RecorderListing(
+                when {
+                    tab == RecordingsTab.DRIVE -> DriveListing(viewModel, drive, selection, onTap, downloadFromDrive, onConnectDrive, firstContent)
+                    type == null -> LocalLibrary(viewModel, selection, onTap, firstContent)
+                    else -> RecorderListing(
                         type, grid = tab == RecordingsTab.USER, ready, viewModel, selection, onTap, download, onConnect,
                         onRawList = { onRawList(tab) }, onFirstContent = firstContent,
                     )
@@ -191,7 +208,7 @@ fun RecordingsScreen(
         }
     }
 
-    if (showTransfers) TransfersSheet(transfers.values.toList(), viewModel, onOpen, download, onDismiss = { showTransfers = false })
+    if (showTransfers) TransfersSheet(transfers.values.toList(), viewModel, onOpen, download, downloadFromDrive, onDismiss = { showTransfers = false })
     details?.let { item ->
         DetailsSheet(
             item, transfers[item.id], ready,
@@ -248,7 +265,7 @@ fun SdFilesScreen(
     val transfers by viewModel.transfers.collectAsStateWithLifecycle()
     var details by remember { mutableStateOf<MediaItem?>(null) }
     var confirmDelete by remember { mutableStateOf<String?>(null) }
-    val download = rememberDownload(viewModel)
+    val download = rememberDownload(viewModel::download)
     NoticeSnackbars(viewModel)
 
     Scaffold(topBar = { AxoTopBar(stringResource(R.string.media_sd_files_title, tab.name), onBack = onBack) }) { padding ->
@@ -314,9 +331,9 @@ private fun NoticeSnackbars(viewModel: RecordingsViewModel) {
     LaunchedEffect(viewModel) { viewModel.notices.collect { snackbar.showSnackbar(noticeText(context, it)) } }
 }
 
-/** Download action that first asks for the notification permission (Android 13+); downloads run either way. */
+/** Download action ([download]: from the recorder or Drive) that first asks for the notification permission (Android 13+); downloads run either way. */
 @Composable
-private fun rememberDownload(viewModel: RecordingsViewModel): (Collection<String>) -> Unit {
+private fun rememberDownload(download: (Collection<String>) -> Unit): (Collection<String>) -> Unit {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     return { ids ->
@@ -325,7 +342,7 @@ private fun rememberDownload(viewModel: RecordingsViewModel): (Collection<String
         ) {
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        viewModel.download(ids)
+        download(ids)
     }
 }
 
@@ -517,6 +534,7 @@ private fun Modifier.selectable(item: MediaItem, selection: Set<String>, onTap: 
             onClick = { onTap(item) },
         )
 
+/** A recorder file, or (Drive tab) a Drive copy: [ready] enables [download], [title] defaults to the recorder clock. */
 @Composable
 private fun RecorderRow(
     entry: RecorderEntry,
@@ -525,6 +543,8 @@ private fun RecorderRow(
     selection: Set<String>,
     onTap: (MediaItem) -> Unit,
     download: (Collection<String>) -> Unit,
+    title: String = recorderClock(entry.item.recorderTime) ?: "–",
+    @StringRes downloadLabel: Int = R.string.media_download_named,
 ) {
     val item = entry.item
     Row(
@@ -545,15 +565,16 @@ private fun RecorderRow(
             SelectionMark(item, selection, Modifier.align(Alignment.TopStart))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(recorderClock(item.recorderTime) ?: "–", style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MaterialTheme.typography.titleMedium)
             Text(item.originalFileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (item.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
+                if (item.isDerived) MediaTag(stringResource(R.string.media_reconstructed_short))
                 if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
                 BackupStateTag(item)
             }
         }
-        TransferControl(entry, ready, download)
+        TransferControl(entry, ready, download, downloadLabel)
     }
 }
 
@@ -602,9 +623,9 @@ private fun SelectionMark(item: MediaItem, selection: Set<String>, modifier: Mod
     )
 }
 
-/** Download button (only with a session), running transfer, or "auf dem Handy". 48 dp in every state. */
+/** Download button (only with a session / Drive connection), running transfer, or "auf dem Handy". 48 dp in every state. */
 @Composable
-private fun TransferControl(entry: RecorderEntry, ready: Boolean, download: (Collection<String>) -> Unit) {
+private fun TransferControl(entry: RecorderEntry, ready: Boolean, download: (Collection<String>) -> Unit, @StringRes downloadLabel: Int) {
     val item = entry.item
     val transfer = entry.transfer
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -620,7 +641,7 @@ private fun TransferControl(entry: RecorderEntry, ready: Boolean, download: (Col
                 }
             }
             else -> IconButton(onClick = { download(listOf(item.id)) }, enabled = ready) {
-                Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_download_named, item.originalFileName))
+                Icon(painterResource(R.drawable.ic_media_download), stringResource(downloadLabel, item.originalFileName))
             }
         }
     }
@@ -684,6 +705,113 @@ private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>,
     }
 }
 
+/**
+ * Drive tab (drive-restore): everything backed up in the connected Drive account, newest first, day groups, with
+ * "Stand" of the last import and "Aktualisieren"; without a connection the Drive card leads to the Google Drive screen
+ * (rows already known stay below it). Opening a row shows the clip screen with the Drive copy.
+ */
+@Composable
+private fun DriveListing(
+    viewModel: RecordingsViewModel,
+    drive: DriveLibraryViewModel,
+    selection: Set<String>,
+    onTap: (MediaItem) -> Unit,
+    download: (Collection<String>) -> Unit,
+    onConnectDrive: () -> Unit,
+    onFirstContent: () -> Unit,
+) {
+    val auth by drive.authState.collectAsStateWithLifecycle()
+    val loaded by drive.items.collectAsStateWithLifecycle()
+    val importing by drive.importing.collectAsStateWithLifecycle()
+    val lastImport by drive.lastImport.collectAsStateWithLifecycle()
+    val transfers by viewModel.transfers.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarHostState.current
+    val resources = LocalResources.current
+    LaunchedEffect(drive) {
+        drive.errors.collect { error ->
+            snackbar.showSnackbar(
+                when (error) {
+                    is UiText.Res -> resources.getString(error.id, *error.args.toTypedArray())
+                    is UiText.Dynamic -> error.text
+                },
+            )
+        }
+    }
+    val connected = auth is DriveAuthState.Connected
+    LaunchedEffect(connected) { drive.shown() }
+    val items = loaded ?: return
+    ReportFirstContent(onFirstContent)
+    val context = LocalContext.current
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(1),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        fullWidth("header", HEADER) {
+            if (connected) {
+                DriveHeader(lastImport, importing, items.size, onRefresh = drive::refresh)
+            } else {
+                Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DriveStatusCard(auth, quota = null)
+                    Button(onClick = onConnectDrive, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text(stringResource(if (auth is DriveAuthState.NeedsReconnect) R.string.drive_reconnect else R.string.drive_connect))
+                    }
+                }
+            }
+        }
+        if (items.isEmpty() && connected) {
+            fullWidth("empty", FOOTER) {
+                Text(
+                    stringResource(if (importing) R.string.media_drive_loading else R.string.media_drive_empty),
+                    Modifier.padding(vertical = 24.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+        var day: LocalDate? = null
+        val dayKeys = HashSet<String>()
+        items.forEachIndexed { index, item ->
+            val itemDay = dayOf(item, item.recorderTime)
+            if (index == 0 || itemDay != day) {
+                day = itemDay
+                val key = "day-$itemDay".let { if (dayKeys.add(it)) it else "$it-$index" }
+                fullWidth(key, DAY) { DayHeader(dayLabel(context, itemDay)) }
+            }
+            item(key = item.id, contentType = ENTRY) {
+                RecorderRow(
+                    RecorderEntry(item, transfers[item.id], drive.thumb(item)), connected, viewModel, selection, onTap, download,
+                    title = itemClock(context, item), downloadLabel = R.string.media_drive_download_named,
+                )
+            }
+        }
+    }
+}
+
+/** "Stand: <last import> · wird aktualisiert…", how many backups, and "Aktualisieren" (progress while it runs). */
+@Composable
+private fun DriveHeader(lastImport: Long?, importing: Boolean, count: Int, onRefresh: () -> Unit) {
+    val context = LocalContext.current
+    val stand = lastImport?.let { DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_NUMERIC_DATE) } ?: "–"
+    Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(if (importing) R.string.media_stand_refreshing else R.string.media_stand, stand),
+                Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(pluralStringResource(R.plurals.media_drive_count, count, count), style = MaterialTheme.typography.bodySmall)
+        }
+        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            if (importing) {
+                val label = stringResource(R.string.media_drive_refreshing)
+                CircularProgressIndicator(Modifier.size(24.dp).semantics { contentDescription = label })
+            } else {
+                IconButton(onClick = onRefresh) { Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.media_drive_refresh)) }
+            }
+        }
+    }
+}
+
 /** Raw recorder time of day, else the phone's creation time. */
 fun itemClock(context: android.content.Context, item: MediaItem): String =
     recorderClock(item.recorderTime) ?: DateUtils.formatDateTime(context, item.createdAt, DateUtils.FORMAT_SHOW_TIME)
@@ -741,6 +869,7 @@ private fun TransfersSheet(
     viewModel: RecordingsViewModel,
     onOpen: (String) -> Unit,
     download: (Collection<String>) -> Unit,
+    downloadFromDrive: (Collection<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -756,7 +885,8 @@ private fun TransfersSheet(
         LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(transfers.sortedBy { it.state.ordinal }, key = { it.mediaId }, contentType = { "transfer" }) { t ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(t.name.ifBlank { "–" }, style = MaterialTheme.typography.bodyLarge)
+                    val name = t.name.ifBlank { "–" }
+                    Text(if (t.fromDrive) stringResource(R.string.media_transfer_from_drive, name) else name, style = MaterialTheme.typography.bodyLarge)
                     // Second line of a failure: HTTP status and the raw detail (Content-Type or "Exception: message").
                     val reason = listOfNotNull(t.httpCode?.let { stringResource(R.string.media_failure_http_code, it) }, t.detail)
                         .joinToString(" · ").let { if (it.isEmpty()) "" else "\n" + it }
@@ -784,9 +914,11 @@ private fun TransfersSheet(
                     Row {
                         when (t.state) {
                             TransferState.QUEUED, TransferState.RUNNING, TransferState.WAITING ->
-                                TextButton(onClick = { viewModel.cancelTransfer(t.mediaId) }) { Text(stringResource(R.string.action_cancel)) }
+                                TextButton(onClick = { viewModel.cancelTransfer(t) }) { Text(stringResource(R.string.action_cancel)) }
                             TransferState.FAILED, TransferState.CANCELLED ->
-                                TextButton(onClick = { download(listOf(t.mediaId)) }) { Text(stringResource(R.string.action_retry)) }
+                                TextButton(onClick = { (if (t.fromDrive) downloadFromDrive else download)(listOf(t.mediaId)) }) {
+                                    Text(stringResource(R.string.action_retry))
+                                }
                             TransferState.DONE -> TextButton(onClick = { onDismiss(); onOpen(t.mediaId) }) { Text(stringResource(R.string.media_open)) }
                         }
                     }

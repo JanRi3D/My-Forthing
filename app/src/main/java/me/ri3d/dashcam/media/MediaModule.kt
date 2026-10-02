@@ -30,6 +30,10 @@ import okio.Path.Companion.toOkioPath
 import me.ri3d.dashcam.dashcam.RecorderConnectionManager
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
+import me.ri3d.dashcam.drive.DriveAuth
+import me.ri3d.dashcam.drive.DriveAuthInterceptor
+import me.ri3d.dashcam.drive.DriveHttp
+import me.ri3d.dashcam.drive.driveImageClient
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -47,6 +51,8 @@ class RecorderHttp(
     private val manager: RecorderConnectionManager,
     private val simulatorBaseUrl: String,
     context: Context,
+    /** Drive images ([driveImageClient]: internet, token only for Google's hosts); null = none load. */
+    private val driveImages: Call.Factory? = null,
 ) {
     /**
      * The bound client, only while a session is Ready on the network that client is bound to (or in simulator mode).
@@ -92,6 +98,9 @@ class RecorderHttp(
      *
      * Disk cache: `cacheDir/recorder_thumbs`, LRU, [MediaModule.THUMB_CACHE_BYTES]; [KeepThumbnails] stores every 2xx
      * answer and always uses a stored one, whatever the recorder's headers say.
+     *
+     * Drive thumbnails and photos (feature/drive-restore) use the same loader and cache: requests for Google's hosts go
+     * to [driveImages] over the internet, never to the recorder client; everything else stays recorder-bound.
      */
     @OptIn(ExperimentalCoilApi::class)
     val imageLoader: ImageLoader by lazy {
@@ -101,7 +110,15 @@ class RecorderHttp(
             .components {
                 add(
                     OkHttpNetworkFetcherFactory(
-                        callFactory = { Call.Factory { request -> thumbnailClient().newCall(request) } },
+                        callFactory = {
+                            Call.Factory { request ->
+                                if (DriveAuthInterceptor.isGoogleHost(request.url.host)) {
+                                    (driveImages ?: throw IOException("no Drive image client")).newCall(request)
+                                } else {
+                                    thumbnailClient().newCall(request)
+                                }
+                            }
+                        },
                         cacheStrategy = { KeepThumbnails },
                         connectivityChecker = { ConnectivityChecker.ONLINE },
                     ),
@@ -131,8 +148,9 @@ fun thumbnailDiskCache(dir: File, maxBytes: Long = MediaModule.THUMB_CACHE_BYTES
 fun thumbKey(recorderPath: String, recorderTime: String?): String = "thm:$recorderPath@${recorderTime.orEmpty()}"
 
 /**
- * A recorder thumbnail for [MediaThumb] and the prefetch. [network] false: only the caches answer (no session, or a
- * download runs: downloads first); a changed flag is a new model, so the image loads once the network is allowed.
+ * A recorder thumbnail for [MediaThumb] and the prefetch (also a Drive thumbnail, key `drive-thumb:<fileId>`, see
+ * `DriveRestore.thumbnail`). [network] false: only the caches answer (no session, or a download runs: downloads
+ * first); a changed flag is a new model, so the image loads once the network is allowed.
  */
 data class RecorderThumb(val key: String, val url: String, val network: Boolean) {
     fun request(context: Context, memory: Boolean = true): ImageRequest = ImageRequest.Builder(context)
@@ -211,6 +229,6 @@ object MediaModule {
 
     @Provides
     @Singleton
-    fun recorderHttp(manager: RecorderConnectionManager, @ApplicationContext context: Context) =
-        RecorderHttp(manager, SIMULATOR_BASE_URL, context)
+    fun recorderHttp(manager: RecorderConnectionManager, @ApplicationContext context: Context, @DriveHttp drive: OkHttpClient, auth: DriveAuth) =
+        RecorderHttp(manager, SIMULATOR_BASE_URL, context, driveImageClient(drive, auth))
 }
