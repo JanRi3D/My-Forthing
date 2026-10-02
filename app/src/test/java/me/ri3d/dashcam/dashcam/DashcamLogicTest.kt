@@ -75,8 +75,19 @@ class DashcamLogicTest {
     @Test
     fun `wifi resubmission changes only the password and keeps ssid, mode and frequency`() {
         val read = WifiParam(mode = 1, ssid = "FORTHING-OLD", passwd = "Old12345", frequency = 1)
-        assertThat(wifiToSend(read, "New12345")).isEqualTo(WifiParam(1, "FORTHING-OLD", "New12345", 1))
-        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345")).isEqualTo(WifiParam(null, "A", "New12345", null))
+        assertThat(wifiToSend(read, "New12345", null)).isEqualTo(WifiParam(1, "FORTHING-OLD", "New12345", 1))
+        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345", null)).isEqualTo(WifiParam(null, "A", "New12345", null))
+    }
+
+    @Test
+    fun `wifi mode is the only one capability 20483 lists, otherwise as read`() {
+        // Hardware 2026-10-02: 4097 reads mode 1, 20483 lists [0].
+        val read = WifiParam(mode = 1, ssid = "FORTHING-A", passwd = "Old12345", frequency = 0)
+        assertThat(wifiToSend(read, "New12345", listOf(0))).isEqualTo(WifiParam(0, "FORTHING-A", "New12345", 0))
+        assertThat(wifiToSend(read, "New12345", listOf(0, 1)).mode).isEqualTo(1)
+        assertThat(wifiToSend(read, "New12345", emptyList()).mode).isEqualTo(1)
+        assertThat(wifiToSend(read, "New12345", null).mode).isEqualTo(1)
+        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345", listOf(0)).mode).isEqualTo(0)
     }
 
     @Test

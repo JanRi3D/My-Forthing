@@ -213,7 +213,9 @@
     <string name="dashcam_wifi_password_repeat">Passwort wiederholen</string>
     <string name="dashcam_wifi_password_not_equal">Die Passwörter stimmen nicht überein.</string>
     <string name="dashcam_wifi_password_show">Passwort anzeigen</string>
-    <string name="dashcam_wifi_preserved">WLAN-Name, Modus (%1$s) und Band (%2$s) werden unverändert so gesendet, wie der Recorder sie gemeldet hat.</string>
+    <string name="dashcam_wifi_sent">Gesendet werden der WLAN-Name wie gemeldet, Modus %1$s und Band %2$s.</string>
+    <string name="dashcam_wifi_mode_from_capability">Modus %1$s ist laut Recorder der einzige unterstützte (gelesen: %2$s).</string>
+    <string name="dashcam_wifi_warning">Nur ausprobieren, wenn du an die Reset-Taste der Dashcam kommst – die Hersteller-App sendet den Modus hier vertauscht.</string>
     <string name="dashcam_wifi_password_sent">neues Passwort</string>
     <string name="dashcam_wifi_password_differs">anderes Passwort</string>
     <string name="dashcam_send">Senden</string>
