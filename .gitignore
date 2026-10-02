@@ -26,3 +26,6 @@ local.properties
 
 # Claude Code agent worktrees
 /.claude/worktrees/
+
+# Claude Code session files (agent definitions, worktrees) stay local
+/.claude/
