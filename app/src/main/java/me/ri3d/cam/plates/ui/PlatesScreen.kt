@@ -25,16 +25,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -96,8 +104,9 @@ class PlatesViewModel @Inject constructor(
 
     val scan: StateFlow<ClipScans.State> = scans.state
 
+    /** Plates are uppercase; the field shows what is searched. */
     fun setQuery(text: String) {
-        handle[QUERY] = text
+        handle[QUERY] = text.uppercase()
     }
 
     fun setIncidentsOnly(on: Boolean) {
@@ -175,12 +184,20 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, onBack: () -> 
         }
         val style = PlateTextStyle.copy(fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
         val keyboard = LocalSoftwareKeyboardController.current
+        // Opened from Home without a query: type right away, once (not again after rotation or coming back).
+        val focus = remember { FocusRequester() }
+        var focused by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            if (!focused && query.isEmpty()) focus.requestFocus()
+            focused = true
+        }
         BasicTextField(
             value = query,
             onValueChange = onQuery,
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 16.dp)
+                .focusRequester(focus)
                 .semantics { contentDescription = label },
             textStyle = style,
             singleLine = true,
@@ -189,7 +206,12 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, onBack: () -> 
             keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }), // results update while typing
             decorationBox = { field ->
                 if (query.isEmpty()) {
-                    Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        label,
+                        Modifier.clearAndSetSemantics { }, // the field already carries the label
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 field()
             },

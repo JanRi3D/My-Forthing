@@ -92,6 +92,7 @@ class PlatesViewModelsTest {
 
         vm.setQuery("bmk")
         eventually { vm.displays() == listOf("B-MK 4821") }
+        assertThat(vm.query.value).isEqualTo("BMK") // shown uppercase, like the plates
         vm.setQuery("553")
         eventually { vm.displays() == listOf("HH-JK 553") }
         vm.setQuery("b-")
@@ -193,5 +194,25 @@ class PlatesViewModelsTest {
         vm.clearHistory()
         eventually { history.value?.isEmpty() == true }
         assertThat(File(context.filesDir, "plates").exists()).isFalse()
+    }
+
+    @Test
+    fun `the incident badge goes when the recording's library row is gone, the sightings stay`() = runTest {
+        seed()
+        val vm = platesVm(query = "4821")
+        eventually { vm.list.value?.rows?.singleOrNull()?.incident == true }
+        db.mediaDao().delete("e")
+        eventually { vm.list.value?.rows?.singleOrNull()?.incident == false }
+        assertThat(vm.list.value!!.rows.single().plate.count).isEqualTo(3)
+    }
+
+    @Test
+    fun `the live list shows the newest three plates of this visit`() = runTest {
+        listOf("B-MK 4821" to 1_000L, "HH-JK 553" to 2_000L, "M-AB 9042" to 3_000L, "TF-GH 64" to 4_000L, "K-LT 207" to 5_000L)
+            .forEach { (text, at) -> plates.recordSightings(listOf(detection(text)), SightingSource.LIVE, seenAt = at) }
+        val history = plates.history().first()
+        val seen = setOf("BMK4821", "HHJK553", "MAB9042", "TFGH64") // K-LT 207 was seen before this visit
+        assertThat(recentPlates(history, seen).map { it.display }).containsExactly("TF-GH 64", "M-AB 9042", "HH-JK 553").inOrder()
+        assertThat(recentPlates(history, emptySet())).isEmpty()
     }
 }
