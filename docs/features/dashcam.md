@@ -25,7 +25,9 @@ session is up; 4098 is queried right after and the state is republished with `in
 
 **Contract additions** (§7 shapes unchanged otherwise): state `Disconnected` (idle: before the first connect and
 after `disconnect()`); interface members `sdStatus`, `recStatus`, `storage`, `ssid`, `refreshSsid()`,
-`mobileDataEnabled()`, `diagnosticLog()`, debug-only `simulator: StateFlow<Boolean>` + `setSimulator()`;
+`mobileDataEnabled()`, `diagnosticLog()`, `capabilities(group)` (20480–20485 reply of the current session, 3 s
+timeout, cached until the session ends, failures not cached), `note(topic, message)` / `notes()` (app lines for the
+Diagnose export, last 50 per topic, redacted), debug-only `simulator: StateFlow<Boolean>` + `setSimulator()`;
 `connect(ignoreSsid = false)`; `request(…, timeoutMs)` passes the client's per-request timeout through (formatting
 needs more than 10 s); `httpClient()` throws `RecorderNotBoundException` (an `IOException`) while no recorder Wi-Fi
 is bound.
@@ -74,7 +76,14 @@ not read as a number array (e.g. the SDK's `"[I@…"`), the switch is disabled i
 Switch rows whose readback is neither 1 nor 0 are shown raw and disabled.
 
 The Wi-Fi dialog changes only the password, like the vendor dialog: SSID read-only, the whole object read back is
-resubmitted without `chanNo`, `ssid`, `mode` and `frequency` untouched. Password rule "8–16 Zeichen, Buchstaben und
+resubmitted without `chanNo`, `ssid` and `frequency` untouched. **`mode`** (hardware 2026-10-02: 4097 reads
+`wifi.mode = 1` while capability 20483 lists `wifi.mode = [0]`, so resending the read value might switch the hotspot
+to a mode the recorder does not support): when 20483 lists exactly one mode, that one is sent, otherwise the mode as
+read (`wifiToSend(read, password, supportedModes)`; 20483 is loaded through `capabilities(NETWORK)` before the
+settings appear, so the dialog and the request agree). The dialog shows "Gesendet werden … Modus 0 und Band 0",
+"Modus 0 ist laut Recorder der einzige unterstützte (gelesen: 1)" when it differs, and the warning "Nur
+ausprobieren, wenn du an die Reset-Taste der Dashcam kommst – die Hersteller-App sendet den Modus hier vertauscht"
+(the vendor app resubmits the inverted value; neither has been tried on the recorder). Password rule "8–16 Zeichen, Buchstaben und
 Ziffern": 8–16 printable ASCII characters 0x21–0x7E with at least one A–Z/a–z and one 0–9, typed twice, with a
 show-password toggle; an invalid password is never sent. Unless the recorder clearly refused it, the app asks to
 rejoin the Wi-Fi.
@@ -85,7 +94,12 @@ the danger confirmation and shows "vom Recorder angenommen (rval 0)" (there is n
 shown are listed raw under "Weitere Werte (unbestätigt)" (secrets masked). No "Neustart". Everything is disabled
 unless `Ready`.
 
-**SD card.** 4099 values are shown raw with "laut Recorder" (units unknown). The latest `sdStatus` notification
+**SD card.** 4099 values are shown raw with "laut Recorder". **Units:** when `totalSpace` is 1,000–2,000,000 (a
+1 GB–2 TB card in MB) `totalSpace` and `available` are read as MB and shown as "≈ 116 GB (Recorder meldet 119255,
+als MB gedeutet)" (1 GB = 1024 MB, whole GB from 10 GB, one decimal below: "≈ 0,7 GB …"), the Home card as "≈ 0,7 GB
+frei laut Recorder"; otherwise raw only (`storageInMb`, `storageValue`, `gigabytes` in `DashcamText.kt`). Hardware
+2026-10-02: `totalSpace 119255`, `available 693` then 285 with a 128 GB card – consistent with MB.
+`residualLife` / `healthStatus` (hardware: the string "unknow") always stay raw. The latest `sdStatus` notification
 maps 0–8 to the report's labels, other values stay raw. Formatting (12288, 60 s timeout, danger confirmation)
 only when `Ready`; rval 0 reads "vom Recorder angenommen". The "Dateien auf Karte" categories of the artboard are
 **omitted**: counts would need a file listing (feature/media); the route `SdFiles` stays for that feature.
@@ -97,8 +111,10 @@ Recorder" from the session's 4099. Tap → Connection. The Connection screen add
 
 **Diagnostics.** One tap, read-only: Wi-Fi facts (SSID, bound network, mobile data, simulator), connection state
 (and its error), session fields and the session reply (kept even after the frame log rolled over), raw replies of
-4098, 4097, 4099, 20481 and best effort 20480/20482–20485 (5 s each; errors and -205 timeouts kept), then the last
-400 frame-log events. Every JSON text passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …)
+4098, 4097, 4099, 20481 and best effort 20480/20482–20485 (5 s each; errors and -205 timeouts kept), the app's
+`notes` (`rtsp`: every live-view attempt with URL, transport and result; `http`: every recorder HTTP request with
+method, path, Range, status, Content-Type, Content-Length or the exception, and failed downloads – last 50 each),
+then the last 400 frame-log events. Every JSON text passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …)
 on top of the module's own redaction; a test checks the export against the real secrets of a simulated session.
 Shared as `cacheDir/diagnostics/myforthing-diagnose-<time>.json` through `DiagnosticsFileProvider` (own `FileProvider`
 subclass with the paths in its manifest meta-data, authority `${applicationId}.dashcam.files`, so other features'
@@ -143,7 +159,8 @@ Verified only against `RecorderSimulator` / the TCP simulator [SIM] or the emula
   loss, make-before-break switch, duplicate connect joining, unbound HTTP refused, missing/invalid key, disconnect
   during a pending attempt, diagnostics export without token/aescode/passwd/session key (unit tests).
 - Settings change → 4097 readback → confirmed / mismatch / rejected (rval 208) / unconfirmed (readback timeout) /
-  unknown (8192 timeout); Wi-Fi password-only resubmission with ssid / mode 1 / frequency 1 kept and no chanNo,
+  unknown (8192 timeout); Wi-Fi password-only resubmission with ssid / mode 1 / frequency 1 kept and no chanNo
+  (mode 0 instead when 20483 lists only `[0]`),
   password mismatch, invalid passwords never sent; OSD resubmission; reset accepted / refused (unit tests and
   emulator walkthrough).
 - SD status mapping incl. unknown values; error presentation; 4099 load, format 12288 ok / rval 209 (unit tests).
@@ -157,19 +174,36 @@ Verified only against `RecorderSimulator` / the TCP simulator [SIM] or the emula
   share sheet with the JSON file. App backgrounded by another emulator user → ON_STOP disconnect observed in the
   simulator log.
 
+**Verified on hardware 2026-10-02** (owner's Diagnose export; recorder `AE-DC2013-LQ2`, fw `SX5G-3776510A_A` built
+2024-03-21; phone API 37 on `FORTHING-A267451`, network bound, mobile data off):
+- Wi-Fi request and socket binding to the FORTHING hotspot (with mobile data off).
+- FAAB framing; session handshake with the vendor key (RSA unwrap of `aescode`), session reply `version 1.1.3`,
+  `productType 0`, `timeOut 10`; AES-128-ECB traffic in both directions; keepalives answered.
+- 4098, 4097, 4099 and all capability queries 20480–20485 answered (none timed out).
+- Unsolicited notifications arrive with frame sequence **0xFFFFFFFF** (read as -1) and are dispatched:
+  `sdStatus {driver 1, status 2}`, `recStatus {chanNo 0, status 1}`, `fileNew`, `fileDel` (regression test
+  `notificationWithSequenceMinusOne_isDispatched`).
+- Recorder clock: 4098 `dateTime` ≈ 2.5 min ahead of the phone (recorder times are labelled "laut Recorder").
+- Values: 4097 `withChan[0].chanNo = 0`, `wifi.mode 1` (20483 `wifi.mode [0]`), `videoResolution 0`,
+  `osdContent [2,3,4,5,6]` (a real array), `gSensorSensitivity 3`, `normalVideoTime 5`, `poweroffDelay 60`,
+  `parkMonitor 1`, `eventRecCycle 1`, `soundSwitch 1`, `wdrSwitch 1`; 4099 `totalSpace 119255`, `available 693`
+  then 285, `residualLife` / `healthStatus` "unknow".
+
 Needs the physical recorder (owner checklist; the Diagnose export captures most of it read-only):
-1. Wi-Fi request without INTERNET capability matches the FORTHING hotspot; socket binding works with mobile data on.
-2. Session handshake with the vendor key (aescode unwrap), token, AES traffic, heartbeat timing.
-3. Real `version`, `productType`, `timeOut` of the session reply.
-4. 4098 field values (productModel, productSN, fwVersion, hwVersion, mcuFwVersion).
-5. 4097 shape and values, including fields the screen does not show; whether `osdContent` reads as an array.
-6. 4099 values and their units (totalSpace, available, residualLife, healthStatus).
+1. Socket binding with mobile data **on** (verified only with it off).
+2. Heartbeat loss timing (≈ 11 s) on a real hotspot drop.
+3. ~~Session reply~~ (verified above).
+4. Remaining 4098 fields (productSN, hwVersion, mcuFwVersion) as shown on the device screen.
+5. 4097 fields the screen does not show; **`chanNo`**: the recorder reads back `chanNo 0` while 8192 patches send
+   `chanNo 1` as traced (`RecorderValues.CHANNEL_FRONT`) – whether a change is applied (E in the checklist) decides
+   if the patch must use the channel number read back.
+6. 4099 units: MB is the working reading (see SD card); confirm against the card size after a format (G2).
 7. Each 8192 change: rval, whether the 4097 readback reflects it, and how long the recorder needs.
-8. Wi-Fi password change: whether the recorder accepts the resubmitted ssid/mode/frequency, which password lengths
-   and characters the firmware takes, when it restarts its hotspot, and the rejoin flow afterwards.
+8. Wi-Fi password change: whether the recorder accepts the resubmitted ssid / mode 0 (from 20483) / frequency,
+   which password lengths and characters the firmware takes, when it restarts its hotspot, and the rejoin flow.
 9. Format (12288): duration (timeout 60 s), rval, readback of 4099 afterwards.
 10. Factory reset (12289): what is reset (Wi-Fi?), whether the connection drops.
-11. Whether `sdStatus` / `recStatus` notifications arrive at all, their values, and the meaning of recStatus.
-12. Capability replies 20480–20485 (SDK-only queries) and whether the recorder answers them.
+11. Meaning of `recStatus` 1 (assumed "normal recording") and `sdStatus` values other than 2.
+12. ~~Capability replies~~ (verified above; 20485 content not yet evaluated).
 13. ON_STOP/ON_START disconnect/reconnect with a real hotspot; a Wi-Fi roam/switch during a session.
 14. Error codes the recorder really sends and whether the app-table meanings fit.
