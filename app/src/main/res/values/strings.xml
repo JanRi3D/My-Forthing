@@ -606,6 +606,96 @@
     <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
     <!-- /media -->
 
+    <!-- backup -->
+    <string name="backup_title">Sicherung</string>
+    <string name="backup_drive_manage">Google-Drive-Konto verwalten</string>
+    <string name="backup_section_mode">Automatisch sichern</string>
+    <string name="backup_mode_manual">Nur manuell</string>
+    <string name="backup_mode_manual_text">Nur Dateien, die du unter „Aufnahmen“ auswählst und sicherst.</string>
+    <string name="backup_mode_incidents">Vorfälle</string>
+    <string name="backup_mode_incidents_text">Vorfall-Clips, sobald sie auf dem Handy sind.</string>
+    <string name="backup_mode_all">Alles</string>
+    <string name="backup_mode_all_text">Aufnahmen, Fotos und Screenshots, sobald sie auf dem Handy sind. Verbesserte Dateien, sobald ihr Original gesichert ist.</string>
+    <string name="backup_phone_only_note">Gesichert wird nur, was auf diesem Handy liegt: heruntergeladene Aufnahmen, Screenshots und verbesserte Dateien. Direkt von der Dashcam wird nichts hochgeladen.</string>
+    <string name="backup_check_now">Jetzt prüfen</string>
+    <string name="backup_section_conditions">Bedingungen</string>
+    <string name="backup_wifi_only">Nur WLAN mit Internet</string>
+    <string name="backup_wifi_only_text">Wartet auf ein WLAN mit funktionierendem Internet. Das WLAN der Dashcam zählt nie.</string>
+    <string name="backup_mobile_data">Mobile Daten verwenden</string>
+    <string name="backup_mobile_data_text">Aus: Die Sicherung wartet auf eine Verbindung ohne Volumenbegrenzung.</string>
+    <string name="backup_mobile_data_disabled">Nur möglich, wenn „Nur WLAN mit Internet“ aus ist.</string>
+    <string name="backup_section_plates">Kennzeichen</string>
+    <string name="backup_plates">Kennzeichen-Daten mitsichern</string>
+    <string name="backup_plates_text">Erkannte Kennzeichen (Text, Stelle im Clip, Position im Bild) kommen in die Begleitdatei neben der Aufnahme in deinem Drive. Aus: Der Kennzeichen-Verlauf bleibt nur auf diesem Handy. Gilt für Sicherungen ab jetzt.</string>
+    <string name="backup_section_queue">Warteschlange</string>
+    <string name="backup_queue_empty">Nichts in der Warteschlange.</string>
+    <plurals name="backup_done_count">
+        <item quantity="one">%d Datei in Drive gesichert.</item>
+        <item quantity="other">%d Dateien in Drive gesichert.</item>
+    </plurals>
+    <string name="backup_done_meaning">„In Drive gesichert“ heißt: vollständig hochgeladen, Prüfsumme gleich der Handy-Kopie, Begleitdatei daneben.</string>
+    <string name="backup_queued_state">In der Warteschlange</string>
+    <string name="backup_uploading">Wird hochgeladen</string>
+    <string name="backup_waiting_wifi">Wartet auf ein WLAN mit Internet</string>
+    <string name="backup_waiting_unmetered">Wartet auf eine Verbindung ohne Volumenbegrenzung</string>
+    <string name="backup_waiting_internet">Wartet auf Internet</string>
+    <string name="backup_remove">Entfernen</string>
+    <string name="backup_failure_no_local">Fehlgeschlagen: Die Handy-Kopie fehlt.</string>
+    <string name="backup_failure_md5">Fehlgeschlagen: Die Datei kam nicht unverändert in Drive an (Prüfsumme).</string>
+    <string name="backup_failure_conflict">Nicht gesichert: In Drive liegt unter dieser Datei schon eine bestätigte Fassung mit anderem Inhalt. Sie bleibt unverändert; die Handy-Kopie wird nicht darübergeschrieben.</string>
+    <string name="backup_row_action">%1$s: %2$s</string>
+    <string name="backup_paused_title">Sicherung pausiert</string>
+    <string name="backup_paused_reconnect">Google Drive erneut verbinden, damit die Sicherung weiterläuft.</string>
+    <string name="backup_paused_not_connected">Google Drive ist nicht verbunden. Die Warteschlange wartet.</string>
+    <string name="backup_paused_storage">Dein Google-Drive-Speicher ist voll. Schaffe Platz in Drive und tippe dann auf „Fortsetzen“.</string>
+    <string name="backup_paused_storage_quota">Belegt: %1$s von %2$s.</string>
+    <string name="backup_resume">Fortsetzen</string>
+    <string name="backup_verify">Drive-Status prüfen</string>
+    <string name="backup_verify_text">Prüft, ob gesicherte Dateien noch vollständig in Drive liegen. Fehlende gelten danach als nicht gesichert und werden nicht automatisch neu hochgeladen; auf dem Handy wird nichts gelöscht.</string>
+    <string name="backup_verifying">Drive wird geprüft …</string>
+    <string name="backup_verify_ok">Alle gesicherten Dateien sind in Drive vorhanden.</string>
+    <plurals name="backup_verify_missing">
+        <item quantity="one">%d Datei fehlt in Drive und gilt jetzt als nicht gesichert.</item>
+        <item quantity="other">%d Dateien fehlen in Drive und gelten jetzt als nicht gesichert.</item>
+    </plurals>
+    <string name="backup_verify_failed">Prüfen nicht möglich: %1$s</string>
+    <string name="backup_action">Sichern</string>
+    <plurals name="backup_queued">
+        <item quantity="one">%d Datei wird gesichert.</item>
+        <item quantity="other">%d Dateien werden gesichert.</item>
+    </plurals>
+    <plurals name="backup_queued_reconnect">
+        <item quantity="one">%d Datei vorgemerkt. Google Drive erneut verbinden, damit sie gesichert wird.</item>
+        <item quantity="other">%d Dateien vorgemerkt. Google Drive erneut verbinden, damit sie gesichert werden.</item>
+    </plurals>
+    <plurals name="backup_not_on_phone">
+        <item quantity="one">%d Datei ist nicht auf dem Handy – erst herunterladen.</item>
+        <item quantity="other">%d Dateien sind nicht auf dem Handy – erst herunterladen.</item>
+    </plurals>
+    <plurals name="backup_already_done">
+        <item quantity="one">%d Datei ist schon gesichert.</item>
+        <item quantity="other">%d Dateien sind schon gesichert.</item>
+    </plurals>
+    <string name="backup_connect_title">Google Drive nicht verbunden</string>
+    <string name="backup_connect_text">Verbinde Google Drive, um Dateien zu sichern.</string>
+    <string name="backup_connect">Verbinden</string>
+    <string name="backup_delete_drive">Drive-Kopie löschen</string>
+    <string name="backup_delete_drive_title">Drive-Kopie löschen?</string>
+    <string name="backup_delete_drive_text">Die Datei und ihre Begleitdatei werden aus deinem Google Drive gelöscht. Die Kopien auf diesem Handy und auf der Dashcam bleiben. Automatisch wird diese Datei danach nicht wieder gesichert.</string>
+    <string name="backup_deleted_drive">Drive-Kopie gelöscht</string>
+    <string name="backup_delete_drive_failed">Drive-Kopie nicht gelöscht: %1$s</string>
+    <string name="backup_chip_done">In Drive gesichert</string>
+    <string name="backup_chip_running">Wird gesichert</string>
+    <string name="backup_chip_failed">Sicherung fehlgeschlagen</string>
+    <string name="backup_channel">Sicherung</string>
+    <string name="backup_channel_alerts">Sicherung – Hinweise</string>
+    <string name="backup_notification_title">Sicherung: %1$s</string>
+    <string name="backup_notification_reconnect_title">Google Drive erneut verbinden</string>
+    <string name="backup_notification_reconnect_text">Die Sicherung ist pausiert, bis du Google Drive in der App erneut verbindest.</string>
+    <string name="backup_notification_storage_title">Google-Drive-Speicher voll</string>
+    <string name="backup_notification_storage_text">Die Sicherung ist pausiert. Schaffe Platz in Drive und tippe in der App unter Einstellungen → Sicherung auf „Fortsetzen“.</string>
+    <!-- /backup -->
+
     <!-- enhance -->
     <string name="enhance_action_frame">Bild verbessern</string>
     <string name="enhance_action_clip">Clip hochskalieren</string>
