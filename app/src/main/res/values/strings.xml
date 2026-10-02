@@ -237,11 +237,12 @@
 
     <string name="dashcam_diagnostics_title">Diagnose</string>
     <string name="dashcam_diagnostics_row">Werte der Dashcam für die Fehlersuche erfassen und teilen</string>
-    <string name="dashcam_diagnostics_text">Erfasst nur lesend Sitzung, Geräteinfo, Einstellungen, Speicher, Fähigkeiten, das Protokoll der letzten Nachrichten und WLAN-Daten. Nichts wird geändert. Token, Schlüssel und Passwörter werden geschwärzt.</string>
+    <string name="dashcam_diagnostics_text">Erfasst nur lesend Sitzung, Geräteinfo, Einstellungen, Speicher, Fähigkeiten, die Beschreibung des Livebilds (RTSP), das Protokoll der letzten Nachrichten und WLAN-Daten. Nichts wird geändert. Token, Schlüssel und Passwörter werden geschwärzt.</string>
     <string name="dashcam_diagnostics_not_connected">Nicht verbunden: Es werden nur WLAN-Daten und das Protokoll erfasst.</string>
     <string name="dashcam_diagnostics_capture">Diagnose erfassen</string>
     <string name="dashcam_diagnostics_share">Teilen</string>
     <string name="dashcam_diagnostics_step">Frage %1$d ab …</string>
+    <string name="dashcam_diagnostics_step_rtsp">Frage die Beschreibung des Livebilds ab (RTSP) …</string>
 
     <string name="dashcam_error_with_code">%1$s (Code %2$d)</string>
     <string name="dashcam_err_missing_rval">Antwort ohne Ergebniscode</string>

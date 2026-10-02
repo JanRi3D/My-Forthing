@@ -127,6 +127,13 @@ data class StreamError(
     /** One line for the Diagnose export. */
     fun describe(): String = name + (code?.let { " ($it)" } ?: "") + (rtspStatus?.let { ", RTSP $it" } ?: "") + (cause?.let { ": $it" } ?: "")
 
+    /**
+     * Media3 rejected the stream description: a parsing code, or (as on hardware 2026-10-02, code 2000) an innermost
+     * `IllegalArgumentException` / `ParserException` such as "missing attribute control".
+     */
+    val sdpProblem: Boolean
+        get() = code in 3000..3999 || cause?.substringBefore(':') in setOf("IllegalArgumentException", "ParserException")
+
     companion object {
         /** The stream ended; the original app stops the preview on stream closure. */
         val ENDED = StreamError("STREAM_ENDED")

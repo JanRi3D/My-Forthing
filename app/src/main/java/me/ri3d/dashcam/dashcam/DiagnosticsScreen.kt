@@ -52,6 +52,7 @@ import me.ri3d.dashcam.BuildConfig
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.core.log.redact
 import me.ri3d.dashcam.core.ui.AxoTopBar
+import me.ri3d.dashcam.live.captureRtspDescribe
 import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.RecorderClient
 import me.ri3d.dashcam.recorder.RecorderCommand
@@ -77,10 +78,15 @@ private val CAPTURE: List<Pair<RecorderCommand, Long>> = listOf(
 
 private const val BEST_EFFORT_TIMEOUT_MS = 5_000L
 
+/** [captureDiagnostics] step while the RTSP description is fetched. */
+const val RTSP_STEP = -1
+
 /**
  * The owner's hardware-verification capture: Wi-Fi facts, session reply, raw replies of the read-only queries
- * (errors and -205 timeouts kept), the app's notes (RTSP attempts, recorder HTTP results) and the client's frame log. Every JSON text passes `redact` (token, tokenNum,
- * aescode, passwd, password, key, …); nothing is ever sent that changes the recorder.
+ * (errors and -205 timeouts kept), the raw RTSP OPTIONS/DESCRIBE exchange of the live view (`rtsp.describe`, only on
+ * the bound recorder Wi-Fi; also noted under `notes.rtsp`), the app's notes (RTSP attempts, recorder HTTP results)
+ * and the client's frame log. Every JSON text passes `redact` (token, tokenNum, aescode, passwd, password, key, …);
+ * nothing is ever sent that changes the recorder.
  */
 suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int) -> Unit = {}): JsonObject {
     manager.refreshSsid()
@@ -98,6 +104,12 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
         }
     } else {
         emptyList()
+    }
+    val describe = if (state is RecorderConnectionState.Ready && state.network != null) {
+        onStep(RTSP_STEP)
+        captureRtspDescribe(manager)
+    } else {
+        null
     }
     val log = manager.diagnosticLog()
     return buildJsonObject {
@@ -125,6 +137,10 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
         putJsonObject("commands") {
             if (commands.isEmpty()) put("skipped", "not connected")
             commands.forEach { (msgId, result) -> put(msgId, result) }
+        }
+        putJsonObject("rtsp") {
+            if (describe == null) put("describe", "skipped: no session on the recorder Wi-Fi")
+            else putJsonArray("describe") { describe.forEach { add(JsonPrimitive(it)) } }
         }
         // RTSP attempts of the live view and recorder HTTP requests (downloads, thumbnails), newest last.
         putJsonObject("notes") { manager.notes().forEach { (topic, notes) -> putJsonArray(topic) { notes.forEach { add(it.toJson()) } } } }
@@ -225,7 +241,11 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
             }
             step?.let {
                 Text(
-                    if (it == 0) stringResource(R.string.state_view_loading) else stringResource(R.string.dashcam_diagnostics_step, it),
+                    when (it) {
+                        0 -> stringResource(R.string.state_view_loading)
+                        RTSP_STEP -> stringResource(R.string.dashcam_diagnostics_step_rtsp)
+                        else -> stringResource(R.string.dashcam_diagnostics_step, it)
+                    },
                     Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
