@@ -2,6 +2,8 @@ package me.ri3d.dashcam.backup
 
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import me.ri3d.dashcam.core.data.AppDatabase
 import me.ri3d.dashcam.core.data.PreferencesRepository
@@ -18,7 +20,7 @@ import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaRepository
 import me.ri3d.dashcam.media.recorderFile
 import me.ri3d.dashcam.plates.PlateExport
-import me.ri3d.dashcam.plates.PlateRepository
+import me.ri3d.dashcam.plates.ui.ClipScans
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import java.io.File
 import java.security.MessageDigest
@@ -160,7 +162,9 @@ class BackupFixture(val context: Context, val db: AppDatabase, scope: TestScope,
     val backup = DriveBackup(api, auth, repository, preferences, PlateExport(db.plateDao(), preferences), store)
 
     /** Needs WorkManager (test driver) initialised: the import asks it about running recorder downloads. */
-    val restore by lazy { DriveRestore(api, auth, repository, backup, store, preferences, PlateRepository(context, db.plateDao()), context) }
+    /** Plate checks the import must not pull a row away from. */
+    val clipScans = ClipScans(repository, scope.backgroundScope, 0L, { 0L }, flowOf(false)) { _, _ -> awaitCancellation() }
+    val restore by lazy { DriveRestore(api, auth, repository, backup, store, preferences, clipScans, context) }
 
     /** A downloaded recording of recorder [type] with [bytes] on the phone. */
     suspend fun local(path: String, type: Int = 1, bytes: ByteArray = ByteArray(1000) { it.toByte() }): MediaItem {

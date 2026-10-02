@@ -130,6 +130,9 @@ class BackupStore @Inject constructor(@ApplicationContext context: Context) {
 
     fun include(id: String) = prefs.edit { remove(EXCLUDED + id) }
 
+    /** Everything stored for [id] (its row was merged into its Drive row). */
+    fun forgetItem(id: String) = prefs.edit { PER_ITEM.forEach { remove(it + id) } }
+
     fun setStorageFull(full: Boolean) {
         prefs.edit { putBoolean(STORAGE_FULL, full) }
         _storageFull.value = full

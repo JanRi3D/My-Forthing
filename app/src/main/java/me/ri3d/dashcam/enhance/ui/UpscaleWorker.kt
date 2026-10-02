@@ -113,7 +113,7 @@ class UpscaleJobs @Inject constructor(@ApplicationContext private val context: C
                     UpscaleWorker.KEY_ENQUEUED_AT to System.currentTimeMillis(),
                 ),
             )
-            .addTag(TAG_ID + mediaId).addTag(TAG_TARGET + target.name).addTag(TAG_ENGINE + engine.name)
+            .addTag(idTag(mediaId)).addTag(TAG_TARGET + target.name).addTag(TAG_ENGINE + engine.name)
             .build()
         workManager.enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, request)
     }
@@ -125,6 +125,9 @@ class UpscaleJobs @Inject constructor(@ApplicationContext private val context: C
     companion object {
         const val WORK = "enhance-upscale"
         private const val TAG_ID = "upscale-id:"
+
+        /** Tag of the upscale of [mediaId] (drive-restore does not merge a row while it is upscaled). */
+        fun idTag(mediaId: String) = TAG_ID + mediaId
         private const val TAG_TARGET = "upscale-target:"
         private const val TAG_ENGINE = "upscale-engine:"
 

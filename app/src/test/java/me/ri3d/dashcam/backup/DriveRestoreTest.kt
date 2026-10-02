@@ -21,6 +21,7 @@ import me.ri3d.dashcam.drive.DRIVE_FILE_SCOPE
 import me.ri3d.dashcam.drive.DriveAuthState
 import me.ri3d.dashcam.drive.DriveError
 import me.ri3d.dashcam.drive.format.DriveFormat
+import me.ri3d.dashcam.drive.format.DriveFormatReader
 import me.ri3d.dashcam.drive.format.DriveSidecar
 import me.ri3d.dashcam.media.BackupState
 import me.ri3d.dashcam.media.DownloadQueue
@@ -140,7 +141,7 @@ class DriveRestoreTest {
         val backup = sidecar(name = "e1.mp4")
         val media = f.api.backup(backup)
 
-        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(merged = 1))
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 1, merged = 1))
 
         assertThat(f.item(listed.id)).isNull()
         val merged = f.item(backup.id)!!
@@ -163,7 +164,7 @@ class DriveRestoreTest {
         val otherBackup = sidecar(name = "other.mp4")
         f.api.backup(otherBackup, content = ByteArray(50) { 8 })
 
-        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 1, merged = 1))
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 2, merged = 1))
 
         assertThat(f.item(same.id)).isNull()
         val merged = f.item(sameBackup.id)!!
@@ -177,7 +178,7 @@ class DriveRestoreTest {
     }
 
     @Test
-    fun `a row other data refers to is not merged`() = runTest {
+    fun `plate sightings and derived items move to the Drive id`() = runTest {
         val f = fixture()
         val withPlate = f.local("/sim/EVENT/p.mp4")
         val plate = db.plateDao().insert(Plate(normalized = "BMK4821", display = "B-MK 4821", firstSeen = 1, lastSeen = 1, count = 1))
@@ -185,26 +186,63 @@ class DriveRestoreTest {
         val parent = f.local("/sim/EVENT/q.mp4")
         db.mediaDao().insert(recorderItem("child", 1, "/sim/child.mp4").copy(kind = MediaKind.ENHANCED_FRAME, parentId = parent.id))
         val content = withPlate.localFile!!.readBytes()
-        f.api.backup(sidecar(name = "p.mp4"), content)
-        f.api.backup(sidecar(name = "q.mp4"), content)
+        val p = sidecar(name = "p.mp4")
+        f.api.backup(p, content)
+        val q = sidecar(name = "q.mp4")
+        f.api.backup(q, content)
 
-        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 2))
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 2, merged = 2))
 
-        assertThat(f.item(withPlate.id)).isEqualTo(withPlate)
-        assertThat(f.item(parent.id)).isEqualTo(parent)
+        assertThat(f.item(withPlate.id)).isNull()
+        assertThat(db.plateDao().observeForMedia(p.id).first()).hasSize(1)
+        assertThat(db.plateDao().observeForMedia(withPlate.id).first()).isEmpty()
+        assertThat(f.item("child")!!.parentId).isEqualTo(q.id)
+        assertThat(f.repository.currentId(parent.id)).isEqualTo(q.id) // a screen still holding the old id saves there
     }
 
     @Test
-    fun `a recording with a pending recorder download is not merged`() = runTest {
+    fun `a row in use is excluded from the automatic backup and merged by the next import`() = runTest {
         val f = fixture()
         f.repository.upsertFromRecorderListing(1, listOf(recorderFile("/sd/EVENT/e1.mp4")))
-        val listed = db.mediaDao().byRecorderPath("/sd/EVENT/e1.mp4")!!
+        val downloading = db.mediaDao().byRecorderPath("/sd/EVENT/e1.mp4")!!
         val waiting = OneTimeWorkRequestBuilder<DownloadWorker>().setInitialDelay(1, TimeUnit.DAYS).build()
-        WorkManager.getInstance(context).enqueueUniqueWork(DownloadQueue.workName(listed.id), ExistingWorkPolicy.KEEP, waiting).result.get()
-        f.api.backup(sidecar(name = "e1.mp4"))
+        WorkManager.getInstance(context).enqueueUniqueWork(DownloadQueue.workName(downloading.id), ExistingWorkPolicy.KEEP, waiting).result.get()
+        val uploading = f.local("/sim/EVENT/up.mp4").let { f.repository.update(it.id) { r -> r.copy(backupState = BackupState.UPLOADING) }!! }
+        val checked = f.local("/sim/EVENT/scan.mp4")
+        f.clipScans.enqueue(checked) // a plate check of it is queued
+        val e1 = sidecar(name = "e1.mp4")
+        f.api.backup(e1)
+        f.api.backup(sidecar(name = "up.mp4"), uploading.localFile!!.readBytes())
+        f.api.backup(sidecar(name = "scan.mp4"), checked.localFile!!.readBytes())
 
-        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 1))
-        assertThat(f.item(listed.id)).isEqualTo(listed)
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 3))
+        assertThat(f.item(downloading.id)).isEqualTo(downloading)
+        assertThat(f.item(uploading.id)).isEqualTo(uploading)
+        assertThat(f.item(checked.id)).isEqualTo(checked)
+        assertThat(listOf(downloading, uploading, checked).all { f.store.isExcluded(it.id) }).isTrue()
+
+        // Once the download is gone, the next import (e.g. "Aktualisieren") merges it.
+        WorkManager.getInstance(context).cancelUniqueWork(DownloadQueue.workName(downloading.id)).result.get()
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(merged = 1))
+        assertThat(f.item(downloading.id)).isNull()
+        assertThat(f.item(e1.id)!!.recorderPath).isEqualTo("/sd/EVENT/e1.mp4")
+        assertThat(f.store.isExcluded(downloading.id)).isFalse() // its bookkeeping went with it
+    }
+
+    @Test
+    fun `a merge takes the current recorder fields but not a changed phone copy`() = runTest {
+        val f = fixture()
+        f.repository.upsertFromRecorderListing(1, listOf(recorderFile("/sd/EVENT/e1.mp4")))
+        val seen = db.mediaDao().byRecorderPath("/sd/EVENT/e1.mp4")!!
+        val backup = sidecar(name = "e1.mp4")
+        f.api.backup(backup)
+        f.repository.importDriveCopy(DriveRestore.driveRow(DriveFormatReader.pair(f.api.files).single(), f.api.json.values.single(), 0)!!)
+        // Re-listed meanwhile with another thumbnail: still the same recording.
+        db.mediaDao().update(seen.copy(recorderThumbPath = "/sd/EVENT/e1_new.thm"))
+
+        assertThat(f.repository.mergeIntoDriveCopy(backup.id, seen.copy(localUri = "file:/elsewhere"))).isFalse() // decided on another copy
+        assertThat(f.repository.mergeIntoDriveCopy(backup.id, seen)).isTrue()
+        assertThat(f.item(backup.id)!!.recorderThumbPath).isEqualTo("/sd/EVENT/e1_new.thm")
     }
 
     @Test
@@ -291,15 +329,24 @@ class DriveRestoreTest {
     }
 
     @Test
-    fun `the automatic import runs once per account until it succeeded, an account switch imports again`() = runTest {
+    fun `the automatic import runs until it succeeded, at most once a minute, and again after an account switch`() = runTest {
         val f = fixture()
+        var now = 0L
+        f.restore.clock = { now }
         f.api.backup(sidecar())
-        f.restore.importOnce("a@example.com")
+        f.api.readHooks += { DriveError.Offline(IOException("offline")) }
+        assertThat(f.restore.importOnce("a@example.com")).isFalse()
+        val lists = f.api.listCalls
+        now += 30_000
+        assertThat(f.restore.importOnce("a@example.com")).isFalse() // too soon: not asked again
+        assertThat(f.api.listCalls).isEqualTo(lists)
+        now += DriveRestore.AUTOMATIC_RETRY_MS
+        assertThat(f.restore.importOnce("a@example.com")).isTrue()
         assertThat(all()).hasSize(1)
 
         val later = sidecar()
         f.api.backup(later)
-        f.restore.importOnce("a@example.com")
+        assertThat(f.restore.importOnce("a@example.com")).isTrue()
         assertThat(f.item(later.id)).isNull() // imported already: "Aktualisieren" or "Drive-Status prüfen" bring it
 
         f.auth.state.value = DriveAuthState.Connected("b@example.com", setOf(DRIVE_FILE_SCOPE))

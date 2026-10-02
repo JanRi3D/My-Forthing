@@ -147,6 +147,10 @@ interface PlateDao {
     @Query("UPDATE plate SET firstSeen = MIN(firstSeen, :seenAt), lastSeen = MAX(lastSeen, :seenAt), count = count + 1 WHERE id = :id")
     suspend fun countSighting(id: Long, seenAt: Long)
 
+    /** A recording's row was replaced by another id (drive-restore merge): its sightings follow. */
+    @Query("UPDATE plate_sighting SET mediaId = :to WHERE mediaId = :from")
+    suspend fun moveSightings(from: String, to: String)
+
     @Query("UPDATE plate SET display = :display WHERE id = :id")
     suspend fun updateDisplay(id: Long, display: String)
 

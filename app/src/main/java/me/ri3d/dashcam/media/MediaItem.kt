@@ -1,6 +1,7 @@
 package me.ri3d.dashcam.media
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.Insert
@@ -75,6 +76,9 @@ enum class MediaCategory(val recorderType: Int?) {
 
 enum class BackupState { NONE, QUEUED, UPLOADING, DONE, FAILED }
 
+/** A row without Drive copy ([twin]) and the row of the same recorder file that has one ([driveId]). */
+data class DriveTwin(@Embedded val twin: MediaItem, val driveId: String)
+
 /** When a 4100 listing of [type] last ran to its end ("Stand" of the recorder tabs). */
 @Entity(tableName = "listing_stamp")
 data class ListingStamp(@PrimaryKey val type: Int, val listedAt: Long)
@@ -104,15 +108,17 @@ interface MediaDao {
     @Query("SELECT * FROM media_item WHERE driveFileId IS NOT NULL ORDER BY COALESCE(recorderTimeEpochGuess, createdAt) DESC")
     fun observeDrive(): Flow<List<MediaItem>>
 
-    /** Other rows of the same recorder file (type, name, raw time) without a Drive copy: candidates for a Drive import merge. */
-    @Query(
-        "SELECT * FROM media_item WHERE id != :id AND driveFileId IS NULL AND recorderType = :type AND originalFileName = :name " +
-            "AND recorderTime = :time",
-    )
-    suspend fun twins(id: String, type: Int, name: String, time: String): List<MediaItem>
+    /** Derived items of [from] now belong to [to] (drive-restore merge). */
+    @Query("UPDATE media_item SET parentId = :to WHERE parentId = :from")
+    suspend fun moveChildren(from: String, to: String)
 
-    @Query("SELECT COUNT(*) FROM media_item WHERE parentId = :id")
-    suspend fun childCount(id: String): Int
+    /** Every row without Drive copy that is the same recorder file (type, name, raw time) as a row with one. */
+    @Query(
+        "SELECT t.*, d.id AS driveId FROM media_item AS t JOIN media_item AS d ON d.driveFileId IS NOT NULL " +
+            "AND t.driveFileId IS NULL AND t.id != d.id AND t.recorderType = d.recorderType " +
+            "AND t.originalFileName = d.originalFileName AND t.recorderTime = d.recorderTime",
+    )
+    suspend fun unmergedTwins(): List<DriveTwin>
 
     /** The recorder copies of one listing type as last known, newest recorder time first (unknown times last). */
     @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL $RECORDER_ORDER")

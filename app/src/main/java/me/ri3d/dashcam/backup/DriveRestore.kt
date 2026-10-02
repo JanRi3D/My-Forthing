@@ -33,14 +33,16 @@ import me.ri3d.dashcam.drive.format.DriveFormat
 import me.ri3d.dashcam.drive.format.DriveFormatReader
 import me.ri3d.dashcam.drive.format.DriveSidecar
 import me.ri3d.dashcam.media.BackupState
+import me.ri3d.dashcam.enhance.ui.UpscaleJobs
 import me.ri3d.dashcam.media.DownloadQueue
+import me.ri3d.dashcam.media.DriveDownloadQueue
 import me.ri3d.dashcam.media.DriveImport
 import me.ri3d.dashcam.media.MediaCategory
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaKind
 import me.ri3d.dashcam.media.MediaRepository
 import me.ri3d.dashcam.media.RecorderThumb
-import me.ri3d.dashcam.plates.PlateRepository
+import me.ri3d.dashcam.plates.ui.ClipScans
 import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -48,9 +50,13 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** One import from Drive: new rows, rows that took over their Drive copy, recorder/phone rows merged, unusable sidecars. */
+/**
+ * One import from Drive: [added] new rows, [adopted] rows that took over their Drive copy, [merged] rows of the same
+ * recordings under other ids that gave way to their Drive row, [unreadable] unusable sidecars.
+ */
 data class ImportReport(val added: Int = 0, val adopted: Int = 0, val merged: Int = 0, val unreadable: Int = 0) {
-    val imported: Int get() = added + adopted + merged
+    /** Backups the library knows now that it did not before. */
+    val imported: Int get() = added + adopted
 }
 
 /**
@@ -66,13 +72,18 @@ class DriveRestore @Inject constructor(
     private val backup: DriveBackup,
     private val store: BackupStore,
     private val preferences: PreferencesRepository,
-    private val plates: PlateRepository,
+    private val clipScans: ClipScans,
     @ApplicationContext private val context: Context,
 ) {
+    internal var clock: () -> Long = System::currentTimeMillis
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var running: Deferred<Result<ImportReport>>? = null
     private val _importing = MutableStateFlow(false)
     private val attempted = ConcurrentHashMap.newKeySet<String>()
+    private val lastAutomatic = ConcurrentHashMap<String, Long>() // account → time of the last automatic attempt
+
+    // ponytail: in memory; a phone copy that differs from its Drive copy is hashed again after a restart.
+    private val differs = ConcurrentHashMap.newKeySet<String>()
 
     // ponytail: in memory; the links expire within hours. After a restart only cached thumbnails show until an import.
     private val thumbnailLinks = ConcurrentHashMap<String, String>()
@@ -103,13 +114,19 @@ class DriveRestore @Inject constructor(
     }
 
     /**
-     * The automatic import for [email] (BackupQueue's observer, before the automatic rules queue anything): when this
-     * account was never imported (fresh install, account switch, first start with this version), once per process.
+     * The automatic import for [email] (BackupQueue's observer and "Jetzt prüfen", before the automatic rules queue
+     * anything) while this account was never imported (fresh install, account switch, first start with this version).
+     * A failed attempt is repeated at the next call after [AUTOMATIC_RETRY_MS]. True once the account is imported.
      */
-    suspend fun importOnce(email: String) {
+    suspend fun importOnce(email: String): Boolean {
         running?.join() // may belong to the previous account
-        if (store.lastImport.value != null || email.lowercase() in attempted) return
+        if (store.lastImport.value != null) return true
+        val now = clock()
+        val last = lastAutomatic[email.lowercase()]
+        if (last != null && now - last < AUTOMATIC_RETRY_MS) return false
+        lastAutomatic[email.lowercase()] = now
         importFromDrive()
+        return store.lastImport.value != null
     }
 
     /** Drive thumbnail of [item]: from Drive while this process knows its link, else from the disk cache only. */
@@ -150,41 +167,51 @@ class DriveRestore @Inject constructor(
                     // A sidecar that cannot be fetched (offline, 5xx after retries) ends the import; what is in stays.
                     val json = permits.withPermit { api.readJson(entry.sidecar!!.id).getOrThrow() }
                     val row = driveRow(entry, json, System.currentTimeMillis())
-                    if (row == null) counts.unreadable.incrementAndGet() else counts.count(add(email, row))
+                    if (row == null) counts.unreadable.incrementAndGet() else counts.count(backup.whileAccount(email) { repository.importDriveCopy(row) })
                 }
             }
         }
-        backup.whileAccount(email) { store.setLastImport(System.currentTimeMillis()) }
+        // The same recordings under other ids (listed or downloaded before Drive was connected, or refused earlier).
+        repository.unmergedTwins().forEach { (twin, driveId) -> if (merge(email, driveId, twin)) counts.merged.incrementAndGet() }
+        backup.whileAccount(email) { store.setLastImport(clock()) }
         return counts.report().also { Log.d(TAG, "import from Drive: $it of ${entries.size} complete entries") }
     }
 
-    /** Inserts or adopts [row]; the same recording under another id is replaced when that is safe ([mergeable]). */
-    private suspend fun add(email: String, row: MediaItem): DriveImport? {
-        val twin = if (repository.get(row.id) == null) repository.driveTwins(row).firstOrNull { mergeable(it, row) } else null
-        val result = backup.whileAccount(email) { repository.importDriveCopy(row, twin) }
-        if (result == DriveImport.MERGED && twin != null) {
-            store.clearSession(twin.id)
-            store.clearFailures(twin.id)
-        }
-        return result
-    }
-
     /**
-     * A row of the same recorder file may give way to the Drive copy (so the backup never uploads it a second time)
-     * when nothing refers to its id (derived items, plate sightings), nothing transfers it right now, and its phone
-     * copy, if any, has the Drive copy's content.
+     * Replaces [twin] by the Drive row [driveId] of the same recording (the Drive id wins, so the backup never uploads it
+     * a second time; derived items and plate sightings move along) when its phone copy, if any, has the Drive copy's
+     * content. While the twin is in use (uploading, downloading from the recorder, checked for plates, upscaled) it is
+     * excluded from the automatic backup instead, and the next import merges it.
      */
-    private suspend fun mergeable(twin: MediaItem, row: MediaItem): Boolean {
-        if (twin.backupState == BackupState.UPLOADING || recorderDownloadPending(twin.id)) return false
-        if (repository.childCount(twin.id) > 0 || plates.sightingsFor(twin.id).first().isNotEmpty()) return false
-        if (twin.localUri == null) return true
-        val file = twin.localFile?.takeIf { it.isFile } ?: return false
-        return withContext(Dispatchers.IO) { DriveFormat.md5Hex(file) }.equals(row.driveMd5, ignoreCase = true)
+    private suspend fun merge(email: String, driveId: String, twin: MediaItem): Boolean {
+        val drive = repository.get(driveId) ?: return false
+        if (twin.localUri != null && drive.localUri != null || twin.id in differs) return false // two phone copies: both stay
+        if (inUse(twin) || twin.localUri != null && pending(DriveDownloadQueue.workName(driveId))) {
+            store.exclude(twin.id)
+            return false
+        }
+        if (twin.localUri != null) {
+            val file = twin.localFile?.takeIf { it.isFile } ?: return false
+            if (!withContext(Dispatchers.IO) { DriveFormat.md5Hex(file) }.equals(drive.driveMd5, ignoreCase = true)) {
+                differs += twin.id // another recording, or a damaged copy: it stays a recording of its own
+                return false
+            }
+        }
+        val merged = backup.whileAccount(email) { repository.mergeIntoDriveCopy(driveId, twin) } == true
+        if (merged) store.forgetItem(twin.id)
+        return merged
     }
 
-    /** A recorder download of [id] is queued, running or waiting (asked from WorkManager, also before the queue exists). */
-    private suspend fun recorderDownloadPending(id: String): Boolean =
-        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(DownloadQueue.workName(id)).first().any { !it.state.isFinished }
+    /** Something works on [twin] under its id right now (a merge would pull the row away from it). */
+    private suspend fun inUse(twin: MediaItem): Boolean =
+        twin.backupState == BackupState.UPLOADING ||
+            clipScans.state.value.let { twin.id == it.running || twin.id in it.queued } ||
+            pending(DownloadQueue.workName(twin.id)) ||
+            WorkManager.getInstance(context).getWorkInfosByTagFlow(UpscaleJobs.idTag(twin.id)).first().any { !it.state.isFinished }
+
+    /** The unique work [name] is queued, running or waiting (asked from WorkManager, also before its queue exists). */
+    private suspend fun pending(name: String): Boolean =
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(name).first().any { !it.state.isFinished }
 
     /**
      * Keeps the app account's hint ([me.ri3d.dashcam.core.model.AppPreferences.driveAccount]): the connected account's
@@ -231,7 +258,6 @@ class DriveRestore @Inject constructor(
             when (result) {
                 DriveImport.ADDED -> added.incrementAndGet()
                 DriveImport.ADOPTED -> adopted.incrementAndGet()
-                DriveImport.MERGED -> merged.incrementAndGet()
                 DriveImport.KNOWN, null -> Unit // known meanwhile, or the account changed
             }
         }
@@ -244,6 +270,9 @@ class DriveRestore @Inject constructor(
 
         /** Sidecars fetched at the same time. */
         const val SIDECAR_PARALLEL = 4
+
+        /** A failed automatic import is tried again at the next observer pass after this. */
+        const val AUTOMATIC_RETRY_MS = 60_000L
 
         /** Disk and memory cache key of a Drive thumbnail: stable, the thumbnailLink expires. */
         fun thumbKey(fileId: String) = "drive-thumb:$fileId"
