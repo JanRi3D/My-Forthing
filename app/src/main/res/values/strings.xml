@@ -123,6 +123,7 @@
     <string name="dashcam_card_wifi">WLAN</string>
     <string name="dashcam_card_sd">SD-Karte</string>
     <string name="dashcam_card_sd_free">%1$s frei laut Recorder</string>
+    <string name="dashcam_card_sd_free_gb">≈ %1$s GB frei laut Recorder</string>
 
     <string name="dashcam_not_connected_title">Nicht mit der Dashcam verbunden</string>
     <string name="dashcam_not_connected_text">Werte und Einstellungen der Dashcam gibt es nur mit aktiver Verbindung.</string>
@@ -137,7 +138,8 @@
     <string name="dashcam_sd_available">Frei (available)</string>
     <string name="dashcam_sd_residual_life">Restlebensdauer (residualLife)</string>
     <string name="dashcam_sd_health">Zustand (healthStatus)</string>
-    <string name="dashcam_sd_units_note">Rohwerte wie vom Recorder gemeldet; die Einheiten sind nicht bekannt.</string>
+    <string name="dashcam_sd_units_note">Gesamt und Frei werden als MB gedeutet, wenn der Gesamtwert zu einer Karte von 1 GB bis 2 TB passt (1 GB = 1024 MB); sonst und für die übrigen Werte gilt der Rohwert wie vom Recorder gemeldet.</string>
+    <string name="dashcam_storage_as_mb">≈ %1$s GB (Recorder meldet %2$s, als MB gedeutet)</string>
     <string name="dashcam_sd_status_title">Kartenstatus</string>
     <string name="dashcam_sd_status_hint">Letzte Statusmeldung (sdStatus) des Recorders in dieser Sitzung</string>
     <string name="dashcam_sd_status_hint_none">Der Recorder meldet den Kartenstatus von sich aus, etwa beim Einstecken.</string>

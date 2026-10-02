@@ -10,6 +10,9 @@ import me.ri3d.dashcam.recorder.ErrorCodes.AppMeaning
 import me.ri3d.dashcam.recorder.NormalInfo
 import me.ri3d.dashcam.recorder.RecorderError
 import me.ri3d.dashcam.recorder.SdCardStatus
+import me.ri3d.dashcam.recorder.StorageInfo
+import java.util.Locale
+import kotlin.math.roundToLong
 
 // Presentation of raw protocol values. The raw code is always shown next to the meaning; meanings come only
 // from the original app's resource table (recorder rval) or the local code list, never from the SDK's AE enum.
@@ -126,3 +129,17 @@ fun recStatusText(info: NormalInfo.RecStatus): UiText = when (val raw = info.sta
 /** Raw recorder number with the "laut Recorder" qualifier: units of 4099 values are not established. */
 fun rawValue(value: Any?): UiText =
     if (value == null) UiText.Res(R.string.dashcam_value_missing) else UiText.Res(R.string.dashcam_value_raw, listOf(value.toString()))
+
+/**
+ * 4099 `totalSpace` / `available` read as MB when `totalSpace` fits a 1 GB–2 TB card (1,000–2,000,000): the physical
+ * recorder reported 119255 with a 128 GB card (2026-10-02). Outside that range the unit stays unknown (raw only).
+ */
+fun storageInMb(info: StorageInfo?): Boolean = info?.totalSpace?.let { it in 1_000L..2_000_000L } == true
+
+/** "≈ 116 GB (Recorder meldet 119255, als MB gedeutet)" when [inMb], else the raw value. */
+fun storageValue(value: Long?, inMb: Boolean): UiText =
+    if (value == null || !inMb) rawValue(value) else UiText.Res(R.string.dashcam_storage_as_mb, listOf(gigabytes(value), value.toString()))
+
+/** MB as German GB (1 GB = 1024 MB): whole from 10 GB, one decimal below ("0,7"). */
+fun gigabytes(mb: Long): String =
+    if (mb >= 10 * 1024) (mb / 1024.0).roundToLong().toString() else String.format(Locale.GERMAN, "%.1f", mb / 1024.0)

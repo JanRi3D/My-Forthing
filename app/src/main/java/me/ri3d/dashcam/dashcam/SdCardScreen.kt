@@ -128,10 +128,11 @@ fun SdCardScreen(onBack: () -> Unit, onConnect: () -> Unit, viewModel: SdCardVie
             Column {
                 SectionHeader(stringResource(R.string.dashcam_sd_storage))
                 val info = (storage as? RecorderResult.Ok)?.value
+                val inMb = storageInMb(info)
                 ListGroup(
                     listOf(
-                        { shape -> ValueRow(R.string.dashcam_sd_total, rawValue(info?.totalSpace), shape) },
-                        { shape -> ValueRow(R.string.dashcam_sd_available, rawValue(info?.available), shape) },
+                        { shape -> ValueRow(R.string.dashcam_sd_total, storageValue(info?.totalSpace, inMb), shape) },
+                        { shape -> ValueRow(R.string.dashcam_sd_available, storageValue(info?.available, inMb), shape) },
                         { shape -> ValueRow(R.string.dashcam_sd_residual_life, rawValue(info?.residualLife), shape) },
                         { shape -> ValueRow(R.string.dashcam_sd_health, rawValue(info?.healthStatus), shape) },
                     ),
