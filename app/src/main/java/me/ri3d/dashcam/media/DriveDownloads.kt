@@ -25,6 +25,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -76,11 +77,13 @@ class DriveDownloadQueue @Inject constructor(
         .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
     init {
-        // Changed network conditions apply to waiting and running downloads too (a running one resumes its part).
+        // Changed network conditions apply to waiting and running downloads too (a running one resumes its part). Only on
+        // a change, like BackupQueue: WorkManager's stored network request does not compare equal to a new one. Works of
+        // an earlier process keep their constraints; the worker checks the current conditions anyway.
         scope.launch {
-            preferences.preferences.map { BackupRules.constraints(it) }.distinctUntilChanged().collect { constraints ->
+            preferences.preferences.map { BackupRules.constraints(it) }.distinctUntilChanged().drop(1).collect { constraints ->
                 mutex.withLock {
-                    workManager.getWorkInfosByTagFlow(TAG).first().filter { !it.state.isFinished && it.constraints != constraints }.forEach { info ->
+                    workManager.getWorkInfosByTagFlow(TAG).first().filter { !it.state.isFinished }.forEach { info ->
                         info.tags.firstOrNull { it.startsWith(DownloadQueue.ID_TAG) }?.removePrefix(DownloadQueue.ID_TAG)
                             ?.let { repository.get(it) }?.let { enqueue(it, constraints, ExistingWorkPolicy.REPLACE) }
                     }
