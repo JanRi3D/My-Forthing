@@ -6,9 +6,10 @@ Package `me.ri3d.dashcam.media`. Implements CONTRACTS §8 on top of the connecti
 | --- | --- |
 | `MediaItem.kt` | Room entity `media_item` (§8 fields exactly), `MediaKind`, `MediaCategory`, `BackupState`, `MediaDao` |
 | `MediaRepository.kt` | Library: observe, `upsertFromRecorderListing`, `reconcileRecorderListing`, `registerDerived`, `importScreenshots` / `watchScreenshots`, `markDownloaded`, `deleteLocalCopy`, `deleteOnRecorder`, `markRecorderDeleted`, `markDriveDeleted`, `update`; local thumbnails |
-| `RecorderListing.kt` | `Listing.append` (cursor paging fold), `RecorderBrowser` (pages one type, registers every page) |
+| `RecorderListing.kt` | `Listing.append` (cursor paging fold), `RecorderBrowser` (pages one type to its end, registers every page, stores the listing time) |
 | `Downloads.kt` | `MediaDownloader` (Range/206 resume, `.part` + atomic rename), `DownloadQueue` (WorkManager), `DownloadWorker` (Hilt, foreground, stall resume), `TransferProgress`, `SpeedMeter` |
-| `MediaModule.kt` | `RecorderHttp` (bound client, URL, Coil `ImageLoader` for recorder thumbnails), `ThmDecoderFactory`, Hilt module |
+| `MediaModule.kt` | `RecorderHttp` (bound client, URL, Coil `ImageLoader` with the thumbnail disk cache), `RecorderThumb`, `thumbKey`, `KeepThumbnails`, `ThmDecoderFactory`, Hilt module |
+| `ThumbnailPrefetch.kt` | `ThumbnailPrefetcher` (lowest-priority thumbnail prefetch), `prefetchOrder`, `prefetchLoop` |
 | `RecordingsViewModel.kt` / `RecordingsScreen.kt` | Routes `Recordings(tab)` and `SdFiles(category)`, selection, details and "Übertragungen" sheets |
 | `ClipScreen.kt` | Route `Clip(mediaId, positionMs)`: Media3 player / image viewer, share (`MediaFileProvider`), delete targets, parent/children |
 | `StorageScreen.kt` | Route `Storage` (Settings → Speicher) |
@@ -48,24 +49,27 @@ the recorder answers `pageNum 50` with pages of **20** entries (`totalFileNum` 1
 listing simply takes more requests; nothing to change. It stops (note "Die Liste endet hier …") when the last `fileName` of a page is missing or was already listed,
 which catches a recorder that ignores the cursor or cycles. Entries already listed are dropped (cursor inclusivity is
 unknown), entries without `fileName` are skipped. A failed page shows the raw code and waits for "Erneut versuchen"
-(no polling). The next page is requested when the list is scrolled to within 8 items of its end.
+(no polling). Since `feature/cache` a listing runs page by page to its end by itself (one 4100 at a time; each page
+waits while a download is RUNNING – downloads first), so the end-of-listing reconcile happens without scrolling.
 
-**Order and grouping.** The recorder's order is kept (not established); consecutive entries of one day form a group
-("Heute", "Gestern", localized date; "Datum unbekannt" for an unparsable `fileTime`). Rows show `HH:mm:ss` from the raw
+**Order and grouping.** The recorder tabs show the library rows, newest raw recorder time first (`ORDER BY
+recorderTime IS NULL, recorderTime DESC, recorderPath DESC`; the raw `yyyy-MM-dd HH:mm:ss` sorts as text); consecutive
+entries of one day form a group ("Heute", "Gestern", localized date; "Datum unbekannt" for an unparsable `fileTime`). Rows show `HH:mm:ss` from the raw
 time and the raw file name; details (tap on a file not on the phone) show raw type, raw time, the phone-zone reading,
 path and thumbnail path. `totalFileNum` / `totalFileSize` are shown raw "laut Recorder"; the recorder sends no
 `totalFileSize` (shown as "–").
 
 **Tabs.** "Schleife" (type 0), "Vorfälle" (1), "Fotos" (2, the report's "user data", 3-column grid; `recorderType` stays
 raw), plus **"Handy"** (addition): everything with a phone copy (downloads, screenshots, enhanced outputs), which works
-without the recorder. Without a session the recorder tabs show the not-connected card with "Zur Verbindung". A type is
-listed once per session when its tab is first shown; "Aktualisieren", `fileNew` / `fileDel` / `updateFileList` of that
-type (or any type if `fileType` is unknown) and a reconnect list it again; listings are cleared on disconnect.
-`fileDel` also forgets the recorder copy. A listed file whose row lost its recorder copy meanwhile (e.g. deleted from the
-clip screen) disappears at once. `SdFiles(category)` (`NORMAL` / `EVENT` / `USER`) is the flat list of one type with the
+without the recorder. The recorder tabs render the library's recorder copies of their type at once, also without a
+session (see "Cache"); only a type the library knows nothing of shows the not-connected card. A type is listed once per
+session when its tab is first shown, "Aktualisieren", `updateFileList` (or a notification without usable type or
+name) and a reconnect list it again; the listing state is cleared on disconnect, the rows stay. `fileNew` inserts its
+file (row + listing of the session) at the top instead of listing again, `fileDel` forgets the recorder copy and drops
+it from the listing. A row that lost its recorder copy (e.g. deleted from the clip screen) disappears at once. `SdFiles(category)` (`NORMAL` / `EVENT` / `USER`) is the flat list of one type with the
 recorder's counts; Recordings links to it ("Rohliste"); the SD card screen can link with `navigate(SdFiles("NORMAL"))`.
 
-**Selection** (long press; back or ✕ ends it): recorder tabs → "Herunterladen", "Recorder-Kopie löschen" (4101,
+**Selection** (long press; back or ✕ ends it): recorder tabs → "Herunterladen" (only with a session), "Recorder-Kopie löschen" (4101,
 `ConfirmDialog(danger)`, outcome-unknown errors refresh the listing); phone tab → "Handy-Kopie löschen" (danger when an
 item has no other copy). Phase 4 adds actions through the `selectionActions` slot.
 
@@ -78,8 +82,8 @@ manager's OkHttp client (shared by downloads and thumbnails) has a `Dispatcher` 
 to one by their queue), `connectTimeout` 10 s, `readTimeout` 90 s, `writeTimeout` 30 s, no `callTimeout` (a 5-minute
 clip takes minutes); thumbnails use a derived client with a 15 s read timeout (same dispatcher; `ponytail:` knob), so
 one unanswered `.thm` does not block the others for 90 s. **Downloads first:** while any download runs (WorkManager
-RUNNING, including the wait after a stall) the recorder rows and photo cells show their placeholder instead of
-requesting a `.thm` (`RecorderEntry.thumb` is null; local thumbnails still show); they load when it ends. Keep-alive
+RUNNING, including the wait after a stall) no `.thm` is requested: rows and photo cells show their cached thumbnail
+(disk cache only, `RecorderThumb.network = false`) or the placeholder; missing ones load when it ends. Keep-alive
 is left on (no `Connection: close`; no keep-alive problem seen).
 
 **Recorder HTTP only with a Ready session.** `RecorderHttp.client()` hands out `connectionManager.httpClient()` only while
@@ -155,12 +159,77 @@ rekonstruiert, kein Beweis" / "hochskaliert – …" for derived kinds, the copi
 confirmation (rendered by the clip screen); deleting the last copy leaves the screen. Parent ("Original", opens at `parentPositionMs`) and children ("Daraus erzeugt") are linked.
 
 **Storage** (Settings → "Speicher"): bytes per kind on this phone – Downloads (phone copies + interrupted `.part`),
-Screenshots (imported first), Verbesserte Dateien, Cache (only the media image cache – Coil memory + disk; other files in
-`cacheDir` such as the diagnostics export or the avatar preview are not touched), Kennzeichen-Ausschnitte
+Screenshots (imported first), Verbesserte Dateien, Cache (only the recorder thumbnail cache – Coil memory +
+`cacheDir/recorder_thumbs`; other files in `cacheDir` such as the diagnostics export or the avatar preview are not touched), Kennzeichen-Ausschnitte
 (`files/plates`), free space (`StatFs`). "Freigeben" (confirmation, danger except cache) deletes phone copies through
 `deleteLocalCopy` only; recorder and Drive copies stay. When some of them have neither a recorder nor a Drive copy,
 the confirmation says how many are then gone for good. Plate crops are only shown: they belong to the plate history
 (`PlateRepository.clear()` in plates-ui), deleting the files alone would leave dangling `cropPath`s.
+
+## Cache (feature/cache)
+
+Owner request: "things should feel quicker". Recorder facts behind it: `.thm` thumbnails of 3–6 KB served as
+`application/binary` without usable cache headers, one HTTP request at a time, stalls while recording, listings in
+pages of 20 (144 loop / 1997 event files on hardware), downloads ≈ 3.7 Mbit/s. Rule: nothing interferes with a
+running download.
+
+**Thumbnails on disk.** The media `ImageLoader` has its own Coil disk cache, `cacheDir/recorder_thumbs`, LRU (Coil's
+`DiskLruCache`), **64 MB** (`MediaModule.THUMB_CACHE_BYTES`, ≈ 13,000 thumbnails – more than a full card lists).
+Requests come from `RecorderThumb` with explicit `diskCacheKey` / `memoryCacheKey` / `placeholderMemoryCacheKey` =
+`thumbKey(recorderPath, recorderTime)` = `"thm:<path>@<fileTime>"`: stable across sessions, independent of the URL
+(recorder or simulator), and a path the recorder reuses for another recording (format, clock reset) gets a new entry.
+Coil's own policies are header-independent here: the fetcher's `CacheStrategy` is `KeepThumbnails` (always use a
+stored copy, store every 2xx answer, never store errors such as 404, so they are asked again) – no own store needed.
+`networkCachePolicy` is ENABLED only with a Ready session and no RUNNING download; otherwise only memory and disk
+answer, so cached thumbnails show offline and during downloads. Local thumbnails (`files/thumbs/<id>.jpg`, after a
+download) keep precedence. "Speicher → Cache → Freigeben" clears memory and disk cache and shows its size.
+
+**Instant listings.** The recorder tabs (and `SdFiles`) render the `media_item` rows with a `recorderPath` of their
+type (newest recorder time first) as soon as the library answers; the view model keeps each tab's list
+(`WhileSubscribed`, last value kept) and starts a reopened screen with the rows the process last saw
+(`MediaRepository.lastRecorderRows`), so it has them in its first frame. Header: "Stand: <listedAt> · wird
+aktualisiert…" while a listing of this session runs, "Stand: <listedAt>" once it ended, "Stand: <listedAt> · nicht
+verbunden" without a session (downloads disabled, details, selection, phone copies and the Handy tab usable; recorder
+deletion needs the session as before). `listedAt` per type is the table `listing_stamp` (DB 4), written when a listing
+ends. The refresh changes rows in place: list keys are media ids, day headers are keyed by date, so the scroll
+position stays and nothing flashes; new pages merge in. The reconcile rules are unchanged (only a listing that ended
+**and** reached `totalFileNum`; never rows in transfer; never offline). `fileNew` / `fileDel` change the listing of the
+session too, so a loop overwrite between two pages (one new, one deleted, same total) neither hides the new clip nor
+keeps the deleted one.
+
+**Prefetch.** `ThumbnailPrefetcher` (singleton, one loop at a time, run by the Recordings view model) fetches missing
+thumbnails into the disk cache one by one while a session is Ready, no download is RUNNING and the list is not being
+scrolled; a closing gate cancels the request in flight at once (it is asked again later). It asks only when the
+recorder client's dispatcher is idle (nothing running or queued), so on-screen thumbnails never wait behind more than
+one prefetch request. Order (`prefetchOrder`): the visible rows of the current tab (reported by the list), the rest of
+that tab, then the other tabs. At most **300** per session (`ThumbnailPrefetcher.CAP`, `ponytail:` soft cap ≈ 1.5 MB);
+`notes.http` gets one line per 20: `thumbnail prefetch: 20 fetched (34 checked, cap 300)`.
+
+**Snappiness.** Lazy grids use stable keys (media ids, dates, fixed header/footer keys) and content types (header,
+day, entry, local, transfer); thumbnail slots have a fixed size (rows 96×54 dp, photo cells square), so nothing moves
+when an image arrives; each tab keeps its scroll position across tab switches (`rememberSaveableStateHolder`); Coil
+cancels a request when its row leaves the composition and decodes off the main thread (`ThmDecoderFactory` runs in
+Coil's decoder context). The phone tab shows nothing (not "empty") until the library answered.
+
+Measured on the emulator (`Pixel_10_Pro_XL`, API 36, swiftshader, debug build, `:recorder:runSimulator` on the same
+PC; time from the Recordings screen's first composition – about one frame after the tap on "Aufnahmen" – to the frame
+after the first rows, debug log tag `RecordingsPerf`):
+
+| Scenario | before (`main` 1.0.1) | after |
+| --- | --- | --- |
+| cold (new process, simulator connected, first open) | 581, 589, 631, 549 ms | 362, 441, 347 ms |
+| warm (same process, reopened) | 264, 209, 241, 222 ms | 191, 196, 176, 175 ms |
+| cold, offline | no list (not-connected card) | 525, 491, 543 ms, list + thumbnails from the cache |
+
+The simulator answers within milliseconds; on the recorder (one request at a time, slower while recording) "before"
+also waits for the first 4100 page and every thumbnail, "after" does not. Emulator frames are slow (swiftshader), so
+the warm numbers are mostly two frames of composition and drawing.
+
+**Limits.** The cached list can be stale offline (loop overwrite since "Stand"); a download of such a file fails with
+404 (as before). Rows from before the cache (1.0.1) show with "Stand: –" until the first listing ends. A listing of
+1997 events takes ~100 requests; it pauses during downloads, so "wird aktualisiert…" can last. The prefetch runs only
+while the Recordings screen exists (also in the back stack). Clearing the cache does not reset the session's prefetch
+budget.
 
 ## Interfaces for Phase 4
 
@@ -243,6 +312,17 @@ inclusive cursor alone completes; reconcile leaves rows in transfer; path reuse 
 Since `fix/real-recorder-1`: Content-Type rule (HTML refused, other / none accepted); a chunked download without
 Content-Length and with `text/plain` completes and leaves no `.part.size`; the HTTP request log line and the noted
 failure with its Content-Type; a waiting download carries the last failure and its detail; worker output `detail`.
+Since `feature/cache`: thumbnail key (path + time, URL-independent), LRU eviction of the disk cache, a thumbnail stored
+despite `Cache-Control: no-store` and served from disk without a session and with another URL, a 404 not stored;
+prefetch order, one at a time, cached skipped, paused at once by a download (in-flight request cancelled and asked
+again), waits for an idle dispatcher, cap per session with a note per 20, woken by new rows; pages wait for their turn
+and `listedAt` is stored at the end [SIM]; `fileNew` + `fileDel` between pages keep the reconcile right [SIM]; cached
+rows show before connecting and the refresh keeps their ids [SIM]; offline nothing is listed or reconciled; `fileNew`
+at the top and `fileDel` removal without a new 4100 [SIM]; migration 3→4. Emulator [SIM]: all tabs with thumbnails,
+prefetch filled the cache for the 120 loop clips within seconds, tab switch keeps the scroll position, "Aktualisieren"
+keeps it, then the simulator stopped and the app cold-started offline: all three tabs with lists and thumbnails
+("Stand: … · nicht verbunden", download buttons disabled), Home card / Verbindung / SD-Karte / Einstellungen with
+"zuletzt gelesen …"; "Cache freigeben" 692 kB → 0 B.
 Since `fix/real-recorder-2`: a connection reset after 1000 bytes resumes within the same worker run with
 `Range: bytes=1000-` after 5 s (virtual time) and notes the stall and the finish; the speed window; 120 simulated
 files in 6 pages of 20 (asked for 50) with exact cursors, reaching `totalFileNum` without `totalFileSize` [SIM].
@@ -308,6 +388,6 @@ Still to check on the car (read-only first: browse, then one download, one delet
 - `ponytail:` notes in code: held downloads start in WorkManager's order, not strictly first in, first out; no share
   target is not reported.
 - Phone copies live under app storage; uninstalling the app deletes them (by design, as the offline profile).
-- A notification re-lists the whole type from the first page; the scroll position resets.
+- `updateFileList` (and a notification without type or name) re-lists the type from the first page; the list stays.
 - Streaming directly from the recorder (without download) is not offered.
 - Downloads keep the row of a file that the recorder overwrote between listing and download; the 404 marks it failed.

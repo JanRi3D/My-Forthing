@@ -91,11 +91,16 @@ beendet sie sofort. Verbindungsfehler zeigt der Bildschirm **Verbindung** mit Co
 | **Fotos** | Fotos der Dashcam |
 | **Handy** | alles, was schon auf dem Handy ist: Downloads, Screenshots, verbesserte Dateien – geht auch ohne Dashcam |
 
-- Die ersten drei Reiter brauchen die Verbindung. Die Liste lädt beim Scrollen weiter; **Aktualisieren** lädt neu.
+- Die ersten drei Reiter zeigen sofort die zuletzt gelesene Liste mit Vorschaubildern, auch ohne Verbindung. Oben
+  steht, von wann sie ist: „Stand: 2.10., 09:14 · wird aktualisiert…“ (verbunden, die App liest die Dashcam gerade
+  Seite für Seite neu; die Liste bleibt dabei stehen, neue Dateien kommen dazu) oder „… · nicht verbunden“ (ohne
+  Verbindung: Herunterladen und Recorder-Kopie löschen gehen dann nicht, alles andere schon). Neue Aufnahmen der
+  Dashcam erscheinen während der Verbindung von selbst oben. **Aktualisieren** liest die Liste neu.
 - Zeiten sind „**laut Recorder, Zeitzone unbekannt**“: die Uhr der Dashcam, als Handy-Zeit gelesen.
 - **Herunterladen**: das Download-Symbol in der Zeile („<Datei> herunterladen“) oder Datei lange drücken (Auswahl),
-  weitere antippen, dann **Herunterladen**. Höchstens zwei laufen gleichzeitig. Fortschritt unter **Übertragungen**
-  (oben) und in der Benachrichtigung („Download: …“, **Abbrechen**). Bricht die Verbindung ab, wartet der Download
+  weitere antippen, dann **Herunterladen**. Es läuft immer nur ein Download; weitere warten. Solange ein Download
+  läuft, lädt die App keine neuen Vorschaubilder und keine weiteren Listenseiten, damit er nicht ins Stocken gerät.
+  Fortschritt unter **Übertragungen** (oben) und in der Benachrichtigung („Download: …“, **Abbrechen**). Bricht die Verbindung ab, wartet der Download
   („Wartet auf die Dashcam-Verbindung“) und macht nach dem nächsten Verbinden an der gleichen Stelle weiter.
   Ein laufender Download läuft nach **Trennen** weiter, solange das Dashcam-WLAN besteht; neue Downloads warten auf
   die Verbindung.
@@ -108,11 +113,15 @@ beendet sie sofort. Verbindungsfehler zeigt der Bildschirm **Verbindung** mit Co
   Verbindung) oder **Drive-Kopie löschen**. Jede Kopie wird einzeln gelöscht, die anderen bleiben. Ist es die letzte
   Kopie, warnt die App, dass die Datei danach endgültig weg ist.
 
+**Ohne Verbindung** zeigen die Karte **Meine Dashcam**, der Bildschirm **Verbindung**, **SD-Karte** und die
+Dashcam-Einstellungen die zuletzt gelesenen Werte mit „zuletzt gelesen <Zeit>“; nach dem Verbinden ersetzt die App sie
+durch die frisch gelesenen. Ändern lassen sich die Einstellungen erst danach.
+
 **SD-Karte** (*Startbildschirm → SD-Karte*): Speicherwerte „laut Recorder“ (Rohwerte, Einheiten unbekannt), letzter
 **Kartenstatus** und **Formatieren**. Formatieren löscht **alle** Aufnahmen und Fotos auf der Karte; auf das Handy
 geladene bleiben. Die App fragt doppelt („Mir ist klar, dass sich das nicht rückgängig machen lässt.“).
 
-**Dashcam-Einstellungen** (*Einstellungen*, unter den App-Einstellungen, nur bei „Verbunden“): Videoauflösung, Länge der
+**Dashcam-Einstellungen** (*Einstellungen*, unter den App-Einstellungen; ändern nur bei „Verbunden“): Videoauflösung, Länge der
 Loop-Clips, Ton aufnehmen, WDR, Empfindlichkeit G-Sensor (Hoch/Mittel/Niedrig), Parküberwachung, Vorfälle
 überschreiben, Fahrinfo-Einblendung, Ausschaltverzögerung, „WLAN-Name und Passwort“ (nur das Passwort ist änderbar),
 Werkseinstellungen. Dazu die Abschnitte **Gerät** (Modell, Seriennummer, Firmware, Hardware, MCU-Firmware „laut
@@ -129,6 +138,12 @@ deutet).
 *Einstellungen → Speicher*: Platz für **Downloads**, **Screenshots**, **Verbesserte Dateien**, **Cache** und
 **Kennzeichen-Ausschnitte** sowie „Frei auf dem Handy“. **Freigeben** löscht nur Kopien auf diesem Handy; Dashcam und
 Drive bleiben. Gibt es Dateien nur noch auf dem Handy, sagt die Bestätigung, wie viele danach endgültig weg sind.
+
+**Cache** sind die gespeicherten Vorschaubilder der Dashcam-Aufnahmen. Die App speichert sie dauerhaft (höchstens
+64 MB; ist das voll, fallen die am längsten nicht gebrauchten heraus), damit die Listen sofort mit Bildern erscheinen,
+auch ohne Verbindung. Während der Verbindung lädt sie fehlende Vorschaubilder nebenbei nach (nur wenn kein Download
+läuft und du nicht gerade scrollst). **Freigeben** löscht sie; sie werden bei der nächsten Verbindung neu geladen.
+Aufnahmen und Downloads bleiben.
 
 Alle App-Daten liegen im privaten Speicher der App, nicht in der Android-Datensicherung. Deinstallieren löscht sie
 (siehe Installationsanleitung).
