@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launcher icon background: Material You blue dark surface from docs/design (.t-blue -s). -->
-    <color name="ic_launcher_background">#111318</color>
+    <!-- Launcher icon background: light, so the charcoal lion (#282629) reads on every launcher shape. -->
+    <color name="ic_launcher_background">#F4F5F7</color>
+    <!-- Launch window: Material You blue dark surface from docs/design (.t-blue -s), dark in both modes. -->
+    <color name="splash_background">#111318</color>
 </resources>

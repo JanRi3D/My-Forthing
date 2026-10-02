@@ -25,6 +25,7 @@ recorder or on a real phone yet**; the owner checklist is [`HARDWARE_CHECKLIST.m
 | `feature/release-final` | merged (`9ba3eb5`) |
 | `fix/final-polish` | merged (`d21c42f`) |
 | `feature/rename-dashcam` | this branch: package id changed to `me.ri3d.dashcam`, rebuilt APKs |
+| `feature/lion-icon` | the owner's lion replaces the axolotl as launcher icon (light `#F4F5F7` background, themed-icon layer) and Welcome logo; rebuilt APKs |
 
 ## Release 1.0.0 (Build 1)
 
@@ -33,9 +34,9 @@ In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`; build, veri
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,986 | `f1662e728792c33c5088fa308c1280d75c4e6878ea6873501bfd050b36a42116` |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,890 | `5289b4f3dfa3a2185b001269d0f407fa342c80d04ed6c496367f4a6feb26c287` |
-| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,372,816 | `29695b1849ba6a010d777e2d52880f1012b46b28e8242e607b10dd2a4b22f7a4` |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,390,706 | `c3bcd81699bd169c4f72b9c40c92308ede648dbb28c82dbc459e5227777d28e8` |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,264,610 | `2b508e3a98ec3706f1293314d5e705d6fdcbd40fadd86507253ea9e567895375` |
+| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,383,591 | `d7e8d87d0ee9cdfeb5a4498f41710a23ae02118a27ea176f8eec39cd61947da5` |
 
 - Release APKs: `me.ri3d.dashcam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc`. A second clean build gave
