@@ -123,6 +123,8 @@ android {
     androidResources {
         generateLocaleConfig = true
     }
+    // The UI is pinned to German (AppLocale.kt), so a bundle must not split off the libraries' German resources.
+    bundle { language { enableSplit = false } }
 }
 
 androidComponents {
