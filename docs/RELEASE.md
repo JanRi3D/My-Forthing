@@ -184,9 +184,9 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 
 | APK | Size |
 | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,390,706 bytes (34.7 MiB) |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,264,610 bytes (28.9 MiB) |
-| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,383,591 bytes (84.3 MiB) |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,391,202 bytes (34.7 MiB) |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,265,106 bytes (28.9 MiB) |
+| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,384,087 bytes (84.3 MiB) |
 
 Inside the arm64 APK: dex 17.1 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
 stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.6 MB, assets (OCR and
