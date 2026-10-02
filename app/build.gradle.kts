@@ -1,3 +1,5 @@
+import com.android.build.api.variant.FilterConfiguration
+import com.android.build.api.variant.VariantOutputConfiguration
 import java.util.Properties
 
 plugins {
@@ -35,6 +37,22 @@ val firebaseWebClient = ((firebaseClient.json("oauth_client") as? List<*>).orEmp
     .firstOrNull { it.json("client_type") == 3 }
 fun firebaseValue(value: Any?) = (value as? String)?.takeUnless { "PLACEHOLDER" in it }.orEmpty().asBuildConfigString()
 
+// Version from gradle.properties; bump rule in docs/RELEASE.md.
+val appVersionCode = providers.gradleProperty("myforthing.versionCode").get().toInt()
+val appVersionName = providers.gradleProperty("myforthing.versionName").get()
+
+// Release signing from local.properties (keystore outside git, docs/RELEASE.md). Without all four keys the release
+// build stays unsigned: Android cannot install it, but it still builds (e.g. on a machine without the keystore).
+val releaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .associateWith { localProperties.getProperty("release.$it")?.takeIf(String::isNotBlank) }
+val releaseSigned = releaseSigning.values.all { it != null }
+if (!releaseSigned) {
+    logger.warn(
+        "My Forthing: release APKs will be UNSIGNED - local.properties lacks " +
+            releaseSigning.filterValues { it == null }.keys.joinToString { "release.$it" } + " (see docs/RELEASE.md)."
+    )
+}
+
 android {
     namespace = appPackage
     compileSdk {
@@ -47,8 +65,8 @@ android {
         applicationId = appPackage
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "DASHCAM_RSA_KEY", localProperties.getProperty("dashcam.rsaKey", "").asBuildConfigString())
@@ -59,12 +77,40 @@ android {
         buildConfigField("String", "FIREBASE_WEB_CLIENT_ID", firebaseValue(firebaseWebClient.json("client_id")))
     }
 
+    signingConfigs {
+        if (releaseSigned) create("release") {
+            storeFile = rootProject.file(releaseSigning.getValue("storeFile")!!)
+            storePassword = releaseSigning.getValue("storePassword")
+            keyAlias = releaseSigning.getValue("keyAlias")
+            keyPassword = releaseSigning.getValue("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
+            // ponytail: no R8, so the APK carries unused code. Enabling it needs keep rules (Credential Manager /
+            // googleid, ML Kit, LiteRT, Room/Hilt reflection) and a full re-test of the release build.
             optimization {
                 enable = false
             }
         }
+    }
+    // One APK per phone ABI for release; the DSL has no per-build-type switch, so androidComponents below keeps
+    // only the universal APK (all ABIs, incl. x86_64 for the emulator) for debug and drops it for release.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
+    }
+    // The dependency list AGP would add to the signing block is encrypted for Google Play with a random key, so every
+    // build differed; without it a rebuild of the same commit with the same keystore is byte-identical.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -76,6 +122,23 @@ android {
     }
     androidResources {
         generateLocaleConfig = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val release = variant.buildType == "release"
+        variant.outputs.forEach { output ->
+            val universal = output.outputType == VariantOutputConfiguration.OutputType.UNIVERSAL
+            output.enabled.set(universal != release)
+            val abi = output.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
+            when {
+                // keeps the documented path app/build/outputs/apk/debug/app-debug.apk
+                !release -> output.outputFileName.set("app-${variant.name}.apk")
+                releaseSigned && abi != null ->
+                    output.outputFileName.set("MyForthing-$appVersionName-$appVersionCode-$abi.apk")
+            }
+        }
     }
 }
 
