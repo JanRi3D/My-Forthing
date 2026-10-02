@@ -39,6 +39,7 @@ sealed interface Route
 @Serializable data class Clip(val mediaId: String, val positionMs: Long = 0) : Route
 @Serializable data class Enhance(val mediaId: String, val positionMs: Long) : Route
 @Serializable data class Upscale(val mediaId: String) : Route
+@Serializable data object EnhanceSettings : Route
 
 // Backup and storage
 @Serializable data object Backup : Route
