@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import me.ri3d.dashcam.core.log.Log
+import me.ri3d.dashcam.dashcam.RecorderConnectionManager
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.plates.Frame
 import me.ri3d.dashcam.recorder.BasicCapabilities
@@ -85,8 +86,8 @@ interface LivePlayer {
     var listener: ((PlayerEvent) -> Unit)?
 
     /**
-     * (Re)starts the stream; RTSP (and with [tcp] its interleaved RTP) uses sockets from [socketFactory]. Without
-     * [tcp] Media3 asks for UDP first: those RTP sockets are not bound to the recorder network.
+     * (Re)starts the stream; the connection to the recorder (and with [tcp] its interleaved RTP) uses sockets from
+     * [socketFactory]. Without [tcp] Media3 asks for UDP first: those RTP sockets are not bound to the recorder network.
      */
     fun play(url: String, socketFactory: SocketFactory, tcp: Boolean = true)
     fun stop()
@@ -127,6 +128,13 @@ data class StreamError(
     /** One line for the Diagnose export. */
     fun describe(): String = name + (code?.let { " ($it)" } ?: "") + (rtspStatus?.let { ", RTSP $it" } ?: "") + (cause?.let { ": $it" } ?: "")
 
+    /**
+     * Media3 rejected the stream description: a parsing code, or (as on hardware 2026-10-02, code 2000) an innermost
+     * `IllegalArgumentException` / `ParserException` such as "missing attribute control".
+     */
+    val sdpProblem: Boolean
+        get() = code in 3000..3999 || cause?.substringBefore(':') in setOf("IllegalArgumentException", "ParserException")
+
     companion object {
         /** The stream ended; the original app stops the preview on stream closure. */
         val ENDED = StreamError("STREAM_ENDED")
@@ -140,14 +148,16 @@ data class StreamError(
  * Media3 ExoPlayer with RTSP over TCP (interleaved, as traced; UDP on request), no credentials, live sound disabled (the original
  * app turns preview sound off; this says nothing about the recordings). Hardware decoders first, with Media3's
  * decoder fallback to the next (software) decoder when one fails to initialise. The ExoPlayer is created on the
- * first [play] and lives until [release].
+ * first [play] and lives until [release]. Media3 talks to an [RtspSdpProxy] on the loopback interface, which repairs
+ * the recorder's description and reports its steps to [note].
  */
 @OptIn(UnstableApi::class) // RTSP source options, decoder fallback and buffer sizes are Media3 "unstable" API
-class ExoLivePlayer(private val context: Context) : LivePlayer {
+class ExoLivePlayer(private val context: Context, private val note: (String) -> Unit = {}) : LivePlayer {
     override var listener: ((PlayerEvent) -> Unit)? = null
     private var player: ExoPlayer? = null
     private var view: TextureView? = null
     private var size: PlayerEvent.Size? = null
+    private var proxy: RtspSdpProxy? = null
 
     private val events = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -203,12 +213,14 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
 
     override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) {
         size = null
+        proxy?.close()
+        // The proxy's socket to the recorder comes from socketFactory; Media3 itself only reaches 127.0.0.1.
+        val local = RtspSdpProxy(url, socketFactory, note).also { proxy = it }
         player().apply {
             setMediaSource(
                 RtspMediaSource.Factory()
                     .setForceUseRtpTcp(tcp)
-                    .setSocketFactory(socketFactory)
-                    .createMediaSource(MediaItem.fromUri(url)),
+                    .createMediaSource(MediaItem.fromUri(local.url)),
             )
             playWhenReady = true
             prepare()
@@ -217,12 +229,16 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
 
     override fun stop() {
         player?.stop()
+        proxy?.close()
+        proxy = null
         size = null
     }
 
     override fun release() {
         player?.release()
         player = null
+        proxy?.close()
+        proxy = null
         view = null
     }
 
@@ -294,7 +310,8 @@ class LiveFrameSource @Inject constructor() {
 @Module
 @InstallIn(SingletonComponent::class)
 object LiveModule {
-    /** Unscoped: every live screen gets its own player. */
+    /** Unscoped: every live screen gets its own player. Its proxy's steps go to the Diagnose notes (`rtsp`). */
     @Provides
-    fun livePlayer(@ApplicationContext context: Context): LivePlayer = ExoLivePlayer(context)
+    fun livePlayer(@ApplicationContext context: Context, manager: RecorderConnectionManager): LivePlayer =
+        ExoLivePlayer(context) { manager.note(RecorderConnectionManagerImpl.RTSP_NOTES, it) }
 }

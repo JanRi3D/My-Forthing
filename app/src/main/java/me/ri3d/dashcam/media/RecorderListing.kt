@@ -57,7 +57,10 @@ data class Listing(
     }
 
     companion object {
-        /** The original app's batch size. */
+        /**
+         * The original app's batch size. The recorder answers with 20 entries anyway (2026-10-02); such a short page
+         * below `totalFileNum` simply asks for the next one.
+         */
         const val PAGE_SIZE = 50
     }
 }

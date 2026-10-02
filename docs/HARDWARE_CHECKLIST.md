@@ -17,6 +17,21 @@ Firmware `SX5G-3776510A_A`, Handy Android API 37, WLAN `FORTHING-A267451`, mobil
   A4 und B1 machen und danach sofort A2 (Diagnose) erfassen.**
 - Alles Weitere unten ist noch offen.
 
+**Stand 2026-10-02 – zweiter Test** (Version 1.0.0 aus `fix/real-recorder-1`, gleiche Dashcam und gleiches Handy,
+mobile Daten aus; die Verbindung blieb die ganze Zeit „Verbunden“, Keepalives alle 4 s):
+- **Bestätigt:** Die Dateiliste geht. Die Dashcam liefert je Anfrage **20** Einträge (die App fragt 50 an und lädt
+  einfach weiter), meldet 144 Schleifen-Clips und 1997 Vorfälle, aber keine Gesamtgröße. Schleifen-Clips liegen in
+  `/sd/DCIM/`, Vorfälle in `/sd/EVENT/` und heißen `ch1_JJJJMMTT_HHMMSS_NNNNG.mp4` (mit `G`). Vorschaubilder `.thm`
+  kommen als `application/binary`, 3–6 KB. Ein 5-Minuten-Clip hat 132 MB (≈ 3,7 Mbit/s).
+- **Live-Ansicht:** Beide Adressen erreichen die Dashcam, aber Media3 lehnt ihre Beschreibung des Livebilds (SDP) ab:
+  „missing attribute control“. Die neue Version **1.0.1** schaltet einen kleinen Vermittler im Handy dazwischen, der
+  die Beschreibung repariert, und schreibt die rohe Beschreibung in die Diagnose (`rtsp.describe`).
+- **Download:** blieb nach 3,2 MB stehen („timeout“), auch beim Fortsetzen; gleichzeitig liefen ein zweiter Download
+  und Vorschaubilder, und die Dashcam nahm auf. 1.0.1 fragt die Dashcam nur noch **eine Sache gleichzeitig**, lädt keine
+  Vorschaubilder während eines Downloads, wartet länger (90 s) und setzt einen stehengebliebenen Download nach 5 s,
+  15 s, 45 s selbst fort („Übertragung ins Stocken geraten, neuer Versuch in … s“), mit Geschwindigkeitsanzeige.
+- **Beim nächsten Test (mit 1.0.1):** A4, danach B1 (nur **ein** Clip), danach sofort A2 – Details bei A4 und B1.
+
 Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zuletzt Befehle, die an der Dashcam etwas
 ändern oder löschen. Bitte nicht springen: Wenn ein früher Schritt scheitert, sind spätere meist sinnlos.
 
@@ -67,7 +82,9 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
   Seriennummer, Firmware, Hardware, MCU), alle Einstellungen (4097, inkl. ob `osdContent` eine Zahlenliste ist), Speicher
   (4099: Werte und vermutliche Einheiten), Fähigkeiten, ob `sdStatus`/`recStatus` gemeldet werden, echte Fehlercodes.
   Neu: unter `notes` die Versuche der Live-Ansicht (`rtsp`) und die letzten 50 HTTP-Anfragen an die Dashcam
-  (`http`: Pfad, Status, Content-Type, Content-Length, Range oder Fehler).
+  (`http`: Pfad, Status, Content-Type, Content-Length, Range oder Fehler). Seit 1.0.1 zusätzlich `rtsp.describe`:
+  die rohe Antwort der Dashcam auf OPTIONS und DESCRIBE (Beschreibung des Livebilds) – dafür muss die App beim Erfassen
+  **verbunden** sein; der Schritt „Frage die Beschreibung des Livebilds ab (RTSP) …“ dauert bis zu 30 s.
 - 2026-10-02 bestätigt: alles oben wurde beantwortet (keine Zeitüberschreitung); `osdContent` ist eine Zahlenliste.
 
 **A3 SD-Karte und Einstellungen ansehen** (nichts ändern)
@@ -83,7 +100,15 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - **Beobachten:** kommt ein Bild? Wie lange bis zum ersten Bild? Verzögerung (Hand vor die Kamera, Sekunden zählen)?
   Bildfehler, Farben, ruckelt es? Mit mobilen Daten an und aus. Fehlermeldung und Code, falls nicht – die zweite
   Zeile der Meldung zeigt jetzt die rohe Ursache (z. B. „Code 2000 · RtspPlaybackException: SETUP 461“): abfotografieren.
-- 2026-10-02: **kein Bild.** Danach unbedingt **A2** erfassen. In der Diagnose unter `notes` → `rtsp` steht je Versuch
+- 2026-10-02, zweiter Test: **kein Bild**, Meldung „Code 2000 · IllegalArgumentException: missing attribute
+  control“ (Beschreibung des Livebilds abgelehnt). Mit 1.0.1: Live-Ansicht öffnen, bis Bild oder Fehler, dann **A2**
+  (verbunden). In der Diagnose: `rtsp` → `describe` (die rohe Beschreibung) und unter `notes` → `rtsp` die Zeilen
+  `proxy …: DESCRIBE 200: kept m=video …, a=control:* added …` (was repariert wurde), `proxy …: SETUP …` und
+  `proxy …: PLAY …` (Status 200 = angenommen; 4xx bei SETUP = die Dashcam will eine andere Adresse),
+  `proxy …: stream connection ended after N bytes` (N > 0: Bilddaten kamen an). Steht in der Fehlermeldung
+  „missing attribute fmtp“ oder „missing sprop parameter“, fehlen in der Beschreibung Angaben zum H.264-Video –
+  dann steht in der `DESCRIBE`-Zeile „H264 without sprop-parameter-sets“.
+- 2026-10-02, erster Test: **kein Bild.** Danach unbedingt **A2** erfassen. In der Diagnose unter `notes` → `rtsp` steht je Versuch
   eine Zeile: `start: …` (welche Adressen), dann z. B. `rtsp://192.168.42.1:554/ch1/sub tcp: playing` (geht) oder
   `… tcp: ERROR_CODE_… (2000), RTSP 404: …` (falscher Pfad), `RTSP 461` (Übertragungsart abgelehnt; die App versucht
   dann UDP – das geht nur mit **mobilen Daten aus**), `RTSP 401` (Passwort verlangt), `SocketTimeoutException` (keine
@@ -107,14 +132,21 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 
 **B1 Download**
 - Einen Schleifen-Clip herunterladen. **Beobachten:** Dauer und Größe (MB/s), Benachrichtigung, spielt der Clip?
-- 2026-10-02: **Download ging nicht** (Meldung nicht notiert). Jetzt: *Aufnahmen → Übertragungen* abfotografieren –
+- 2026-10-02, zweiter Test: ein 132-MB-Clip blieb nach 3,2 MB stehen („SocketTimeoutException: timeout“), auch das
+  Fortsetzen. Mit 1.0.1: **nur einen** Clip laden, nichts anderes nebenbei; *Aufnahmen → Übertragungen* offen lassen:
+  Geschwindigkeit (KB/s) notieren, ob „Übertragung ins Stocken geraten, neuer Versuch in … s“ erscheint und wie oft;
+  Vorschaubilder bleiben währenddessen grau (Absicht). Danach **A2**: unter `notes` → `http` die Zeilen
+  `download …: stalled at … bytes …` (wann es hing), `GET … Range: bytes=…- -> 206 …` (Fortsetzen angenommen) und
+  `download …: done at … bytes after … s` (Dauer). Wenn möglich einmal, während die Dashcam **nicht** aufnimmt
+  (Vergleich).
+- 2026-10-02, erster Test: **Download ging nicht** (Meldung nicht notiert). Jetzt: *Aufnahmen → Übertragungen* abfotografieren –
   die zweite Zeile zeigt den Grund roh („HTTP 404“, „HTTP 200 · Content-Type: text/html“ oder z. B.
   „SocketTimeoutException: timeout“), auch während „Neuer Versuch folgt“. Dann **A2** erfassen: unter `notes` →
   `http` steht jede Anfrage (`GET /sd/DCIM/… -> 200 Content-Type: … Content-Length: …`) und ein `download …`-Eintrag
   je Fehlschlag.
 - Einen größeren Clip starten und bei ≈ 50 % den Flugmodus 10 s einschalten, dann wieder verbinden: macht der Download
   an der gleichen Stelle weiter oder fängt er neu an? (Zeigt, ob die Dashcam Teil-Downloads unterstützt.)
-- Zwei Clips gleichzeitig: laufen beide?
+- Zwei Clips auswählen: seit 1.0.1 läuft einer nach dem anderen (der zweite „Wartet“) – stimmt das?
 - Einen größeren Clip starten und dann in der App **Trennen** (Dashcam-WLAN bleibt verbunden): läuft der Download
   weiter? (Zeigt, ob die Dashcam nach dem Ende der Steuer-Sitzung weiter Dateien über HTTP liefert; die App lässt einen
   laufenden Download weiterlaufen.)

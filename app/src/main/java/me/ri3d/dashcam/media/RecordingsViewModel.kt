@@ -27,6 +27,7 @@ import me.ri3d.dashcam.recorder.RecorderFile
 import me.ri3d.dashcam.recorder.RecorderNotification
 import me.ri3d.dashcam.recorder.RecorderResult
 import me.ri3d.dashcam.recorder.RecorderValues
+import java.io.File
 import javax.inject.Inject
 
 /** Recorder listing types 0/1/2 plus the phone library. The route argument is the enum name. */
@@ -41,8 +42,12 @@ enum class RecordingsTab(val type: Int?, @StringRes val label: Int) {
     }
 }
 
-/** One listed recorder file, its library row and its download. */
-data class RecorderEntry(val file: RecorderFile, val item: MediaItem, val transfer: TransferProgress?)
+/**
+ * One listed recorder file, its library row and its download. [thumb]: the local thumbnail once the file is on the
+ * phone (also the fallback should a `.thm` be no image), else the recorder's URL – null (placeholder) while a download
+ * runs, so the recorder serves only that one.
+ */
+data class RecorderEntry(val file: RecorderFile, val item: MediaItem, val transfer: TransferProgress?, val thumb: Any? = null)
 
 /** One-shot results shown as snackbar. */
 sealed interface MediaNotice {
@@ -100,7 +105,13 @@ class RecordingsViewModel @Inject constructor(
     fun entries(type: Int): Flow<List<RecorderEntry>> =
         combine(browsers.getValue(type).state, repository.observeRecorderType(type), transfers) { state, items, transfers ->
             val byPath = items.associateBy { it.recorderPath }
-            state.listing.files.mapNotNull { file -> byPath[file.fileName]?.let { RecorderEntry(file, it, transfers[it.id]) } }
+            val downloading = transfers.values.any { it.state == TransferState.RUNNING }
+            state.listing.files.mapNotNull { file ->
+                byPath[file.fileName]?.let { item ->
+                    val thumb = item.localThumbPath?.let(::File) ?: file.fileThm?.takeUnless { downloading }?.let(http::url)
+                    RecorderEntry(file, item, transfers[item.id], thumb)
+                }
+            }
         }
 
     /** The tab became visible: its type is listed once per session (refresh and notifications list it again). */

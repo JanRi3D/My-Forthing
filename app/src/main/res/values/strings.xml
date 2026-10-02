@@ -237,11 +237,12 @@
 
     <string name="dashcam_diagnostics_title">Diagnose</string>
     <string name="dashcam_diagnostics_row">Werte der Dashcam für die Fehlersuche erfassen und teilen</string>
-    <string name="dashcam_diagnostics_text">Erfasst nur lesend Sitzung, Geräteinfo, Einstellungen, Speicher, Fähigkeiten, das Protokoll der letzten Nachrichten und WLAN-Daten. Nichts wird geändert. Token, Schlüssel und Passwörter werden geschwärzt.</string>
+    <string name="dashcam_diagnostics_text">Erfasst nur lesend Sitzung, Geräteinfo, Einstellungen, Speicher, Fähigkeiten, die Beschreibung des Livebilds (RTSP), das Protokoll der letzten Nachrichten und WLAN-Daten. Nichts wird geändert. Token, Schlüssel und Passwörter werden geschwärzt.</string>
     <string name="dashcam_diagnostics_not_connected">Nicht verbunden: Es werden nur WLAN-Daten und das Protokoll erfasst.</string>
     <string name="dashcam_diagnostics_capture">Diagnose erfassen</string>
     <string name="dashcam_diagnostics_share">Teilen</string>
     <string name="dashcam_diagnostics_step">Frage %1$d ab …</string>
+    <string name="dashcam_diagnostics_step_rtsp">Frage die Beschreibung des Livebilds ab (RTSP) …</string>
 
     <string name="dashcam_error_with_code">%1$s (Code %2$d)</string>
     <string name="dashcam_err_missing_rval">Antwort ohne Ergebniscode</string>
@@ -589,6 +590,8 @@
     <string name="media_failure_http_code">HTTP %1$d</string>
     <string name="media_transfer_cancelled">Abgebrochen</string>
     <string name="media_transfer_of">%1$s von %2$s</string>
+    <string name="media_transfer_speed">%1$s · %2$d KB/s</string>
+    <string name="media_transfer_stalled">Übertragung ins Stocken geraten, neuer Versuch in %1$d s · bisher %2$s</string>
     <string name="media_download_notification_title">Download: %1$s</string>
     <string name="media_storage_title">Speicher</string>
     <string name="media_storage_settings_text">Downloads, Screenshots, Cache</string>

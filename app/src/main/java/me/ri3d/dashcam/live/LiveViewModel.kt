@@ -103,7 +103,8 @@ sealed interface LiveEvent {
 /**
  * Plays the recorder's RTSP preview while the connection is Ready and the screen is started (the original app
  * opens the preview after the control session): each start tries every RTSP candidate (TCP, then UDP after a 461),
- * then one delayed automatic retry of the whole list, then [StreamState.Failed]. Every attempt is noted for Diagnose.
+ * then one delayed automatic retry of the whole list, then [StreamState.Failed]. Every attempt is noted for Diagnose;
+ * a final failure on the stream description also captures the raw DESCRIBE exchange once ([captureRtspDescribe]).
  * Photo/burst/record commands go through the connection manager; replies are shown as reported.
  */
 @HiltViewModel
@@ -146,6 +147,9 @@ class LiveViewModel @Inject constructor(
 
     /** The URL that played last: tried first on the next start. */
     private var worked: String? = null
+
+    /** The raw DESCRIBE exchange was captured for Diagnose after Media3 rejected a description (once per screen). */
+    private var described = false
     private var photoAction = LiveAction.PHOTO
 
     init {
@@ -251,6 +255,11 @@ class LiveViewModel @Inject constructor(
                     next()
                 } else if (retried) {
                     _stream.value = StreamState.Failed(error)
+                    // The SDP Media3 refused goes into the next Diagnose export (notes.rtsp), once; no player is running now.
+                    if (error.sdpProblem && !described) {
+                        described = true
+                        viewModelScope.launch { captureRtspDescribe(manager) }
+                    }
                 } else {
                     retried = true
                     _stream.value = StreamState.Loading

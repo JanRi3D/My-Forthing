@@ -444,7 +444,7 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
     ) {
         Box {
             MediaThumb(
-                thumbModel(entry, viewModel), placeholderFor(item.kind),
+                entry.thumb, placeholderFor(item.kind),
                 Modifier.size(width = 96.dp, height = 54.dp).clip(MaterialTheme.shapes.small), viewModel.http.imageLoader,
             )
             SelectionMark(item, selection, Modifier.align(Alignment.TopStart))
@@ -474,7 +474,7 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
             .semantics { contentDescription = description }
             .selectable(item, selection, onTap, viewModel::toggle, rowLabels()),
     ) {
-        MediaThumb(thumbModel(entry, viewModel), R.drawable.ic_media_photo, Modifier.fillMaxSize(), viewModel.http.imageLoader)
+        MediaThumb(entry.thumb, R.drawable.ic_media_photo, Modifier.fillMaxSize(), viewModel.http.imageLoader)
         Text(
             clock,
             Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -495,10 +495,6 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
         }
     }
 }
-
-/** The local thumbnail once the file is on the phone (also the fallback if a `.thm` is no image), else the recorder's. */
-private fun thumbModel(entry: RecorderEntry, viewModel: RecordingsViewModel): Any? =
-    entry.item.localThumbPath?.let(::File) ?: entry.file.fileThm?.let(viewModel.http::url)
 
 @Composable
 private fun SelectionMark(item: MediaItem, selection: Set<String>, modifier: Modifier) {
@@ -669,7 +665,7 @@ private fun TransfersSheet(
                     Text(
                         when (t.state) {
                             TransferState.QUEUED -> stringResource(R.string.media_transfer_queued)
-                            TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes)
+                            TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes, t.bytesPerSecond, t.retryInSeconds)
                             TransferState.WAITING -> if (failure == null) {
                                 stringResource(R.string.media_transfer_waiting)
                             } else {

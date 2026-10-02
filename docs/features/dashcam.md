@@ -112,9 +112,12 @@ Recorder" from the session's 4099. Tap → Connection. The Connection screen add
 **Diagnostics.** One tap, read-only: Wi-Fi facts (SSID, bound network, mobile data, simulator), connection state
 (and its error), session fields and the session reply (kept even after the frame log rolled over), raw replies of
 4098, 4097, 4099, 20481 and best effort 20480/20482–20485 (5 s each; errors and -205 timeouts kept), the app's
-`notes` (`rtsp`: every live-view attempt with URL, transport and result; `http`: every recorder HTTP request with
-method, path, Range, status, Content-Type, Content-Length or the exception, and failed downloads – last 50 each),
-then the last 400 frame-log events. Every JSON text passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …)
+`notes` (`rtsp`: every live-view attempt with URL, transport and result, the RTSP proxy's steps and the raw DESCRIBE
+captures; `http`: every recorder HTTP request with method, path, Range, status, Content-Type, Content-Length or the
+exception, stalls, finished and failed downloads – last 50 each), `rtsp.describe` (while Ready on the recorder Wi-Fi:
+the raw OPTIONS/DESCRIBE exchange of the live view, `docs/features/live.md`), then the last 400 frame-log events.
+The recorder HTTP client (`httpClient()`) serves one request at a time with a 90 s read timeout
+(`docs/features/media.md`). Every JSON text passes the core `redact()` (token, tokenNum, aescode, passwd, password, key, …)
 on top of the module's own redaction; a test checks the export against the real secrets of a simulated session.
 Shared as `cacheDir/diagnostics/myforthing-diagnose-<time>.json` through `DiagnosticsFileProvider` (own `FileProvider`
 subclass with the paths in its manifest meta-data, authority `${applicationId}.dashcam.files`, so other features'

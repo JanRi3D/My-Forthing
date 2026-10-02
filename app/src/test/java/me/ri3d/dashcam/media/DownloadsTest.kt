@@ -33,8 +33,15 @@ import org.robolectric.Shadows.shadowOf
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.recorder.RecorderSimulator
+import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
+import java.io.InputStreamReader
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.concurrent.thread
 
 /** Downloads against MockWebServer: 206 resume, restart on 200, cancel cleanup, duplicate prevention. */
 @RunWith(RobolectricTestRunner::class)
@@ -354,5 +361,66 @@ class DownloadsTest {
             "GET /sim/a.mp4 -> 200 Content-Type: text/html Content-Length: 13",
             "download /sim/a.mp4: DownloadException: NOT_MEDIA (HTTP 200) Content-Type: text/html",
         ).inOrder()
+    }
+
+    /**
+     * A recorder connection that dies mid-body (reset after 1000 bytes, like the stalls on hardware 2026-10-02), then
+     * one that serves the rest of a range request.
+     */
+    private fun stallingRecorder(s: Setup, ranges: MutableList<String?>): ServerSocket {
+        val raw = ServerSocket(0, 4, InetAddress.getLoopbackAddress())
+        thread(isDaemon = true) {
+            fun Socket.head(): List<String> {
+                val reader = BufferedReader(InputStreamReader(getInputStream(), Charsets.ISO_8859_1))
+                return generateSequence { reader.readLine()?.takeIf { it.isNotEmpty() } }.toList()
+            }
+            raw.accept().use { socket ->
+                socket.head()
+                socket.getOutputStream().apply { write("HTTP/1.1 200 OK\r\nContent-Length: ${body.size}\r\n\r\n".toByteArray() + body.copyOf(1000)); flush() }
+                val until = System.currentTimeMillis() + 5_000
+                while (s.part.length() < 1000 && System.currentTimeMillis() < until) Thread.sleep(10)
+                socket.setSoLinger(true, 0) // close with a reset: the client's read fails with a SocketException
+            }
+            raw.accept().use { socket ->
+                val range = socket.head().firstOrNull { it.startsWith("Range:", ignoreCase = true) }?.substringAfter(':')?.trim()
+                ranges += range
+                val from = range?.removePrefix("bytes=")?.removeSuffix("-")?.toInt() ?: 0
+                val head = "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes $from-${body.size - 1}/${body.size}\r\n" +
+                    "Content-Length: ${body.size - from}\r\n\r\n"
+                socket.getOutputStream().apply { write(head.toByteArray() + body.copyOfRange(from, body.size)); flush() }
+            }
+        }
+        return raw
+    }
+
+    @Test
+    fun `a stalled transfer resumes from the part within the run after 5 s and notes the stall`() = runTest {
+        val ranges = CopyOnWriteArrayList<String?>()
+        val s = setup()
+        val raw = stallingRecorder(s, ranges) // watches the part file, so it starts after setup
+        downloader = MediaDownloader(s.repository, RecorderHttp(manager, "http://127.0.0.1:${raw.localPort}/", context))
+        raw.use {
+            val result = worker(s.item.id).doWork()
+
+            assertThat(result).isEqualTo(ListenableWorker.Result.success())
+            assertThat(ranges).containsExactly("bytes=1000-")
+            assertThat(s.target.readBytes()).isEqualTo(body)
+            assertThat(testScheduler.currentTime).isAtLeast(5_000) // the first stall waits 5 s
+            val http = manager.notes().getValue("http").map { it.message }
+            assertThat(http).contains("download a.mp4: stalled at 1000 bytes (SocketException), attempt 1 of 10, resuming in 5 s")
+            assertThat(http.last()).startsWith("download a.mp4: done at 5000 bytes after ")
+            assertThat(http.last()).endsWith(", 1 stalls")
+        }
+    }
+
+    @Test
+    fun `the speed is measured over the last 5 seconds`() {
+        val meter = SpeedMeter()
+        assertThat(meter.add(0, 0)).isNull()
+        assertThat(meter.add(1_000, 100_000)).isEqualTo(100_000)
+        assertThat(meter.add(5_000, 500_000)).isEqualTo(100_000)
+        // After a fast start the window forgets it: 10 s in, only the last ~5 s count.
+        assertThat(meter.add(6_000, 520_000)).isEqualTo(84_000) // (520000 - 100000) / 5 s
+        assertThat(meter.add(11_000, 620_000)).isEqualTo(20_000) // (620000 - 520000) / 5 s
     }
 }

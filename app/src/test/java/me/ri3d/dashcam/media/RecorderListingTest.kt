@@ -106,15 +106,15 @@ class RecorderListingTest {
         .map { (RecorderReply.parse(it.json)!!.param as JsonObject)["lastFileName"]!!.jsonPrimitive.content }
 
     @Test
-    fun `120 simulated files are listed in three requests with exact cursors`() = runTest {
-        val files = SimulatedFiles()
+    fun `120 simulated files come in pages of 20 (asked for 50) with exact cursors, without totalFileSize`() = runTest {
+        val files = SimulatedFiles() // 20 per page and no totalFileSize, as the physical recorder (2026-10-02)
         val sim = RecorderSimulator().apply { handlers[4100] = files::listReply }
         val manager = managerFor(sim).apply { setSimulator(true) }
         manager.connect()
         val browser = RecorderBrowser(0, manager, MediaRepository(context, db, manager), backgroundScope)
 
         browser.refresh()
-        repeat(3) {
+        repeat(6) {
             eventually { !browser.state.value.loading }
             browser.loadMore()
         }
@@ -123,9 +123,11 @@ class RecorderListingTest {
         val state = browser.state.value
         val names = files.entries(0).map { it.fileName }
         assertThat(state.listing.end).isEqualTo(ListingEnd.COMPLETE)
+        assertThat(state.listing.reachedTotal).isTrue()
         assertThat(state.listing.files.map { it.fileName }).isEqualTo(names)
         assertThat(state.listing.totalFileNum).isEqualTo(120)
-        assertThat(cursors(sim)).containsExactly("", names[49], names[99]).inOrder()
+        assertThat(state.listing.totalFileSize).isNull()
+        assertThat(cursors(sim)).containsExactly("", names[19], names[39], names[59], names[79], names[99]).inOrder()
         assertThat(db.mediaDao().recorderType(0).map { it.recorderPath }).containsExactlyElementsIn(names)
     }
 
