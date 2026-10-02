@@ -16,6 +16,10 @@ Du bekommst zwei APK-Dateien und eine Prüfsummendatei, z. B.:
 Die Zahlen im Namen sind Version (`1.0.0`) und Build-Nummer (`1`). Meldet Android bei der arm64-Datei „App nicht
 installiert“, obwohl alles andere stimmt, ist das Handy ein 32-Bit-Gerät: dann die armeabi-v7a-Datei nehmen.
 
+**Nicht installieren:** `MyForthing-1.0.0-1-debug-universal.apk` (steht auch in `SHA256SUMS.txt`). Das ist eine
+Entwickler-Version für den Emulator; über sie lässt sich die normale Version später nicht installieren, ohne die App
+und alle ihre Daten zu löschen (Abschnitt 5).
+
 **Prüfsumme (optional)** am Windows-PC: in PowerShell `Get-FileHash -Algorithm SHA256 MyForthing-1.0.0-1-arm64-v8a.apk`
 und den angezeigten Wert mit der Zeile in `SHA256SUMS.txt` vergleichen (Groß-/Kleinschreibung egal).
 
@@ -52,7 +56,7 @@ Mit USB-Debugging am PC geht es auch so: `adb install MyForthing-1.0.0-1-arm64-v
 | Berechtigung | Wann | Wofür | Ablehnen? |
 | --- | --- | --- | --- |
 | Standort (genau) | auf dem Bildschirm „Verbindung“, Schaltfläche „Berechtigung erteilen“ | Android verrät den WLAN-Namen nur Apps mit Standort-Berechtigung; die App prüft damit nur, ob du im Dashcam-WLAN bist. Der Standort wird weder gespeichert noch gesendet. | geht: die App verbindet trotzdem, zeigt dann „unbekanntes WLAN (Berechtigung fehlt)“ |
-| Benachrichtigungen (Android 13+) | beim ersten Download oder Hochskalieren | Fortschritt und „Abbrechen“ in der Benachrichtigung | geht: alles läuft, nur ohne Anzeige außerhalb der App |
+| Benachrichtigungen (Android 13+) | beim ersten Download oder Hochskalieren | Fortschritt von Downloads, Hochskalieren und Sicherung; „Abbrechen“ bei Download und Hochskalieren | geht: alles läuft, nur ohne Anzeige außerhalb der App |
 
 ## 5. Aktualisieren auf eine neue Version
 

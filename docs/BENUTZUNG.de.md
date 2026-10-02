@@ -4,22 +4,23 @@ Für den Besitzer und Tester. My Forthing verbindet dein Handy mit der Dashcam d
 Aufnahmen herunterladen, Einstellungen der Dashcam, Sicherung in deinem Google Drive, Kennzeichenerkennung und
 Bildverbesserung – alles auf dem Handy, ohne Pflicht-Konto. Installation: [`INSTALLATION.de.md`](INSTALLATION.de.md).
 
-Diese Anleitung beschreibt den vollen Umfang von Version 1.0.0. Fehlen in deiner Installation „Sicherung“ oder die
-Kennzeichen-Suche auf dem Startbildschirm, ist es ein Vorab-Build ohne diese Teile; fehlt das Konto („Konto-Dienst ist
-in dieser Installation nicht eingerichtet.“), wurde der Build ohne Firebase-Konfiguration erstellt. Beides ist kein Fehler
-deines Handys.
+Diese Anleitung beschreibt Version 1.0.0 (Build 1). Das Online-Konto (Abschnitt 7) braucht eine Firebase-Einrichtung,
+die beim Bauen der App eingebaut wird. Build 1 hat sie noch nicht: Die App meldet beim Konto „Konto-Dienst ist in dieser
+Installation nicht eingerichtet.“ Das ist kein Fehler deines Handys; alles andere funktioniert ohne Konto.
 
 **Wichtig vorab:** Die App ist bisher nur mit einem Simulator und auf dem Android-Emulator getestet, nicht mit der
 echten Dashcam (siehe „Bekannte Einschränkungen“ und [`HARDWARE_CHECKLIST.md`](HARDWARE_CHECKLIST.md)).
 
 ## 1. Erster Start (ohne Konto)
 
-1. Auf **Willkommen** tippst du auf **Ohne Konto fortfahren**.
-2. **Ohne Konto nutzen**: einen **Profilnamen** eingeben (z. B. „Mein Auto“), optional ein **Profilbild** wählen.
+1. Auf dem ersten Bildschirm („My Forthing – Live-Ansicht, Aufnahmen und Einstellungen für deine Dashcam.“) tippst du
+   auf **Ohne Konto fortfahren**.
+2. **Ohne Konto nutzen**: das Feld **Profilname** ausfüllen (z. B. „Mein Auto“), optional ein **Profilbild** wählen.
 3. **Offline-Profil erstellen**. Das Profil bleibt nur auf diesem Handy; kein Internet, keine E-Mail, kein Passwort.
 
-Du landest auf dem Startbildschirm mit der Karte **Meine Dashcam** und den Kacheln **Live-Ansicht**, **Aufnahmen**,
-**SD-Karte** und **Einstellungen**. Ein Konto kannst du jederzeit später hinzufügen (Abschnitt 7).
+Du landest auf dem **Startbildschirm**: oben die Suchleiste **Kennzeichen suchen** mit deinem Profilbild (öffnet die
+Einstellungen), darunter die Karte **Meine Dashcam** und die Kacheln **Live-Ansicht**, **Aufnahmen**, **SD-Karte** und
+**Einstellungen**. Ein Konto kannst du jederzeit später hinzufügen (Abschnitt 7).
 
 Aussehen: *Einstellungen → Darstellung*: **Material You** (Farben aus deinem Hintergrundbild, hell/dunkel wie das
 Handy) oder **Schwarz** (immer dunkel).
@@ -52,7 +53,7 @@ beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht
 
 ## 3. Live-Ansicht
 
-*Start → Live-Ansicht* (nur bei „Verbunden“).
+*Startbildschirm → Live-Ansicht* (nur bei „Verbunden“).
 
 - Das Livebild läuft ohne Ton. Oben das Abzeichen **Live** und die **Handyzeit** (die Uhrzeit des Handys, nicht der
   Dashcam). **Vollbild** über die Schaltfläche oben, zurück mit **Zurück** oder „Vollbild verlassen“.
@@ -70,7 +71,7 @@ beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht
 
 ## 4. Aufnahmen
 
-*Start → Aufnahmen*. Reiter:
+*Startbildschirm → Aufnahmen*. Reiter:
 
 | Reiter | Inhalt |
 | --- | --- |
@@ -92,7 +93,7 @@ beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht
   Verbindung) oder **Drive-Kopie löschen**. Jede Kopie wird einzeln gelöscht, die anderen bleiben. Ist es die letzte
   Kopie, warnt die App, dass die Datei danach endgültig weg ist.
 
-**SD-Karte** (*Start → SD-Karte*): Speicherwerte „laut Recorder“ (Rohwerte, Einheiten unbekannt), letzter
+**SD-Karte** (*Startbildschirm → SD-Karte*): Speicherwerte „laut Recorder“ (Rohwerte, Einheiten unbekannt), letzter
 **Kartenstatus** und **Formatieren**. Formatieren löscht **alle** Aufnahmen und Fotos auf der Karte; auf das Handy
 geladene bleiben. Die App fragt doppelt („Mir ist klar, dass sich das nicht rückgängig machen lässt.“).
 
@@ -173,8 +174,8 @@ Clips automatisch, einen nach dem anderen), **Kennzeichen-Daten in Drive-Sicheru
   Bilder das Handy schafft; die Rahmen laufen bewegten Autos etwas hinterher.
 - **Clip**: im Clip „**Kennzeichen in diesem Clip**“ mit Sprungmarken („Zu 00:02 springen“) und **Clip auf Kennzeichen
   prüfen** (nur für Clips auf dem Handy; Fortschritt mit **Abbrechen**).
-- **Suchen**: *Start → Kennzeichen suchen*. Ein Teil reicht, z. B. die Städtekennung „BMK“ oder die Ziffern „4821“.
-  Filter **Alle** / **Vorfälle**. Antippen öffnet den **Verlauf** des Kennzeichens: Sichtungen, zuerst/zuletzt gesehen,
+- **Suchen**: *Startbildschirm → Kennzeichen suchen*. Ein Teil reicht, z. B. die Städtekennung „BMK“ oder die Ziffern
+  „4821“. Filter **Alle** / **Vorfälle**. Antippen öffnet den **Verlauf** des Kennzeichens: Sichtungen, zuerst/zuletzt gesehen,
   Ausschnitt; eine Sichtung aus einem Clip auf dem Handy öffnet ihn an der Stelle.
 
 **So ehrlich ist die Erkennung:**
