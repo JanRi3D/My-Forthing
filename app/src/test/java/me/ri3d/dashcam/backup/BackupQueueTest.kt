@@ -279,6 +279,28 @@ class BackupQueueTest {
     }
 
     @Test
+    fun `Jetzt pruefen imports at once, without the automatic retry window, then queues`() = runTest {
+        setup()
+        f.preferences.update { it.copy(backupMode = BackupMode.ALL) }
+        val local = f.local("/sim/EVENT/e.mp4")
+        f.api.backup(
+            me.ri3d.dashcam.drive.format.DriveSidecar(
+                id = java.util.UUID.randomUUID().toString(), kind = "ORIGINAL_VIDEO", category = "EVENT", recorderType = 1,
+                originalFileName = "other.mp4", recorderTime = "2026-10-01 11:00:00", sizeBytes = 0, md5 = "", mime = "video/mp4",
+                backup = me.ri3d.dashcam.drive.format.DriveSidecar.Backup(complete = true),
+            ),
+        )
+        f.api.readHooks += { DriveError.Offline(IOException("offline")) }
+        assertThat(f.restore.importOnce("a@example.com")).isFalse() // automatic attempt failed: the next one waits a minute
+        assertThat(queue.lastImport.value).isNull() // the Backup screen says "Wartet auf den ersten Abgleich mit Drive"
+
+        queue.checkNow()
+
+        assertThat(queue.lastImport.value).isNotNull()
+        assertThat(state(local.id)).isEqualTo(BackupState.QUEUED)
+    }
+
+    @Test
     fun `nothing is queued automatically before the connected account was imported once`() = runTest {
         setup()
         f.preferences.update { it.copy(backupMode = BackupMode.ALL) }

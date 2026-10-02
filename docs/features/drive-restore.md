@@ -65,7 +65,9 @@ every backed-up video and photo in the app again. Packages `backup/` (import, Dr
    - automatically in `BackupQueue`'s observer while the connected account has no import time (fresh install, account
      switch, first start with this version). **The automatic rules queue nothing before that import succeeded**; a
      failed one is tried again at a later observer pass (at most once a minute), and the observer re-runs as soon as any
-     import succeeds (the import time is one of its inputs). "Jetzt prüfen" follows the same gate;
+     import succeeds (the import time is one of its inputs). "Jetzt prüfen" follows the same gate but imports at once
+     (no retry window); until the first import succeeded the Backup screen says "Wartet auf den ersten Abgleich mit
+     Drive";
    - "Drive-Status prüfen" (Backup screen) after the existing vanish handling; the snackbar adds "n Sicherungen aus Drive
      in die App übernommen", or why taking them over failed (the vanish count still stands);
    - the refresh icon of the Drive tab, and once per process when the Drive tab is first shown (fresh thumbnail links).
@@ -159,7 +161,8 @@ the rows of recordings already in Drive. Remaining cases, where a recording can 
   then the row has no recorder copy.
 - `ponytail:` thumbnail links are kept in memory only (they expire within hours); a Drive download waiting for the slot
   holds a WorkManager slot (fine for a few); phone copies that differ from their Drive copy are hashed again after a
-  restart; the merged-id alias lives in memory.
+  restart; the merged-id alias lives in memory (it redirects only while no row has the old id, an account switch
+  drops it).
 - `downloadedAt` of a Drive download is the time of that download (the sidecar's value is replaced, as for a recorder
   download).
 - Guests (no app account) connect Drive manually after a reinstall; the import then runs as above.
@@ -186,7 +189,7 @@ the rows of recordings already in Drive. Remaining cases, where a recording can 
 
 ## Verification status
 
-- Unit tests (JVM / Robolectric): `DriveRestoreTest` 16 (new rows with every field, derived parent, plates not restored,
+- Unit tests (JVM / Robolectric): `DriveRestoreTest` 17 (new rows with every field, derived parent, plates not restored,
   thumbnail key; same-id adoption; recorder-only merge and re-listing under the Drive id; phone copy merges only with the
   same MD5; plate sightings and derived items move to the Drive id; rows in use (pending recorder download, running
   upload, queued plate check) are excluded and merged by the next import; a merge takes the current recorder fields but
@@ -194,7 +197,7 @@ the rows of recordings already in Drive. Remaining cases, where a recording can 
   idempotent second run; nothing while not connected / reconnect needed; failing sidecar read and finishing run;
   automatic import until it succeeded, at most once a minute, again after a switch, no write for the old account; an
   account switch forgets thumbnail links and cached thumbnails; Drive-account hint incl. disconnect; silent reconnect
-  once per value, never after a disconnect here), `BackupQueueTest` +3 (first connect: import before the rules, the
+  once per value, never after a disconnect here), `BackupQueueTest` +4 ("Jetzt prüfen" imports without the retry window; first connect: import before the rules, the
   downloaded clip takes the Drive id, no upload; no automatic queueing before a successful import; the Drive check keeps
   its count when the import fails), `DriveDownloadsTest` 6 (target location + markDownloaded, MD5 mismatch discarded,
   WorkManager run reported as Drive transfer, 404 → "nicht mehr in Google Drive", backup network conditions incl. a

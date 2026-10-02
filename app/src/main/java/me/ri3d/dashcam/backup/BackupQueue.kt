@@ -95,6 +95,9 @@ class BackupQueue @Inject constructor(
 
     val storageFull: StateFlow<Boolean> = store.storageFull
 
+    /** When the connected account's backups were last imported; null: nothing is queued automatically yet. */
+    val lastImport: StateFlow<Long?> = store.lastImport
+
     val progress: StateFlow<Map<String, BackupProgress>> = workManager.getWorkInfosByTagFlow(TAG)
         .map { infos ->
             infos.filter { !it.state.isFinished }.mapNotNull { info ->
@@ -184,7 +187,9 @@ class BackupQueue @Inject constructor(
     suspend fun checkNow() {
         store.setStorageFull(false)
         val email = DriveBackup.accountOf(auth.state.value)
-        if (email != null && !restore.importOnce(email)) return schedule()
+        // Asked for by the user: the first import runs now, not after the automatic retry window.
+        if (email != null && store.lastImport.value == null) restore.importFromDrive()
+        if (email != null && store.lastImport.value == null) return schedule()
         val mode = preferences.preferences.first().backupMode
         val items = repository.observe().first()
         val byId = items.associateBy { it.id }

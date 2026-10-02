@@ -212,7 +212,8 @@ Hast du die App-Daten gelöscht oder die App auf einem neuen Handy installiert:
    verbundene.
 2. **Ohne Konto**: *Einstellungen → Google Drive → Mit Google Drive verbinden* und dasselbe Google-Konto wählen.
 3. Danach liest die App alle vollständigen Sicherungen aus Drive ein; sie erscheinen im Reiter **Drive**. Erst danach
-   sichert sie automatisch. Verbindest du später die Dashcam, ordnet die App deren Dateien diesen Sicherungen zu, damit
+   sichert sie automatisch; bis dahin steht unter *Einstellungen → Sicherung* „Wartet auf den ersten Abgleich mit
+   Drive“, und **Jetzt prüfen** versucht den Abgleich sofort (z. B. wenn das Internet vorher weg war). Verbindest du später die Dashcam, ordnet die App deren Dateien diesen Sicherungen zu, damit
    sie nicht ein zweites Mal hochgeladen werden. Ausnahmen: eine Datei, die gerade schon hochgeladen wurde, eine Datei,
    die du vorher selbst mit **Sichern** gesichert hast, und eine Handy-Kopie mit anderem Inhalt als in Drive – die
    können dann zweimal in Drive liegen.

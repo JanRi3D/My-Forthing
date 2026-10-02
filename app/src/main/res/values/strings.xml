@@ -940,6 +940,7 @@
     <string name="media_failure_drive">Fehlgeschlagen: Google Drive hat die Datei nicht geliefert.</string>
     <string name="media_failure_drive_not_connected">Fehlgeschlagen: Google Drive ist nicht verbunden. Verbinde es und versuche es erneut.</string>
     <string name="media_failure_checksum">Fehlgeschlagen: Die Datei aus Google Drive war fehlerhaft (Prüfsumme) und wurde verworfen. Versuche es erneut.</string>
+    <string name="backup_waiting_first_import">Wartet auf den ersten Abgleich mit Drive: Automatisch gesichert wird erst, wenn die App deine Sicherungen aus Drive kennt. „Jetzt prüfen“ versucht es sofort.</string>
     <string name="backup_verify_import_failed">Sicherungen aus Drive konnten nicht übernommen werden: %1$s</string>
     <plurals name="backup_verify_imported">
         <item quantity="one">%d Sicherung aus Drive in die App übernommen.</item>
