@@ -119,13 +119,15 @@ internal fun rewriteSdp(sdp: String): SdpRewrite {
 
 /**
  * Local RTSP proxy for one recorder URL ([target]), so Media3 accepts the recorder's description. Listens on
- * `127.0.0.1:<ephemeral>`; Media3 plays [url]. Each connection Media3 opens gets one socket to the recorder from
- * [sockets] (bound to the recorder Wi-Fi). Requests are forwarded verbatim except their request line
- * (`rtsp://127.0.0.1:<port>/…` → the recorder's origin). Responses are forwarded verbatim except the DESCRIBE answer:
- * its SDP goes through [rewriteSdp], Content-Length is recomputed and Content-Base / Content-Location point to the
- * proxy. After the PLAY answer (or as soon as an interleaved `$` frame arrives) the recorder's side is piped raw;
- * the phone's side stays message-aware, so keep-alives and TEARDOWN still reach the recorder's URL. Every step is
- * reported to [note] for the Diagnose export.
+ * `127.0.0.1:<ephemeral>` from construction on (connections queue until accepted); Media3 plays [url]. Bound to the
+ * IPv4 literal on purpose: Android's `InetAddress.getLoopbackAddress()` is `::1`, so a proxy bound there refused
+ * Media3's connection to `127.0.0.1` (ECONNREFUSED on hardware and emulator, 1.0.1–1.0.2). Each connection Media3
+ * opens gets one socket to the recorder from [sockets] (bound to the recorder Wi-Fi). Requests are forwarded verbatim
+ * except their request line (`rtsp://127.0.0.1:<port>/…` → the recorder's origin). Responses are forwarded
+ * verbatim except the DESCRIBE answer: its SDP goes through [rewriteSdp], Content-Length is recomputed and
+ * Content-Base / Content-Location point to the proxy. After the PLAY answer (or as soon as an interleaved `$` frame
+ * arrives) the recorder's side is piped raw; the phone's side stays message-aware, so keep-alives and TEARDOWN
+ * still reach the recorder's URL. Every step is reported to [note] for the Diagnose export.
  *
  * Any app on the phone could reach the recorder's RTSP through the loopback port while it is open, as it could over
  * the Wi-Fi itself; the port lives only while the live view plays.
@@ -137,8 +139,8 @@ class RtspSdpProxy(
 ) : Closeable {
     private val targetUri = URI(target)
     private val targetOrigin = "rtsp://" + targetUri.rawAuthority
-    private val server = ServerSocket(0, 4, InetAddress.getLoopbackAddress())
-    private val origin = "rtsp://127.0.0.1:${server.localPort}"
+    private val server = ServerSocket(0, 4, InetAddress.getByName(LOOPBACK)) // an IP literal: no lookup
+    private val origin = "rtsp://$LOOPBACK:${server.localPort}"
     private val open = CopyOnWriteArrayList<Socket>()
 
     @Volatile private var closed = false
@@ -147,9 +149,16 @@ class RtspSdpProxy(
     val url: String = origin + targetUri.rawPath.orEmpty() + (targetUri.rawQuery?.let { "?$it" } ?: "")
 
     init {
+        note("listening $LOOPBACK:${server.localPort}")
         thread(isDaemon = true, name = "rtsp-proxy") {
             while (!closed) {
-                val client = try { server.accept() } catch (e: IOException) { break }
+                val client = try {
+                    server.accept()
+                } catch (e: IOException) {
+                    if (!closed) note("accept failed: ${e.javaClass.simpleName}: ${e.message}")
+                    break
+                }
+                note("accepted")
                 open += client
                 thread(isDaemon = true, name = "rtsp-proxy-in") { relay(client) }
             }
@@ -161,6 +170,16 @@ class RtspSdpProxy(
         runCatching { server.close() }
         open.forEach { runCatching { it.close() } }
         open.clear()
+    }
+
+    /**
+     * Stops accepting at once; open connections get [lingerMs] to end by themselves, then [close]. Media3 stops on its
+     * playback thread and sends TEARDOWN through the proxy before it closes its socket, which ends the connection.
+     */
+    fun close(lingerMs: Long) {
+        closed = true
+        runCatching { server.close() }
+        if (open.isNotEmpty()) thread(isDaemon = true, name = "rtsp-proxy-linger") { Thread.sleep(lingerMs); close() }
     }
 
     private fun note(message: String) = note.invoke("proxy $target: $message")
@@ -191,10 +210,11 @@ class RtspSdpProxy(
         }
         try {
             requests(BufferedInputStream(client.getInputStream()), recorder.getOutputStream(), methods)
+            // Media3 closed its side (after a TEARDOWN): the recorder gets the end of the requests and may answer; the
+            // response pump ends the connection when the recorder closes or the phone's side is gone.
+            recorder.shutdownOutput()
         } catch (e: IOException) {
-            // Closed by either side.
-        } finally {
-            closeBoth()
+            closeBoth() // closed by either side
         }
     }
 
@@ -209,7 +229,9 @@ class RtspSdpProxy(
                 output.write(head + payload)
             } else {
                 val request = readRtspMessage(input) ?: return
-                request.header("CSeq")?.let { methods[it] = request.startLine.substringBefore(' ') }
+                val method = request.startLine.substringBefore(' ')
+                request.header("CSeq")?.let { methods[it] = method }
+                if (method == "TEARDOWN") note("TEARDOWN forwarded")
                 output.write(request.copy(startLine = request.startLine.replace(origin, targetOrigin)).bytes())
             }
             output.flush()
@@ -279,6 +301,7 @@ class RtspSdpProxy(
     }
 
     companion object {
+        private const val LOOPBACK = "127.0.0.1"
         private const val RTSP_PORT = 554
         private const val CONNECT_TIMEOUT_MS = 5_000
     }
@@ -318,8 +341,8 @@ private const val DESCRIBE_TIMEOUT_MS = 5_000
 
 /**
  * The raw DESCRIBE exchange for the live view's URLs (the recorder's own first, the traced one only if that fails), on
- * the recorder Wi-Fi of the Ready session; each try is noted under `rtsp`. Empty without such a session (simulator
- * mode has no RTSP server). Used by Diagnose and once after Media3 rejected a description.
+ * the recorder Wi-Fi of the Ready session; each try is noted under `rtsp`. Empty without such a session (also in
+ * simulator mode). Used by Diagnose and once after Media3 rejected a description.
  */
 suspend fun captureRtspDescribe(manager: RecorderConnectionManager): List<String> {
     val network = (manager.state.value as? RecorderConnectionState.Ready)?.network ?: return emptyList()

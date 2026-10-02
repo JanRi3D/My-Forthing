@@ -218,7 +218,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
 
     override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) {
         size = null
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS) // the replaced source's TEARDOWN still passes
         // The proxy's socket to the recorder comes from socketFactory; Media3 itself only reaches 127.0.0.1.
         val local = RtspSdpProxy(url, socketFactory, note).also { proxy = it }
         player().apply {
@@ -234,7 +234,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
 
     override fun stop() {
         player?.stop()
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS) // Media3's TEARDOWN follows on its playback thread
         proxy = null
         size = null
     }
@@ -242,7 +242,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
     override fun release() {
         player?.release()
         player = null
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS)
         proxy = null
         view = null
     }
@@ -272,6 +272,9 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
         private const val MAX_BUFFER_MS = 3_000
         private const val START_BUFFER_MS = 500
         private const val REBUFFER_MS = 1_000
+
+        /** How long a stopped attempt's proxy keeps its connections for Media3's TEARDOWN. */
+        private const val PROXY_LINGER_MS = 2_000L
     }
 }
 

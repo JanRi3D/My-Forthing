@@ -70,9 +70,10 @@ class RtspSdpProxyTest {
         override fun close() = server.close()
     }
 
+    /** Connects where Media3 does: the IPv4 literal of [url] (Android's getLoopbackAddress() is ::1). */
     private class Client(url: String) {
         private val port = Regex("""127\.0\.0\.1:(\d+)""").find(url)!!.groupValues[1].toInt()
-        val socket = Socket(InetAddress.getLoopbackAddress(), port)
+        val socket = Socket(InetAddress.getByName("127.0.0.1"), port)
         private val input = BufferedInputStream(socket.getInputStream())
         private var cseq = 0
 
@@ -109,6 +110,11 @@ class RtspSdpProxyTest {
         assertThat(notes.single { "DESCRIBE" in it }).isEqualTo(
             "proxy ${recorder.url}: DESCRIBE 200: kept m=video 0 RTP/AVP 96, a=control:* added to 1, dropped m=audio 0 RTP/AVP 8",
         )
+        // The hand-off to Media3: listening before the URL is used, then one accepted connection.
+        assertThat(notes.take(2)).containsExactly(
+            "proxy ${recorder.url}: listening ${proxy.url.removePrefix("rtsp://").substringBefore('/')}",
+            "proxy ${recorder.url}: accepted",
+        ).inOrder()
     }
 
     @Test
@@ -136,6 +142,26 @@ class RtspSdpProxyTest {
             "proxy ${recorder.url}: SETUP 200 (Transport: RTP/AVP/TCP;unicast;interleaved=0-1)",
             "proxy ${recorder.url}: PLAY 200",
         ).inOrder()
+    }
+
+    @Test
+    fun `after close with linger, Media3's TEARDOWN still reaches the recorder`() {
+        val recorder = FakeRecorder(recorderSdp, contentBase = null)
+        val notes = CopyOnWriteArrayList<String>()
+        val proxy = proxy(recorder, notes)
+        val client = Client(proxy.url)
+        client.send("SETUP", proxy.url, "Transport: RTP/AVP/TCP;unicast;interleaved=0-1")
+        client.send("PLAY", proxy.url, "Session: 1234")
+
+        proxy.close(lingerMs = 2_000) // ExoLivePlayer.stop(): Media3 sends TEARDOWN afterwards, then closes
+        client.socket.getOutputStream().apply { write(RtspMessage("TEARDOWN ${proxy.url} RTSP/1.0", listOf("CSeq: 3", "Session: 1234")).bytes()); flush() }
+        client.socket.close()
+
+        val teardown = "TEARDOWN ${recorder.url} RTSP/1.0"
+        val deadline = System.currentTimeMillis() + 1_500
+        while (teardown !in recorder.requests && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertThat(recorder.requests).contains(teardown)
+        assertThat(notes).contains("proxy ${recorder.url}: TEARDOWN forwarded")
     }
 
     @Test
