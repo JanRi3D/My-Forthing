@@ -19,12 +19,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -38,11 +38,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -72,7 +74,7 @@ import javax.inject.Provider
  * while `platesLive` is on, the screen is resumed and the stream plays; then each run gets its own processor
  * (recognizer closed when the run ends). Sightings are recorded as LIVE through the repository.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class LivePlatesViewModel @Inject constructor(
     private val preferences: PreferencesRepository,
@@ -100,15 +102,17 @@ class LivePlatesViewModel @Inject constructor(
     private val seen = MutableStateFlow<Set<String>>(emptySet())
 
     /** The last three distinct plates of this visit with their history counts. */
-    val recent: StateFlow<List<Plate>> = combine(repository.history(), seen) { history, keys ->
-        if (keys.isEmpty()) emptyList() else history.filter { it.normalized in keys }.take(3)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recent: StateFlow<List<Plate>> = combine(repository.history(), seen, ::recentPlates)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var run: Job? = null
 
     init {
         viewModelScope.launch {
             combine(enabled, resumed, frames.videoSize) { on, r, size -> on && r && size != null }
+                .distinctUntilChanged()
+                // The overlay moves between normal and full screen in one frame: a short "off" is not a stop.
+                .debounce { active -> if (active) 0 else STOP_DELAY_MS }
                 .distinctUntilChanged()
                 .collect { active -> if (active) start() else stop() }
         }
@@ -151,8 +155,14 @@ class LivePlatesViewModel @Inject constructor(
     companion object {
         /** Offered rate; the processor's throttle decides how many are processed. */
         const val FPS = 5
+
+        /** How long collection outlives a pause or disposal (switch between normal and full screen). */
+        const val STOP_DELAY_MS = 500L
     }
 }
+
+/** The plates of [seen] in [history] order (newest first), at most three. */
+internal fun recentPlates(history: List<Plate>, seen: Set<String>): List<Plate> = history.filter { it.normalized in seen }.take(3)
 
 /** `leadingControls`: the "Kennzeichen" toggle left of Screenshot (state = `platesLive`). */
 @Composable
@@ -187,9 +197,11 @@ fun LivePlatesToggle(viewModel: LivePlatesViewModel = hiltViewModel()) {
 @Composable
 fun LivePlatesOverlay(videoRect: Rect, viewModel: LivePlatesViewModel = hiltViewModel()) {
     // Present in normal and full screen while connected: it reports whether the screen is resumed.
+    val activity = LocalActivity.current
     LifecycleResumeEffect(viewModel) {
         viewModel.setResumed(true)
-        onPauseOrDispose { viewModel.setResumed(false) }
+        // A rotation keeps the processor; the view model outlives the activity.
+        onPauseOrDispose { if (activity?.isChangingConfigurations != true) viewModel.setResumed(false) }
     }
     val detections by viewModel.detections.collectAsStateWithLifecycle()
     val frame by viewModel.frameSize.collectAsStateWithLifecycle()
@@ -203,7 +215,6 @@ fun LivePlatesList(onNavigate: (Route) -> Unit, viewModel: LivePlatesViewModel =
     val on by viewModel.enabled.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             SectionHeader(stringResource(R.string.plates_live_recognized), Modifier.weight(1f))
@@ -215,7 +226,7 @@ fun LivePlatesList(onNavigate: (Route) -> Unit, viewModel: LivePlatesViewModel =
             recent.isEmpty() -> Hint(stringResource(R.string.plates_live_none), note)
             else -> ListGroup(
                 recent.map { plate ->
-                    { shape -> PlateRow(plate, shape, trailing = seenText(context, plate.lastSeen, seconds = true)) { onNavigate(PlateDetail(plate.id)) } }
+                    { shape -> PlateRow(plate, shape, trailing = timeOfDay(plate.lastSeen)) { onNavigate(PlateDetail(plate.id)) } }
                 },
             )
         }

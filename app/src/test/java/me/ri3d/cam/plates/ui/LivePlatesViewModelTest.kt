@@ -113,9 +113,16 @@ class LivePlatesViewModelTest {
         assertThat(vm.detections.value.map { it.text }).containsExactly("B-MK 4821")
         assertThat(vm.recent.value.map { it.display }).containsExactly("B-MK 4821") // recorded as a LIVE sighting
 
-        // Not resumed: collection stops, the recognizer is closed, no more grabs.
+        // A pause shorter than STOP_DELAY_MS (normal <-> full screen) keeps the processor.
         vm.setResumed(false)
-        runFor(100)
+        vm.setResumed(true)
+        testScheduler.advanceTimeBy(LivePlatesViewModel.STOP_DELAY_MS * 2)
+        testScheduler.runCurrent()
+        assertThat(recognizer.closed).isEqualTo(0)
+
+        // Not resumed: collection stops (after STOP_DELAY_MS), the recognizer is closed, no more grabs.
+        vm.setResumed(false)
+        runFor(3_000) { recognizer.closed == 1 }
         assertThat(recognizer.closed).isEqualTo(1)
         assertThat(vm.detections.value).isEmpty()
         val grabs = player.grabs.get()
@@ -127,14 +134,14 @@ class LivePlatesViewModelTest {
         runFor(3_000) { player.grabs.get() > grabs }
         assertThat(player.grabs.get()).isGreaterThan(grabs)
         source.size.value = null
-        runFor(100)
+        runFor(3_000) { recognizer.closed == 2 }
         assertThat(recognizer.closed).isEqualTo(2)
 
         // Toggle off while playing: stays stopped, preference written.
         source.size.value = IntSize(64, 36)
         runFor(3_000) { player.grabs.get() > grabs + 1 }
         vm.toggle()
-        runFor(300) { !vm.enabled.value }
+        runFor(3_000) { recognizer.closed == 3 }
         assertThat(vm.enabled.value).isFalse()
         assertThat(recognizer.closed).isEqualTo(3)
     }
