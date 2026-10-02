@@ -574,11 +574,12 @@
     <string name="media_transfers_empty">Keine Übertragungen</string>
     <string name="media_transfer_queued">Wartet</string>
     <string name="media_transfer_waiting">Wartet auf die Dashcam-Verbindung, neuer Versuch folgt</string>
+    <string name="media_transfer_retrying">%1$s Neuer Versuch folgt.</string>
     <string name="media_transfer_done">Fertig</string>
     <string name="media_failure_unknown_item">Fehlgeschlagen: Die Datei ist nicht mehr in der Bibliothek.</string>
     <string name="media_failure_not_on_recorder">Fehlgeschlagen: Die Datei ist nicht mehr auf der Dashcam.</string>
     <string name="media_failure_http">Fehlgeschlagen: Die Dashcam hat die Datei nicht geliefert.</string>
-    <string name="media_failure_not_media">Fehlgeschlagen: Die Antwort war keine Aufnahme. Ist das WLAN wirklich das der Dashcam?</string>
+    <string name="media_failure_not_media">Fehlgeschlagen: Statt der Aufnahme kam eine Webseite. Ist das WLAN wirklich das der Dashcam?</string>
     <string name="media_failure_incomplete">Fehlgeschlagen: Die Übertragung blieb unvollständig.</string>
     <string name="media_failure_network">Fehlgeschlagen: Die Verbindung zur Dashcam brach immer wieder ab.</string>
     <string name="media_failure_http_code">HTTP %1$d</string>

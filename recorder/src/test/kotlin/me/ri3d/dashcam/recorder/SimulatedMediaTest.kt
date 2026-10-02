@@ -56,8 +56,9 @@ class SimulatedMediaTest {
             val past = (URL(base + clip.fileName).openConnection() as HttpURLConnection).apply { setRequestProperty("Range", "bytes=${clip.size}-") }
             assertThat(past.responseCode).isEqualTo(416)
 
+            assertThat(clip.fileThm).endsWith(".thm") // as on the real recorder; a JPEG by content
             val thumb = URL(base + clip.fileThm).openConnection() as HttpURLConnection
-            assertThat(thumb.contentType).isEqualTo("image/jpeg")
+            assertThat(thumb.contentType).isEqualTo("application/octet-stream")
             assertThat(thumb.inputStream.use { it.readBytes() }.take(2)).containsExactly(0xFF.toByte(), 0xD8.toByte()).inOrder()
 
             assertThat((URL("$base/nope.mp4").openConnection() as HttpURLConnection).responseCode).isEqualTo(404)

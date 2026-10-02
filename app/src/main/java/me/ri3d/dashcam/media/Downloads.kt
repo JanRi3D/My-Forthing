@@ -32,11 +32,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -57,7 +59,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Why a download stopped; shown in German, the raw HTTP code as a second line. */
+/** Why a download stopped; shown in German, the raw HTTP code and detail as a second line. */
 enum class DownloadFailure(@StringRes val text: Int) {
     UNKNOWN_ITEM(R.string.media_failure_unknown_item),
     NOT_ON_RECORDER(R.string.media_failure_not_on_recorder),
@@ -67,9 +69,17 @@ enum class DownloadFailure(@StringRes val text: Int) {
     NETWORK(R.string.media_failure_network),
 }
 
-/** A download that cannot finish now; [permanent] = retrying will not help. */
-class DownloadException(val failure: DownloadFailure, val permanent: Boolean, val httpCode: Int? = null) :
-    IOException(failure.name + (httpCode?.let { " (HTTP $it)" } ?: ""))
+/** A download that cannot finish now; [permanent] = retrying will not help. [contentType]: as the recorder sent it. */
+class DownloadException(
+    val failure: DownloadFailure,
+    val permanent: Boolean,
+    val httpCode: Int? = null,
+    val contentType: String? = null,
+) : IOException(failure.name + (httpCode?.let { " (HTTP $it)" } ?: "") + (contentType?.let { " Content-Type: $it" } ?: ""))
+
+/** The raw second line of a failure: the Content-Type a download refused, or "Class: message" of any other error. */
+fun failureDetail(e: IOException): String? =
+    if (e is DownloadException) e.contentType?.let { "Content-Type: $it" } else "${e.javaClass.simpleName}: ${e.message}"
 
 /** One recorder file → `files/media/<id>/<name>`. */
 @Singleton
@@ -79,10 +89,11 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
      * Only with a Ready session ([RecorderHttp.client]; otherwise [RecorderNotReadyException] before any request).
      * Bytes go to `<name>.part`, the size the recorder announced to `<name>.part.size`. With a part the request asks
      * for the rest (`Range: bytes=<n>-`) and appends only on a 206 whose Content-Range starts at n and announces the
-     * same size (`If-Range` is not assumed); a 200 rewrites from the start; 416 or a non-fitting 206 restarts. A
-     * response that is not a recording (Content-Type other than video/image/octet-stream, empty body) is never saved.
-     * When complete (length checked when announced): fsync, atomic rename, row updated. A file already on the phone
-     * is returned unchanged: no second copy, no new item.
+     * same size (`If-Range` is not assumed); a 200 rewrites from the start; 416 or a non-fitting 206 restarts. An HTML
+     * page (`text/html`, e.g. a captive portal) or an empty body is never saved; any other Content-Type, or none, is
+     * accepted (the recorder's headers are unverified). Content-Length is optional: without it neither the size check
+     * nor the `.part.size` consistency check applies. When complete: fsync, atomic rename, row updated. Failures are
+     * noted for Diagnose. A file already on the phone is returned unchanged: no second copy, no new item.
      */
     suspend fun download(mediaId: String, onProgress: suspend (bytes: Long, total: Long?) -> Unit = { _, _ -> }): MediaItem {
         val item = repository.get(mediaId) ?: throw DownloadException(DownloadFailure.UNKNOWN_ITEM, permanent = true)
@@ -105,7 +116,9 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
                         val code = response.code
                         val range = response.header("Content-Range")
                         val append = code == 206 && offset > 0 && rangeStart(range) == offset
-                        val total = if (append) rangeTotal(range) else response.body.contentLength().takeIf { it >= 0 }
+                        val length = response.body.contentLength().takeIf { it >= 0 }
+                        val total = if (append) rangeTotal(range) ?: length?.let { offset + it } else length
+                        val type = response.header("Content-Type")
                         val announced = sizeFile.takeIf { it.isFile }?.readText()?.toLongOrNull()
                         fun restart(): Nothing {
                             part.delete() // the part does not fit what the recorder offers now: start over
@@ -117,11 +130,12 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
                             code != 200 && code != 206 -> throw DownloadException(
                                 DownloadFailure.HTTP, permanent = code in 400..499 && code != 408 && code != 429, httpCode = code,
                             )
-                            !isMediaType(response.header("Content-Type")) ->
-                                throw DownloadException(DownloadFailure.NOT_MEDIA, permanent = true, httpCode = code)
+                            !acceptsContentType(type) ->
+                                throw DownloadException(DownloadFailure.NOT_MEDIA, permanent = true, httpCode = code, contentType = type)
                             response.header("Content-Length") != null && response.body.contentLength() <= 0 ->
                                 throw DownloadException(DownloadFailure.INCOMPLETE, permanent = false, httpCode = code)
-                            append && (total == null || total <= offset || announced != null && announced != total) -> restart()
+                            // Consistency only where sizes are known (Content-Range / Content-Length are optional).
+                            append && total != null && (total <= offset || announced != null && announced != total) -> restart()
                         }
                         if (!append) {
                             if (total != null) sizeFile.writeText(total.toString()) else sizeFile.delete()
@@ -147,6 +161,9 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
                     Files.move(part.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
                     sizeFile.delete()
                 }
+            } catch (e: IOException) {
+                http.note("download $path: ${e.javaClass.simpleName}: ${e.message}")
+                throw e
             } finally {
                 watchdog.cancel()
             }
@@ -186,17 +203,20 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
         /** `bytes <start>-<end>/<total>` → total; null for `*`. */
         fun rangeTotal(contentRange: String?): Long? = contentRange?.substringAfterLast('/', "")?.toLongOrNull()
 
-        /** A missing Content-Type is accepted (the recorder's headers are unverified); HTML and the like are not. */
-        fun isMediaType(contentType: String?): Boolean {
-            val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return true
-            return type.startsWith("video/") || type.startsWith("image/") || type == "application/octet-stream"
-        }
+        /**
+         * Everything but an HTML page: the recorder's Content-Type for recordings is unverified (it may send none, a
+         * generic or an odd one), while HTML means some other web server answered (captive portal, router).
+         */
+        fun acceptsContentType(contentType: String?): Boolean = contentType?.substringBefore(';')?.trim()?.lowercase() != "text/html"
     }
 }
 
 enum class TransferState { QUEUED, RUNNING, WAITING, DONE, FAILED, CANCELLED }
 
-/** One download as WorkManager reports it. [totalBytes] is null while unknown. */
+/**
+ * One download as WorkManager reports it. [totalBytes] is null while unknown. [failure], [httpCode], [detail]
+ * ([failureDetail]): why it failed, or for WAITING why the last attempt failed (null while it only waits for a session).
+ */
 data class TransferProgress(
     val mediaId: String,
     val name: String,
@@ -205,7 +225,11 @@ data class TransferProgress(
     val totalBytes: Long?,
     val failure: DownloadFailure?,
     val httpCode: Int?,
+    val detail: String? = null,
 )
+
+/** The last real failure of a download waiting for its next attempt (WorkManager keeps no output for a retry). */
+data class RetryReason(val failure: DownloadFailure, val httpCode: Int?, val detail: String?)
 
 /**
  * Durable download queue: WorkManager unique work per media id (KEEP), no network constraint (the recorder Wi-Fi
@@ -224,13 +248,18 @@ class DownloadQueue @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutex = Mutex()
 
-    val progress: StateFlow<Map<String, TransferProgress>> = workManager.getWorkInfosByTagFlow(TAG)
-        .map { infos ->
-            // A replaced work may still be listed next to its successor: the unfinished one wins.
-            infos.mapNotNull(::toProgress).groupBy { it.mediaId }
-                .mapValues { (_, all) -> all.firstOrNull { it.state in ACTIVE } ?: all.last() }
-        }
+    // ponytail: in memory, so after process death a waiting download shows no reason until its next attempt.
+    private val retryReasons = MutableStateFlow<Map<String, RetryReason>>(emptyMap())
+
+    val progress: StateFlow<Map<String, TransferProgress>> = combine(workManager.getWorkInfosByTagFlow(TAG), retryReasons) { infos, reasons ->
+        // A replaced work may still be listed next to its successor: the unfinished one wins.
+        infos.mapNotNull { toProgress(it, reasons) }.groupBy { it.mediaId }
+            .mapValues { (_, all) -> all.firstOrNull { it.state in ACTIVE } ?: all.last() }
+    }
         .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /** Set by the worker when an attempt failed and another follows; null clears it. */
+    fun retryReason(mediaId: String, reason: RetryReason?) = retryReasons.update { if (reason == null) it - mediaId else it + (mediaId to reason) }
 
     init {
         scope.launch { promote() }
@@ -253,6 +282,7 @@ class DownloadQueue @Inject constructor(
     /** Stops the download and drops its partial file. */
     suspend fun cancel(mediaId: String) {
         workManager.cancelUniqueWork(workName(mediaId))
+        retryReason(mediaId, null)
         downloader.discardPartial(mediaId)
         promote()
     }
@@ -309,7 +339,7 @@ class DownloadQueue @Inject constructor(
 
         private fun idOf(info: WorkInfo) = info.tags.firstOrNull { it.startsWith(ID_TAG) }?.removePrefix(ID_TAG)
 
-        internal fun toProgress(info: WorkInfo): TransferProgress? {
+        internal fun toProgress(info: WorkInfo, reasons: Map<String, RetryReason> = emptyMap()): TransferProgress? {
             val id = idOf(info) ?: return null
             val state = when (info.state) {
                 WorkInfo.State.ENQUEUED -> if (info.runAttemptCount > 0) TransferState.WAITING else TransferState.QUEUED
@@ -320,14 +350,17 @@ class DownloadQueue @Inject constructor(
                 WorkInfo.State.CANCELLED -> TransferState.CANCELLED
             }
             val total = info.progress.getLong(DownloadWorker.KEY_TOTAL, -1).takeIf { it >= 0 }
+            val retry = reasons[id]?.takeIf { state == TransferState.WAITING }
             return TransferProgress(
                 mediaId = id,
                 name = info.tags.firstOrNull { it.startsWith(NAME_TAG) }?.removePrefix(NAME_TAG).orEmpty(),
                 state = state,
                 bytes = info.progress.getLong(DownloadWorker.KEY_BYTES, 0),
                 totalBytes = total,
-                failure = info.outputData.getString(DownloadWorker.KEY_ERROR)?.let { name -> DownloadFailure.entries.firstOrNull { it.name == name } },
-                httpCode = info.outputData.getInt(DownloadWorker.KEY_HTTP, -1).takeIf { it >= 0 },
+                failure = info.outputData.getString(DownloadWorker.KEY_ERROR)?.let { name -> DownloadFailure.entries.firstOrNull { it.name == name } }
+                    ?: retry?.failure,
+                httpCode = info.outputData.getInt(DownloadWorker.KEY_HTTP, -1).takeIf { it >= 0 } ?: retry?.httpCode,
+                detail = info.outputData.getString(DownloadWorker.KEY_DETAIL) ?: retry?.detail,
             )
         }
     }
@@ -362,6 +395,7 @@ class DownloadWorker @AssistedInject constructor(
                     }
                 }
                 attempts(mediaId, clear = true)
+                queue.retryReason(mediaId, null)
                 Result.success()
             } catch (e: CancellationException) {
                 if (discardIfCancelled(mediaId)) withContext(NonCancellable) { queue.promote(excluding = id) }
@@ -382,10 +416,17 @@ class DownloadWorker @AssistedInject constructor(
         if (discardIfCancelled(mediaId)) return Result.failure() // ignored by WorkManager: the work is cancelled
         if (e is RecorderNotReadyException || e is RecorderNotBoundException) return Result.retry() // waits, uses no attempt
         val download = e as? DownloadException
-        if (download?.permanent != true && attempts(mediaId) < MAX_ATTEMPTS) return Result.retry()
-        attempts(mediaId, clear = true)
         val failure = download?.failure ?: DownloadFailure.NETWORK
-        return Result.failure(workDataOf(KEY_ERROR to failure.name, KEY_HTTP to (download?.httpCode ?: -1)))
+        val detail = failureDetail(e)
+        if (download?.permanent != true && attempts(mediaId) < MAX_ATTEMPTS) {
+            queue.retryReason(mediaId, RetryReason(failure, download?.httpCode, detail))
+            return Result.retry()
+        }
+        attempts(mediaId, clear = true)
+        queue.retryReason(mediaId, null)
+        return Result.failure(
+            workDataOf(KEY_ERROR to failure.name, KEY_HTTP to (download?.httpCode ?: -1), KEY_DETAIL to detail),
+        )
     }
 
     /**
@@ -466,6 +507,7 @@ class DownloadWorker @AssistedInject constructor(
         const val KEY_TOTAL = "total"
         const val KEY_ERROR = "error"
         const val KEY_HTTP = "http"
+        const val KEY_DETAIL = "detail"
         const val MAX_ATTEMPTS = 10
         private const val ATTEMPTS = "media_download_attempts"
         private const val TAG = "DownloadWorker"

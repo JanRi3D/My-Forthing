@@ -30,6 +30,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import java.io.File
@@ -44,6 +45,7 @@ class DownloadsTest {
     private val body = ByteArray(5000) { (it % 251).toByte() }
     private lateinit var downloader: MediaDownloader
     private lateinit var queue: DownloadQueue
+    private lateinit var manager: RecorderConnectionManagerImpl
     private val factory = object : WorkerFactory() {
         override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
             DownloadWorker(appContext, workerParameters, downloader, queue)
@@ -72,7 +74,7 @@ class DownloadsTest {
 
     /** Simulator mode (the unbound client is allowed) with a Ready session unless [ready] is false. */
     private suspend fun TestScope.setup(ready: Boolean = true): Setup {
-        val manager = managerFor(RecorderSimulator()).apply { setSimulator(true) }
+        manager = managerFor(RecorderSimulator()).apply { setSimulator(true) }
         if (ready) manager.connect()
         val repository = MediaRepository(context, db, manager)
         downloader = MediaDownloader(repository, RecorderHttp(manager, server.url("/").toString(), context))
@@ -195,6 +197,9 @@ class DownloadsTest {
         assertThat(s.queue.enqueue(s.item.id)).isTrue()
         eventually { workState(s.item.id) == WorkInfo.State.ENQUEUED && s.part.isFile } // attempt failed, waits for retry
         eventually { s.queue.progress.value[s.item.id]?.state == TransferState.WAITING }
+        val waiting = s.queue.progress.value.getValue(s.item.id)
+        assertThat(waiting.failure).isEqualTo(DownloadFailure.NETWORK) // why the last attempt failed, with the raw exception
+        assertThat(waiting.detail).isNotEmpty()
 
         s.queue.cancel(s.item.id)
 
@@ -261,7 +266,9 @@ class DownloadsTest {
         }
         val last = worker(s.item.id, runAttemptCount = DownloadWorker.MAX_ATTEMPTS).doWork()
         assertThat(last).isEqualTo(
-            ListenableWorker.Result.failure(workDataOf(DownloadWorker.KEY_ERROR to DownloadFailure.HTTP.name, DownloadWorker.KEY_HTTP to 503)),
+            ListenableWorker.Result.failure(
+                workDataOf(DownloadWorker.KEY_ERROR to DownloadFailure.HTTP.name, DownloadWorker.KEY_HTTP to 503, DownloadWorker.KEY_DETAIL to null),
+            ),
         )
     }
 
@@ -311,5 +318,41 @@ class DownloadsTest {
         server.enqueue(full())
         downloader.download(s.item.id)
         assertThat(s.target.readBytes()).isEqualTo(body)
+    }
+
+    @Test
+    fun `only an HTML page is refused, any other or no Content-Type is accepted`() {
+        assertThat(MediaDownloader.acceptsContentType("text/html")).isFalse()
+        assertThat(MediaDownloader.acceptsContentType("Text/HTML; charset=utf-8")).isFalse()
+        for (type in listOf(null, "video/mp4", "application/octet-stream", "text/plain", "application/x-unknown", "")) {
+            assertThat(MediaDownloader.acceptsContentType(type)).isTrue()
+        }
+    }
+
+    @Test
+    fun `a file without Content-Length and with an odd Content-Type downloads, and every request is noted`() = runTest {
+        val s = setup()
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Content-Type", "text/plain").chunkedBody(Buffer().write(body), 1024).build())
+
+        downloader.download(s.item.id)
+
+        assertThat(s.target.readBytes()).isEqualTo(body)
+        assertThat(File(s.part.path + ".size").exists()).isFalse()
+        val http = manager.notes().getValue("http").map { it.message }
+        assertThat(http.single()).isEqualTo("GET /sim/a.mp4 -> 200 Content-Type: text/plain Content-Length: null")
+    }
+
+    @Test
+    fun `a refused answer is noted with its Content-Type`() = runTest {
+        val s = setup()
+        server.enqueue(MockResponse.Builder().code(200).setHeader("Content-Type", "text/html").body("<html></html>").build())
+
+        val e = assertThrows(DownloadException::class.java) { kotlinx.coroutines.runBlocking { downloader.download(s.item.id) } }
+
+        assertThat(failureDetail(e)).isEqualTo("Content-Type: text/html")
+        assertThat(manager.notes().getValue("http").map { it.message }).containsExactly(
+            "GET /sim/a.mp4 -> 200 Content-Type: text/html Content-Length: 13",
+            "download /sim/a.mp4: DownloadException: NOT_MEDIA (HTTP 200) Content-Type: text/html",
+        ).inOrder()
     }
 }

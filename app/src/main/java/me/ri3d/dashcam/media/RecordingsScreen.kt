@@ -444,7 +444,7 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
     ) {
         Box {
             MediaThumb(
-                entry.file.fileThm?.let(viewModel.http::url), placeholderFor(item.kind),
+                thumbModel(entry, viewModel), placeholderFor(item.kind),
                 Modifier.size(width = 96.dp, height = 54.dp).clip(MaterialTheme.shapes.small), viewModel.http.imageLoader,
             )
             SelectionMark(item, selection, Modifier.align(Alignment.TopStart))
@@ -474,7 +474,7 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
             .semantics { contentDescription = description }
             .selectable(item, selection, onTap, viewModel::toggle, rowLabels()),
     ) {
-        MediaThumb(entry.file.fileThm?.let(viewModel.http::url), R.drawable.ic_media_photo, Modifier.fillMaxSize(), viewModel.http.imageLoader)
+        MediaThumb(thumbModel(entry, viewModel), R.drawable.ic_media_photo, Modifier.fillMaxSize(), viewModel.http.imageLoader)
         Text(
             clock,
             Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -495,6 +495,10 @@ private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, sele
         }
     }
 }
+
+/** The local thumbnail once the file is on the phone (also the fallback if a `.thm` is no image), else the recorder's. */
+private fun thumbModel(entry: RecorderEntry, viewModel: RecordingsViewModel): Any? =
+    entry.item.localThumbPath?.let(::File) ?: entry.file.fileThm?.let(viewModel.http::url)
 
 @Composable
 private fun SelectionMark(item: MediaItem, selection: Set<String>, modifier: Modifier) {
@@ -658,14 +662,21 @@ private fun TransfersSheet(
             items(transfers.sortedBy { it.state.ordinal }, key = { it.mediaId }) { t ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(t.name.ifBlank { "–" }, style = MaterialTheme.typography.bodyLarge)
+                    // Second line of a failure: HTTP status and the raw detail (Content-Type or "Exception: message").
+                    val reason = listOfNotNull(t.httpCode?.let { stringResource(R.string.media_failure_http_code, it) }, t.detail)
+                        .joinToString(" · ").let { if (it.isEmpty()) "" else "\n" + it }
+                    val failure = t.failure
                     Text(
                         when (t.state) {
                             TransferState.QUEUED -> stringResource(R.string.media_transfer_queued)
                             TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes)
-                            TransferState.WAITING -> stringResource(R.string.media_transfer_waiting)
+                            TransferState.WAITING -> if (failure == null) {
+                                stringResource(R.string.media_transfer_waiting)
+                            } else {
+                                stringResource(R.string.media_transfer_retrying, stringResource(failure.text)) + reason
+                            }
                             TransferState.DONE -> stringResource(R.string.media_transfer_done)
-                            TransferState.FAILED -> stringResource(t.failure?.text ?: R.string.media_failure_network) +
-                                (t.httpCode?.let { "\n" + stringResource(R.string.media_failure_http_code, it) } ?: "")
+                            TransferState.FAILED -> stringResource(failure?.text ?: R.string.media_failure_network) + reason
                             TransferState.CANCELLED -> stringResource(R.string.media_transfer_cancelled)
                         },
                         style = MaterialTheme.typography.bodyMedium,
