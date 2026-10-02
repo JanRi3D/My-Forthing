@@ -16,9 +16,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import me.ri3d.dashcam.BuildConfig
 import me.ri3d.dashcam.core.log.Log
+import me.ri3d.dashcam.core.log.redact
+import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.DeviceInfo
 import me.ri3d.dashcam.recorder.ErrorCodes
 import me.ri3d.dashcam.recorder.NormalInfo
@@ -38,6 +42,7 @@ import me.ri3d.dashcam.recorder.parseDeviceInfo
 import me.ri3d.dashcam.recorder.parseStorageInfo
 import java.io.IOException
 import java.net.Socket
+import java.util.concurrent.ConcurrentHashMap
 
 /** CONTRACTS §7, plus [Disconnected] (idle: before the first connect and after [RecorderConnectionManager.disconnect]). */
 sealed interface RecorderConnectionState {
@@ -112,6 +117,18 @@ interface RecorderConnectionManager {
 
     /** Redacted frame and state log (last [RecorderConnectionManagerImpl.LOG_SIZE] events, session reply kept). */
     fun diagnosticLog(): List<RecorderDiagnostic>
+
+    /**
+     * Capability reply (20480–20485) of the current session: queried once with a short timeout and cached until the
+     * session ends; null without a session or when the query failed (not cached, so a later call asks again).
+     */
+    suspend fun capabilities(group: CapabilityGroup): RecorderReply?
+
+    /** A line for the Diagnose export under [topic] ("rtsp", "http"): redacted, the last [RecorderConnectionManagerImpl.NOTE_SIZE] per topic. */
+    fun note(topic: String, message: String)
+
+    /** The [note]s by topic, oldest first. */
+    fun notes(): Map<String, List<RecorderDiagnostic.Info>>
 }
 
 /**
@@ -139,6 +156,8 @@ class RecorderConnectionManagerImpl(
     }
 
     private val log = ArrayDeque<RecorderDiagnostic>() // guarded by itself
+    private val notes = ConcurrentHashMap<String, ArrayDeque<RecorderDiagnostic.Info>>() // each deque guarded by itself
+    private val capabilityCache = ConcurrentHashMap<CapabilityGroup, RecorderReply>() // current session only
     private var sessionReply: RecorderDiagnostic? = null // guarded by log; survives the ring buffer
 
     // Set by attempt() before start(): the socket is bound to exactly the network that attempt checked.
@@ -313,7 +332,22 @@ class RecorderConnectionManagerImpl(
                 socketFactory(network.socketFactory)
                 dns { host -> network.getAllByName(host).toList() }
             }
+            addInterceptor(::logHttp)
         }.build().also { http = network to it }
+    }
+
+    /** Every recorder HTTP request (downloads, thumbnails) with its result, path only, for the Diagnose export. */
+    private fun logHttp(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val sent = "${request.method} ${request.url.encodedPath}" + (request.header("Range")?.let { " Range: $it" } ?: "")
+        return try {
+            chain.proceed(request).also {
+                note(HTTP_NOTES, "$sent -> ${it.code} Content-Type: ${it.header("Content-Type")} Content-Length: ${it.header("Content-Length")}")
+            }
+        } catch (e: IOException) {
+            note(HTTP_NOTES, "$sent -> ${e.javaClass.simpleName}: ${e.message}")
+            throw e
+        }
     }
 
     override fun mediaUrl(recorderPath: String): String =
@@ -330,6 +364,25 @@ class RecorderConnectionManagerImpl(
         val reply = sessionReply
         if (reply != null && reply !in events) listOf(reply) + events else events
     }
+
+    override suspend fun capabilities(group: CapabilityGroup): RecorderReply? {
+        capabilityCache[group]?.let { return it }
+        val session = client.state.value as? SessionState.Ready ?: return null
+        val reply = (client.request(RecorderCommand.GetCapabilities(group), { it }, CAPABILITY_TIMEOUT_MS) as? RecorderResult.Ok)?.value
+        // A reply that arrives after its session ended is not cached for the next one.
+        return reply?.also { if (client.state.value === session) capabilityCache[group] = it }
+    }
+
+    override fun note(topic: String, message: String) {
+        val ring = notes.getOrPut(topic) { ArrayDeque() }
+        synchronized(ring) {
+            if (ring.size == NOTE_SIZE) ring.removeFirst()
+            ring.addLast(RecorderDiagnostic.Info(System.currentTimeMillis(), redact(message)))
+        }
+    }
+
+    override fun notes(): Map<String, List<RecorderDiagnostic.Info>> =
+        notes.toSortedMap().mapValues { (_, ring) -> synchronized(ring) { ring.toList() } }
 
     /** Starts the Wi-Fi request once (kept until disconnect / app stop) and waits briefly for a network. */
     private suspend fun awaitNetwork(): Network? {
@@ -368,6 +421,7 @@ class RecorderConnectionManagerImpl(
 
     private fun clearSessionValues() {
         synchronized(lock) { info = null }
+        capabilityCache.clear()
         _sdStatus.value = null
         _recStatus.value = null
         _storage.value = null
@@ -405,6 +459,12 @@ class RecorderConnectionManagerImpl(
         private const val TAG = "RecorderConnection"
         const val NETWORK_WAIT_MS = 5_000L
         const val LOG_SIZE = 400
+        const val NOTE_SIZE = 50
+        const val HTTP_NOTES = "http"
+        const val RTSP_NOTES = "rtsp"
+
+        /** Capability queries on the way (live view, settings); the recorder answered them at once on hardware. */
+        const val CAPABILITY_TIMEOUT_MS = 3_000L
         private val SESSION_REPLY = Regex("\"msgId\"\\s*:\\s*1[,}\\s]")
 
         /** The emulator's alias for the development machine, where `:recorder:runSimulator` listens. */

@@ -79,7 +79,7 @@ private const val BEST_EFFORT_TIMEOUT_MS = 5_000L
 
 /**
  * The owner's hardware-verification capture: Wi-Fi facts, session reply, raw replies of the read-only queries
- * (errors and -205 timeouts kept), and the client's frame log. Every JSON text passes `redact` (token, tokenNum,
+ * (errors and -205 timeouts kept), the app's notes (RTSP attempts, recorder HTTP results) and the client's frame log. Every JSON text passes `redact` (token, tokenNum,
  * aescode, passwd, password, key, …); nothing is ever sent that changes the recorder.
  */
 suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int) -> Unit = {}): JsonObject {
@@ -126,6 +126,8 @@ suspend fun captureDiagnostics(manager: RecorderConnectionManager, onStep: (Int)
             if (commands.isEmpty()) put("skipped", "not connected")
             commands.forEach { (msgId, result) -> put(msgId, result) }
         }
+        // RTSP attempts of the live view and recorder HTTP requests (downloads, thumbnails), newest last.
+        putJsonObject("notes") { manager.notes().forEach { (topic, notes) -> putJsonArray(topic) { notes.forEach { add(it.toJson()) } } } }
         putJsonArray("frames") { log.forEach { add(it.toJson()) } }
     }
 }
