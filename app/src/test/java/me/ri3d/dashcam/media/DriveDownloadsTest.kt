@@ -1,6 +1,8 @@
 package me.ri3d.dashcam.media
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.work.Configuration
 import androidx.work.ListenableWorker
@@ -19,6 +21,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import me.ri3d.dashcam.backup.FakeDriveApi
 import me.ri3d.dashcam.backup.md5
 import me.ri3d.dashcam.dashcam.managerFor
@@ -27,6 +32,7 @@ import java.io.File
 
 /** "Vom Drive laden": the content lands where a recorder download would, checked against driveMd5, as WorkManager work. */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33]) // network-request constraints (API 28+)
 class DriveDownloadsTest {
     private val context = RuntimeEnvironment.getApplication()
     private val db = memoryDb(context)
@@ -35,6 +41,7 @@ class DriveDownloadsTest {
     private lateinit var queue: DriveDownloadQueue
     private lateinit var repository: MediaRepository
     private lateinit var downloader: MediaDownloader
+    private val preferences = testPreferences()
     private val factory = object : WorkerFactory() {
         override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
             DriveDownloadWorker(appContext, workerParameters, queue)
@@ -48,7 +55,8 @@ class DriveDownloadsTest {
         val manager = kotlinx.coroutines.test.TestScope().managerFor(RecorderSimulator())
         repository = MediaRepository(context, db, manager)
         downloader = MediaDownloader(repository, RecorderHttp(manager, "http://127.0.0.1:1", context))
-        queue = DriveDownloadQueue(context, repository, downloader, api)
+        queue = DriveDownloadQueue(context, repository, downloader, api, preferences)
+        defaultNetwork(NetworkCapabilities.TRANSPORT_WIFI, NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 
     @After
@@ -121,7 +129,61 @@ class DriveDownloadsTest {
         assertThat(queue.progress.value[item.id]!!.httpCode).isEqualTo(404)
     }
 
-    private fun constraintsMet() = WorkManager.getInstance(context).getWorkInfosByTag(DriveDownloadQueue.TAG).get()
+    @Test
+    fun `downloads from Drive follow the backup network conditions`() = runTest {
+        val item = driveOnly()
+        defaultNetwork(NetworkCapabilities.TRANSPORT_CELLULAR) // "Nur WLAN mit Internet" is the default
+
+        assertThat(queue.enqueue(item.id)).isTrue()
+        val waiting = works().single()
+        assertThat(waiting.constraints.requiredNetworkRequest!!.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)).isTrue()
+        eventually { queue.progress.value[item.id]?.state == TransferState.WAITING }
+
+        // JobScheduler started it, but the default network does not fit: it waits and transfers nothing.
+        constraintsMet()
+        eventually { WorkManager.getInstance(context).getWorkInfoById(waiting.id).get()!!.runAttemptCount == 1 }
+        assertThat(queue.progress.value[item.id]?.state).isEqualTo(TransferState.WAITING)
+        assertThat(kotlinx.coroutines.runBlocking { repository.get(item.id) }!!.localUri).isNull()
+
+        // Mobile data allowed: the waiting work is replaced with the new conditions and runs on the cellular network.
+        preferences.update { it.copy(backupRequireInternetWifi = false, backupOnMobileData = true) }
+        eventually { works().any { !it.state.isFinished && it.id != waiting.id } }
+        val replaced = works().single { !it.state.isFinished }
+        assertThat(replaced.constraints.requiredNetworkRequest).isNull()
+        assertThat(replaced.constraints.requiredNetworkType).isEqualTo(androidx.work.NetworkType.CONNECTED)
+        constraintsMet()
+        eventually { queue.progress.value[item.id]?.state == TransferState.DONE }
+        assertThat(kotlinx.coroutines.runBlocking { repository.get(item.id) }!!.localFile!!.readBytes()).isEqualTo(content)
+    }
+
+    @Test
+    fun `an item never downloads from the recorder and from Drive at the same time`() = runTest {
+        val item = driveOnly()
+        val recorderDownload = androidx.work.OneTimeWorkRequestBuilder<DownloadWorker>().setInitialDelay(1, java.util.concurrent.TimeUnit.DAYS).build()
+        WorkManager.getInstance(context).enqueueUniqueWork(DownloadQueue.workName(item.id), androidx.work.ExistingWorkPolicy.KEEP, recorderDownload).result.get()
+
+        assertThat(queue.enqueue(item.id)).isFalse()
+
+        WorkManager.getInstance(context).cancelUniqueWork(DownloadQueue.workName(item.id)).result.get()
+        assertThat(queue.enqueue(item.id)).isTrue()
+        db.mediaDao().update(db.mediaDao().get(item.id)!!.copy(recorderPath = "/sd/EVENT/e.mp4"))
+        val manager = managerFor(RecorderSimulator())
+        val recorderQueue = DownloadQueue(context, repository, downloader, manager)
+        assertThat(recorderQueue.enqueue(item.id)).isFalse() // the Drive download is pending
+    }
+
+    private fun works() = WorkManager.getInstance(context).getWorkInfosByTag(DriveDownloadQueue.TAG).get()
+
+    private fun constraintsMet() = works()
         .filter { it.state == WorkInfo.State.ENQUEUED }
         .forEach { WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(it.id) }
+
+    /** The phone's default network: validated internet over [transport] plus [extra] capabilities. */
+    private fun defaultNetwork(transport: Int, vararg extra: Int) {
+        val caps = ShadowNetworkCapabilities.newInstance()
+        (intArrayOf(NetworkCapabilities.NET_CAPABILITY_INTERNET, NetworkCapabilities.NET_CAPABILITY_VALIDATED) + extra).forEach { shadowOf(caps).addCapability(it) }
+        shadowOf(caps).addTransportType(transport)
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        shadowOf(connectivity).setNetworkCapabilities(connectivity.activeNetwork, caps)
+    }
 }

@@ -60,7 +60,7 @@ class StorageViewModelTest {
 
         val vm = StorageViewModel(
             context, repository, DownloadQueue(context, repository, MediaDownloader(repository, http), manager), http,
-            DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi()),
+            DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi(), testPreferences()),
         )
         eventually { vm.usage.value != null }
 

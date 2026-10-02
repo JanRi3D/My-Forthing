@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -140,15 +142,30 @@ fun DriveDownloadAction(item: MediaItem, viewModel: DriveLibraryViewModel = hilt
             } else {
                 CircularProgressIndicator(Modifier.semantics { contentDescription = label })
             }
+            if (transfer.state == TransferState.WAITING) Note(stringResource(R.string.media_transfer_waiting_network))
         } else {
-            FilledTonalButton(onClick = { viewModel.download(item.id) }, enabled = auth is DriveAuthState.Connected) {
+            val connected = auth is DriveAuthState.Connected
+            FilledTonalButton(onClick = { viewModel.download(item.id) }, enabled = connected) {
                 Text(stringResource(if (item.kind in PHOTO_KINDS) R.string.media_drive_save else R.string.media_drive_download))
             }
             val failure = transfer?.failure
-            if (transfer?.state == TransferState.FAILED && failure != null) {
-                Text(stringResource(failure.text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            when {
+                !connected -> Note(stringResource(R.string.media_drive_download_not_connected)) // why the button is off
+                transfer?.state == TransferState.FAILED && failure != null -> Note(stringResource(failure.text), error = true)
             }
         }
+    }
+}
+
+/** A short line over the photo or thumbnail, on its own background so it stays readable. */
+@Composable
+private fun Note(text: String, error: Boolean = false) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+    ) {
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall)
     }
 }
 

@@ -889,7 +889,7 @@ private fun TransfersSheet(
                             TransferState.QUEUED -> stringResource(R.string.media_transfer_queued)
                             TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes, t.bytesPerSecond, t.retryInSeconds)
                             TransferState.WAITING -> if (failure == null) {
-                                stringResource(R.string.media_transfer_waiting)
+                                stringResource(if (t.fromDrive) R.string.media_transfer_waiting_network else R.string.media_transfer_waiting)
                             } else {
                                 stringResource(R.string.media_transfer_retrying, stringResource(failure.text)) + reason
                             }

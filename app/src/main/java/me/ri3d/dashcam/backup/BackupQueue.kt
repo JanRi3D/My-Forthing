@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -204,10 +203,7 @@ class BackupQueue @Inject constructor(
     suspend fun deleteOnDrive(id: String): Result<Unit> = backup.deleteOnDrive(id)
 
     /** The default network right now fits the network conditions (checked by the worker before it uploads). */
-    suspend fun networkFits(): Boolean {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
-        return BackupRules.networkFits(connectivity.getNetworkCapabilities(connectivity.activeNetwork), preferences.preferences.first())
-    }
+    suspend fun networkFits(): Boolean = BackupRules.defaultNetworkFits(context, preferences.preferences.first())
 
     /** "Drive-Status prüfen": DONE items missing in Drive are forgotten, then backups the library lacks are imported. */
     suspend fun reconcile(): Result<DriveCheck> {

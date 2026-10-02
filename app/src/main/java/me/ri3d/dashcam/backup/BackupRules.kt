@@ -1,5 +1,7 @@
 package me.ri3d.dashcam.backup
 
+import android.content.Context
+import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import androidx.work.Constraints
@@ -64,5 +66,11 @@ object BackupRules {
             !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> false
         prefs.backupRequireInternetWifi -> caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
         else -> prefs.backupOnMobileData || caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+
+    /** [networkFits] for the phone's default network right now (uploads and "Vom Drive laden"). */
+    fun defaultNetworkFits(context: Context, prefs: AppPreferences): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        return networkFits(connectivity.getNetworkCapabilities(connectivity.activeNetwork), prefs)
     }
 }

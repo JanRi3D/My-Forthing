@@ -64,7 +64,7 @@ class RecordingsViewModelTest {
         val repository = MediaRepository(context, db, manager)
         val http = RecorderHttp(manager, "http://127.0.0.1:1", context)
         val downloads = DownloadQueue(context, repository, MediaDownloader(repository, http), manager)
-        val driveDownloads = DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi())
+        val driveDownloads = DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi(), testPreferences())
         return RecordingsViewModel(manager, repository, downloads, http, ThumbnailPrefetcher(context, http, manager, downloads, repository), driveDownloads)
     }
 

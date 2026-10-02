@@ -302,10 +302,14 @@ class DownloadQueue @Inject constructor(
         }
     }
 
-    /** False when nothing was queued: unknown item, not on the recorder, or already on the phone (no duplicate). */
+    /**
+     * False when nothing was queued: unknown item, not on the recorder, already on the phone (no duplicate), or a
+     * download of it from Drive is pending (both would write the same file).
+     */
     suspend fun enqueue(mediaId: String): Boolean {
         val item = repository.get(mediaId) ?: return false
         if (item.localFile?.isFile == true || item.recorderPath == null) return false
+        if (workManager.getWorkInfosForUniqueWorkFlow(DriveDownloadQueue.workName(mediaId)).first().any { !it.state.isFinished }) return false
         mutex.withLock {
             val busy = infos().count { it.occupiesSlot() && idOf(it) != mediaId }
             enqueue(item, ExistingWorkPolicy.KEEP, held = busy >= slots())

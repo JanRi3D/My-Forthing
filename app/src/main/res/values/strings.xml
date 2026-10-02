@@ -933,6 +933,8 @@
     <string name="media_drive_photo_description">Foto aus Google Drive: %1$s</string>
     <string name="media_drive_download_notification_title">Aus Drive: %1$s</string>
     <string name="media_transfer_from_drive">%1$s · aus Drive</string>
+    <string name="media_transfer_waiting_network">Wartet auf ein Netz, das die Bedingungen unter Einstellungen → Sicherung erfüllt</string>
+    <string name="media_drive_download_not_connected">Google Drive ist nicht verbunden (Einstellungen → Google Drive).</string>
     <string name="media_failure_not_on_drive">Fehlgeschlagen: Die Datei ist nicht mehr in Google Drive.</string>
     <string name="media_failure_drive">Fehlgeschlagen: Google Drive hat die Datei nicht geliefert.</string>
     <string name="media_failure_drive_not_connected">Fehlgeschlagen: Google Drive ist nicht verbunden. Verbinde es und versuche es erneut.</string>

@@ -8,7 +8,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -25,13 +24,17 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.ri3d.dashcam.R
+import me.ri3d.dashcam.backup.BackupRules
+import me.ri3d.dashcam.core.data.PreferencesRepository
 import me.ri3d.dashcam.drive.DriveApi
 import me.ri3d.dashcam.drive.DriveError
 import me.ri3d.dashcam.drive.format.DriveFormat
@@ -45,19 +48,21 @@ import javax.inject.Singleton
 /**
  * "Vom Drive laden": the Drive copy of an item to the phone, where a recorder download would put it
  * ([MediaDownloader.targetFile]), checked against `driveMd5` before it becomes the phone copy. WorkManager unique work
- * per item on any connected network, surviving process death; one transfer at a time ([slot]), independent of the
- * recorder's download slot. The HTTP side (Range resume of `<name>.drive.part`, token refresh, backoff) is
- * [DriveApi.download] on Drive's own client.
+ * per item under the backup's network conditions ([BackupRules.constraints], re-applied when they change), surviving
+ * process death; one transfer at a time ([slot]), independent of the recorder's download slot. The HTTP side (Range
+ * resume of `<name>.drive.part`, token refresh, backoff) is [DriveApi.download] on Drive's own client.
  */
 @Singleton
 class DriveDownloadQueue @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val repository: MediaRepository,
     private val downloader: MediaDownloader,
     private val api: DriveApi,
+    private val preferences: PreferencesRepository,
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mutex = Mutex()
 
     // ponytail: a work waiting for the slot holds a WorkManager slot (and may be stopped and rerun); fine for a few.
     /** Held by the transferring worker; the others wait for it, shown as queued. */
@@ -70,19 +75,46 @@ class DriveDownloadQueue @Inject constructor(
         }
         .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
-    /** False when nothing was queued: unknown item, no Drive copy, or already on the phone. */
-    suspend fun enqueue(mediaId: String): Boolean {
-        val item = repository.get(mediaId) ?: return false
-        if (item.localFile?.isFile == true || item.driveFileId == null) return false
+    init {
+        // Changed network conditions apply to waiting and running downloads too (a running one resumes its part).
+        scope.launch {
+            preferences.preferences.map { BackupRules.constraints(it) }.distinctUntilChanged().collect { constraints ->
+                mutex.withLock {
+                    workManager.getWorkInfosByTagFlow(TAG).first().filter { !it.state.isFinished && it.constraints != constraints }.forEach { info ->
+                        info.tags.firstOrNull { it.startsWith(DownloadQueue.ID_TAG) }?.removePrefix(DownloadQueue.ID_TAG)
+                            ?.let { repository.get(it) }?.let { enqueue(it, constraints, ExistingWorkPolicy.REPLACE) }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * False when nothing was queued: unknown item, no Drive copy, already on the phone, or a download of it from the
+     * recorder is pending (both would write the same file).
+     */
+    suspend fun enqueue(mediaId: String): Boolean = mutex.withLock {
+        val item = repository.get(mediaId) ?: return@withLock false
+        if (item.localFile?.isFile == true || item.driveFileId == null || pending(DownloadQueue.workName(mediaId))) return@withLock false
+        enqueue(item, BackupRules.constraints(preferences.preferences.first()), ExistingWorkPolicy.KEEP)
+        true
+    }
+
+    private suspend fun enqueue(item: MediaItem, constraints: Constraints, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<DriveDownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.KEY_ID to item.id, DownloadWorker.KEY_NAME to item.originalFileName))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_SECONDS, TimeUnit.SECONDS)
             .addTag(TAG).addTag(DownloadQueue.ID_TAG + item.id).addTag(DownloadQueue.NAME_TAG + item.originalFileName)
             .build()
-        workManager.enqueueUniqueWork(workName(item.id), ExistingWorkPolicy.KEEP, request).await()
-        return true
+        workManager.enqueueUniqueWork(workName(item.id), policy, request).await()
     }
+
+    /** The unique work [name] is queued, running or waiting. */
+    internal suspend fun pending(name: String): Boolean = workManager.getWorkInfosForUniqueWorkFlow(name).first().any { !it.state.isFinished }
+
+    /** The default network fits the backup's conditions right now (checked by the worker before it transfers). */
+    suspend fun networkFits(): Boolean = BackupRules.defaultNetworkFits(context, preferences.preferences.first())
 
     /** Stops the download and drops its partial file. */
     suspend fun cancel(mediaId: String) {
@@ -133,9 +165,15 @@ class DriveDownloadQueue @Inject constructor(
         /** `<name>.drive` (and its `.drive.part`) next to the target: never mixed up with a recorder download's part. */
         fun staged(target: File) = File(target.path + ".drive")
 
+        /** Enqueued = waiting for the network conditions (or the retry after a network that did not fit). */
         internal fun toProgress(info: WorkInfo): TransferProgress? = DownloadQueue.toProgress(info)?.let {
-            val waiting = it.state == TransferState.RUNNING && info.progress.getBoolean(KEY_WAITING, false)
-            it.copy(state = if (waiting) TransferState.QUEUED else it.state, fromDrive = true)
+            val forSlot = it.state == TransferState.RUNNING && info.progress.getBoolean(KEY_WAITING, false)
+            val state = when {
+                forSlot -> TransferState.QUEUED
+                info.state == WorkInfo.State.ENQUEUED -> TransferState.WAITING
+                else -> it.state
+            }
+            it.copy(state = state, fromDrive = true)
         }
     }
 }
@@ -151,8 +189,11 @@ class DriveDownloadWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val mediaId = inputData.getString(DownloadWorker.KEY_ID) ?: return Result.failure()
         val name = inputData.getString(DownloadWorker.KEY_NAME).orEmpty()
+        // JobScheduler decided on the network a moment ago; the default network may no longer fit the conditions.
+        if (!queue.networkFits()) return Result.retry()
         setProgress(workDataOf(DriveDownloadQueue.KEY_WAITING to true))
         return queue.slot.withLock {
+            if (!queue.networkFits()) return@withLock Result.retry() // changed while waiting for the slot
             // Not allowed from the background on Android 12+: then it runs as normal work, without a notification.
             val foreground = runCatching { setForeground(foregroundInfo(name)) }.isSuccess
             setProgress(workDataOf(DownloadWorker.KEY_BYTES to 0L)) // no longer waiting
@@ -187,9 +228,12 @@ class DriveDownloadWorker @AssistedInject constructor(
     private fun title(name: String) = applicationContext.getString(R.string.media_drive_download_notification_title, name)
 
     /** Cancelled by the user (sheet, notification): the work itself reads CANCELLED. */
-    private suspend fun cancelledByUser(mediaId: String): Boolean = isStopped &&
-        WorkManager.getInstance(applicationContext).getWorkInfosForUniqueWorkFlow(DriveDownloadQueue.workName(mediaId)).first()
-            .any { it.id == id && it.state == WorkInfo.State.CANCELLED }
+    private suspend fun cancelledByUser(mediaId: String): Boolean {
+        if (!isStopped) return false
+        val works = WorkManager.getInstance(applicationContext).getWorkInfosForUniqueWorkFlow(DriveDownloadQueue.workName(mediaId)).first()
+        // A REPLACE successor (changed network conditions) resumes the part.
+        return works.any { it.id == id && it.state == WorkInfo.State.CANCELLED } && works.none { !it.state.isFinished }
+    }
 
     private fun failure(e: Exception): Data {
         val (failure, code) = when (e) {
