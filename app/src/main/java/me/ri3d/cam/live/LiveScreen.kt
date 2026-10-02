@@ -297,7 +297,7 @@ private fun StateMessage(connection: RecorderConnectionState, stream: StreamStat
                 Message(
                     title = stringResource(R.string.live_failed),
                     text = stringResource(e.reason),
-                    detail = stringResource(R.string.live_failed_code, if (e.code == null) e.name else "${e.name} (${e.code})"),
+                    detail = e.code?.let { stringResource(R.string.live_failed_code, it) }, // the name stays in the log
                     action = stringResource(if (notBound) R.string.dashcam_open_connection else R.string.action_retry),
                     onAction = if (notBound) onConnect else onRetry,
                 )
