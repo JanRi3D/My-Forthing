@@ -1,5 +1,8 @@
 package me.ri3d.dashcam.backup
 
+import android.content.Context
+import androidx.work.WorkManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -64,8 +67,7 @@ class DriveRestore @Inject constructor(
     private val store: BackupStore,
     private val preferences: PreferencesRepository,
     private val plates: PlateRepository,
-    // Lazy: created by the first merge check, so a process start does not start the recorder download queue.
-    private val downloads: dagger.Lazy<DownloadQueue>,
+    @ApplicationContext private val context: Context,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var running: Deferred<Result<ImportReport>>? = null
@@ -173,12 +175,16 @@ class DriveRestore @Inject constructor(
      * copy, if any, has the Drive copy's content.
      */
     private suspend fun mergeable(twin: MediaItem, row: MediaItem): Boolean {
-        if (twin.backupState == BackupState.UPLOADING || downloads.get().progress.value[twin.id]?.state in DownloadQueue.ACTIVE) return false
+        if (twin.backupState == BackupState.UPLOADING || recorderDownloadPending(twin.id)) return false
         if (repository.childCount(twin.id) > 0 || plates.sightingsFor(twin.id).first().isNotEmpty()) return false
         if (twin.localUri == null) return true
         val file = twin.localFile?.takeIf { it.isFile } ?: return false
         return withContext(Dispatchers.IO) { DriveFormat.md5Hex(file) }.equals(row.driveMd5, ignoreCase = true)
     }
+
+    /** A recorder download of [id] is queued, running or waiting (asked from WorkManager, also before the queue exists). */
+    private suspend fun recorderDownloadPending(id: String): Boolean =
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(DownloadQueue.workName(id)).first().any { !it.state.isFinished }
 
     /**
      * Keeps the app account's hint ([me.ri3d.dashcam.core.model.AppPreferences.driveAccount]): the connected account's

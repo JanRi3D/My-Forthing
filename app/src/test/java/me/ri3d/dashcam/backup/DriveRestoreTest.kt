@@ -1,5 +1,8 @@
 package me.ri3d.dashcam.backup
 
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
@@ -20,6 +23,8 @@ import me.ri3d.dashcam.drive.DriveError
 import me.ri3d.dashcam.drive.format.DriveFormat
 import me.ri3d.dashcam.drive.format.DriveSidecar
 import me.ri3d.dashcam.media.BackupState
+import me.ri3d.dashcam.media.DownloadQueue
+import me.ri3d.dashcam.media.DownloadWorker
 import me.ri3d.dashcam.media.MediaCategory
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaKind
@@ -36,6 +41,7 @@ import java.io.IOException
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /** [DriveRestore] against an in-memory Drive: import, adopt, merge, idempotence, and the Drive-account hint. */
 @RunWith(RobolectricTestRunner::class)
@@ -186,6 +192,19 @@ class DriveRestoreTest {
 
         assertThat(f.item(withPlate.id)).isEqualTo(withPlate)
         assertThat(f.item(parent.id)).isEqualTo(parent)
+    }
+
+    @Test
+    fun `a recording with a pending recorder download is not merged`() = runTest {
+        val f = fixture()
+        f.repository.upsertFromRecorderListing(1, listOf(recorderFile("/sd/EVENT/e1.mp4")))
+        val listed = db.mediaDao().byRecorderPath("/sd/EVENT/e1.mp4")!!
+        val waiting = OneTimeWorkRequestBuilder<DownloadWorker>().setInitialDelay(1, TimeUnit.DAYS).build()
+        WorkManager.getInstance(context).enqueueUniqueWork(DownloadQueue.workName(listed.id), ExistingWorkPolicy.KEEP, waiting).result.get()
+        f.api.backup(sidecar(name = "e1.mp4"))
+
+        assertThat(f.restore.importFromDrive().getOrThrow()).isEqualTo(ImportReport(added = 1))
+        assertThat(f.item(listed.id)).isEqualTo(listed)
     }
 
     @Test

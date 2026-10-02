@@ -143,9 +143,9 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
 
 ## Verification status
 
-- Unit tests (JVM / Robolectric): `DriveRestoreTest` 13 (new rows with every field, derived parent, plates not restored,
+- Unit tests (JVM / Robolectric): `DriveRestoreTest` 14 (new rows with every field, derived parent, plates not restored,
   thumbnail key; same-id adoption; recorder-only merge and re-listing under the Drive id; phone copy merges only with the
-  same MD5; rows with plates or children are not merged; incomplete / orphaned entries ignored, oldest duplicate wins;
+  same MD5; rows with plates or children, or with a pending recorder download, are not merged; incomplete / orphaned entries ignored, oldest duplicate wins;
   unusable sidecars counted; idempotent second run without sidecar reads; nothing while not connected / reconnect needed;
   failing sidecar read and finishing run; automatic import once per account, again after a switch, no write for the old
   account; Drive-account hint incl. disconnect; silent reconnect once per value, never after a disconnect here),
