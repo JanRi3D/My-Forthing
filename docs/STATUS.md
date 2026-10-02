@@ -35,14 +35,14 @@ below): the control session works end to end; live view and downloads did not. T
 
 ## Release 1.0.0 (Build 1)
 
-In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`; build, verification and signing in
+In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`, rebuilt on `fix/real-recorder-1` (same version 1.0.0 / Build 1 and signing key; Android accepts an update with an equal versionCode, so it should install over the earlier 1.0.0 build without uninstalling – not yet tried on the phone); build, verification and signing in
 [`RELEASE.md`](RELEASE.md).
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,391,202 | `91efe94b84e058ff310538481696816ea0cef6d529c13b45e39f45107c94a76f` |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,265,106 | `4dc4ed69ecdcc1f6994f8c07e80d500ef2d81ebb095d11ea70e9da3bb1e9b335` |
-| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,384,087 | `6b2fd70a0bc38425f64fdbc4d893bf8280f7a36382d6b7e0ca7b99f5670643ff` |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,410,486 | `9829ad4b01edb9cc3cce1fd5f694582df158ee97ac4a7aa6ee62ab89dff98ebd` |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,284,390 | `2e582b7b0e34c7cae6acf44a7e238a258f517af3a28a452d07089680addde1d4` |
+| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,403,371 | `a5303f4b0a8e85e9f398a72b1164b34dd54e3e0bd533018c6d23822310a39b95` |
 
 - Release APKs: `me.ri3d.dashcam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc`. A second clean build gave
