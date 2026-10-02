@@ -33,10 +33,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.core.ui.AxoTopBar
@@ -57,6 +59,9 @@ import javax.inject.Inject
 class SdCardViewModel @Inject constructor(private val manager: RecorderConnectionManager) : ViewModel() {
     val state: StateFlow<RecorderConnectionState> = manager.state
     val sdStatus: StateFlow<NormalInfo.SdStatus?> = manager.sdStatus
+
+    /** The 4099 of the last read recorder, shown until (or without) a live one. */
+    val cached: StateFlow<CachedFacts?> = manager.cachedFacts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Last 4099 result; null while not loaded. */
     private val _storage = MutableStateFlow<RecorderResult<StorageInfo>?>(null)
@@ -110,6 +115,7 @@ fun SdCardScreen(onBack: () -> Unit, onConnect: () -> Unit, viewModel: SdCardVie
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val format by viewModel.format.collectAsStateWithLifecycle()
     val formatting by viewModel.formatting.collectAsStateWithLifecycle()
+    val cached by viewModel.cached.collectAsStateWithLifecycle()
     val ready = state is RecorderConnectionState.Ready
     var confirmFormat by rememberSaveable { mutableStateOf(false) }
 
@@ -127,7 +133,9 @@ fun SdCardScreen(onBack: () -> Unit, onConnect: () -> Unit, viewModel: SdCardVie
 
             Column {
                 SectionHeader(stringResource(R.string.dashcam_sd_storage))
-                val info = (storage as? RecorderResult.Ok)?.value
+                val live = (storage as? RecorderResult.Ok)?.value
+                val fallback = cached?.storage?.takeIf { live == null }
+                val info = live ?: fallback?.value
                 val inMb = storageInMb(info)
                 ListGroup(
                     listOf(
@@ -137,6 +145,9 @@ fun SdCardScreen(onBack: () -> Unit, onConnect: () -> Unit, viewModel: SdCardVie
                         { shape -> ValueRow(R.string.dashcam_sd_health, rawValue(info?.healthStatus), shape) },
                     ),
                 )
+                if (fallback != null) {
+                    Text(lastReadText(fallback.readAt), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium)
+                }
                 Text(
                     stringResource(R.string.dashcam_sd_units_note),
                     Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

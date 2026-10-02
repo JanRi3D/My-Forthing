@@ -5,13 +5,18 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -131,6 +136,12 @@ interface RecorderConnectionManager {
 
     /** The [note]s by topic, oldest first. */
     fun notes(): Map<String, List<RecorderDiagnostic.Info>>
+
+    /**
+     * What the most recently read recorder reported (4098, 4097, 4099, capabilities 20481/20483/20484) with the read
+     * times, from earlier sessions too; null before the first. Screens show it as "zuletzt gelesen" until a live read.
+     */
+    val cachedFacts: Flow<CachedFacts?>
 }
 
 /**
@@ -148,6 +159,7 @@ class RecorderConnectionManagerImpl(
     private val scope: CoroutineScope,
     private val newTransport: (Network?) -> RecorderTransport = ::boundSocketTransport,
     private val networkWaitMs: Long = NETWORK_WAIT_MS,
+    private val facts: RecorderFactDao? = null,
 ) : RecorderConnectionManager {
 
     private val keyError: RecorderError? = when {
@@ -217,6 +229,11 @@ class RecorderConnectionManagerImpl(
     private var infoFor: SessionState.Ready? = null
     private var networkJob: Job? = null // guarded
     private var http: Pair<Network?, OkHttpClient>? = null // guarded
+    private var factsSn: String? = null // guarded; serial number of this session's recorder, once its 4098 arrived
+    private val pendingFacts = mutableListOf<Pair<RecorderReply, Long>>() // guarded; replies before that 4098
+
+    override val cachedFacts: Flow<CachedFacts?> =
+        facts?.observeLatestRecorder()?.map(CachedFacts::of)?.flowOn(Dispatchers.Default) ?: flowOf(null)
 
     /** True once a session was Ready and the user has not disconnected: ON_START then reconnects. */
     @Volatile private var wantConnected = false
@@ -324,7 +341,23 @@ class RecorderConnectionManagerImpl(
     }
 
     override suspend fun <T> request(cmd: RecorderCommand, parse: (RecorderReply) -> T, timeoutMs: Long): RecorderResult<T> =
-        client.request(cmd, parse, timeoutMs)
+        client.request(cmd, parse, timeoutMs).also { if (it is RecorderResult.Ok && cmd.msgId in CachedFacts.CACHED_MSG_IDS) keepFact(it.reply) }
+
+    /**
+     * Stores a read reply (redacted) under the serial number of this session's recorder (`""` if its 4098 names none);
+     * replies before that 4098 wait for it and are dropped with the session if it never comes.
+     */
+    private fun keepFact(reply: RecorderReply) {
+        val dao = facts ?: return
+        val now = System.currentTimeMillis()
+        val rows = synchronized(lock) {
+            if (reply.msgId == RecorderCommand.GetDeviceInfo.msgId) factsSn = runCatching { parseDeviceInfo(reply).productSN }.getOrNull().orEmpty()
+            pendingFacts += reply to now
+            val sn = factsSn ?: return
+            pendingFacts.map { (r, at) -> RecorderFact(sn, r.msgId, redact(r.rawJson), at) }.also { pendingFacts.clear() }
+        }
+        scope.launch { rows.forEach { dao.upsert(it) } }
+    }
 
     override fun httpClient(): OkHttpClient = synchronized(lock) {
         val network = _network.value
@@ -378,7 +411,7 @@ class RecorderConnectionManagerImpl(
     override suspend fun capabilities(group: CapabilityGroup): RecorderReply? {
         capabilityCache[group]?.let { return it }
         val session = client.state.value as? SessionState.Ready ?: return null
-        val reply = (client.request(RecorderCommand.GetCapabilities(group), { it }, CAPABILITY_TIMEOUT_MS) as? RecorderResult.Ok)?.value
+        val reply = (request(RecorderCommand.GetCapabilities(group), { it }, CAPABILITY_TIMEOUT_MS) as? RecorderResult.Ok)?.value
         // A reply that arrives after its session ended is not cached for the next one.
         return reply?.also { if (client.state.value === session) capabilityCache[group] = it }
     }
@@ -420,17 +453,21 @@ class RecorderConnectionManagerImpl(
     }
 
     private suspend fun loadSessionInfo(session: SessionState.Ready) {
-        val device = client.request(RecorderCommand.GetDeviceInfo, ::parseDeviceInfo)
+        val device = request(RecorderCommand.GetDeviceInfo, ::parseDeviceInfo)
         if (device is RecorderResult.Ok && client.state.value === session) {
             synchronized(lock) { info = device.value }
             publish()
         }
-        val storage = client.request(RecorderCommand.GetStorageInfo(), ::parseStorageInfo)
+        val storage = request(RecorderCommand.GetStorageInfo(), ::parseStorageInfo)
         if (storage is RecorderResult.Ok && client.state.value === session) _storage.value = storage.value
     }
 
     private fun clearSessionValues() {
-        synchronized(lock) { info = null }
+        synchronized(lock) {
+            info = null
+            factsSn = null
+            pendingFacts.clear()
+        }
         capabilityCache.clear()
         _sdStatus.value = null
         _recStatus.value = null
