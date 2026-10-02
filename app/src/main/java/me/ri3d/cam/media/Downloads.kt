@@ -348,29 +348,34 @@ class DownloadWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val mediaId = inputData.getString(KEY_ID) ?: return Result.failure()
         val name = inputData.getString(KEY_NAME).orEmpty()
-        val result = try {
-            // Not allowed from the background on Android 12+: then it runs as normal work.
-            runCatching { setForeground(foregroundInfo(name, 0, null)) }
-            var last = 0L
-            downloader.download(mediaId) { bytes, total ->
-                val now = System.currentTimeMillis()
-                if (now - last >= PROGRESS_INTERVAL_MS || bytes == total) {
-                    last = now
-                    setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L)))
-                    updateNotification(name, bytes, total)
+        // Not allowed from the background on Android 12+: then it runs as normal work, without a progress notification.
+        val foreground = runCatching { setForeground(foregroundInfo(name, 0, null)) }.isSuccess
+        try {
+            val result = try {
+                var last = 0L
+                downloader.download(mediaId) { bytes, total ->
+                    val now = System.currentTimeMillis()
+                    if (now - last >= PROGRESS_INTERVAL_MS || bytes == total) {
+                        last = now
+                        setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L)))
+                        if (foreground) updateNotification(name, bytes, total)
+                    }
                 }
+                attempts(mediaId, clear = true)
+                Result.success()
+            } catch (e: CancellationException) {
+                if (discardIfCancelled(mediaId)) withContext(NonCancellable) { queue.promote(excluding = id) }
+                throw e
+            } catch (e: IOException) {
+                failed(mediaId, e)
             }
-            attempts(mediaId, clear = true)
-            Result.success()
-        } catch (e: CancellationException) {
-            if (discardIfCancelled(mediaId)) withContext(NonCancellable) { queue.promote(excluding = id) }
-            throw e
-        } catch (e: IOException) {
-            failed(mediaId, e)
+            // A retried work keeps its slot; a finished one frees it for a held download.
+            if (result != Result.retry()) queue.promote(excluding = id) // Result equality is by kind
+            return result
+        } finally {
+            // The progress notification belongs to this run: none may remain after success, retry, failure or stop.
+            runCatching { NotificationManagerCompat.from(applicationContext).cancel(notificationId) }
         }
-        // A retried work keeps its slot; a finished one frees it for a held download.
-        if (result != Result.retry()) queue.promote(excluding = id) // Result equality is by kind
-        return result
     }
 
     private suspend fun failed(mediaId: String, e: IOException): Result {

@@ -12,7 +12,7 @@ object FeatureFlags {
     const val plates = true
 
     /** Settings → Sicherung (feature/drive-backup). */
-    const val backup = false
+    const val backup = true
 
     /** Home → Live-Ansicht tile (feature/live-view). */
     const val live = true

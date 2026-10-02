@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import me.ri3d.cam.account.accountGraph
+import me.ri3d.cam.backup.BackupSelectionAction
+import me.ri3d.cam.backup.backupGraph
+import me.ri3d.cam.backup.driveDeleteTargets
 import me.ri3d.cam.drive.driveGraph
 import me.ri3d.cam.core.home.homeGraph
 import me.ri3d.cam.core.onboarding.onboardingGraph
@@ -26,6 +29,10 @@ import me.ri3d.cam.core.ui.rememberReduceMotion
 import me.ri3d.cam.dashcam.DashcamHomeCard
 import me.ri3d.cam.dashcam.DashcamSettingsSection
 import me.ri3d.cam.dashcam.dashcamGraph
+import me.ri3d.cam.enhance.ui.EnhanceClipActions
+import me.ri3d.cam.enhance.ui.LiveSharpenControl
+import me.ri3d.cam.enhance.ui.enhanceGraph
+import me.ri3d.cam.enhance.ui.liveSharpenEffect
 import me.ri3d.cam.live.liveGraph
 import me.ri3d.cam.media.mediaGraph
 import me.ri3d.cam.plates.ui.ClipPlates
@@ -66,15 +73,22 @@ fun AxoNavHost(startDestination: Route) {
                     liveGraph(
                         navController,
                         leadingControls = { LivePlatesToggle() },
+                        trailingControls = { LiveSharpenControl() },
                         belowControls = { LivePlatesList(onNavigate = { navController.navigate(it) }) },
                         overlay = { LivePlatesOverlay(it) },
+                        renderEffect = { liveSharpenEffect(it) },
                     )
                     mediaGraph(
                         navController,
+                        selectionActions = { items, clear -> BackupSelectionAction(items, clear, onConnectDrive = { navController.navigate(DriveAccount) }) },
+                        clipActions = { item, position -> EnhanceClipActions(item, position) { navController.navigate(it) } },
                         clipExtras = { item, _, seekTo -> ClipPlates(item, seekTo, onNavigate = { navController.navigate(it) }) },
                         clipOverlay = { item, position -> ClipPlatesOverlay(item, position) },
+                        clipDeleteTargets = { item -> driveDeleteTargets(item) },
                     )
+                    enhanceGraph(navController)
                     platesGraph(navController)
+                    backupGraph(navController)
                 }
                 PlatesAutoScan()
                 SnackbarHost(
