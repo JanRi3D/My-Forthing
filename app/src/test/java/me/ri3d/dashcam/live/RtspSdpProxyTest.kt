@@ -70,9 +70,10 @@ class RtspSdpProxyTest {
         override fun close() = server.close()
     }
 
+    /** Connects where Media3 does: the IPv4 literal of [url] (Android's getLoopbackAddress() is ::1). */
     private class Client(url: String) {
         private val port = Regex("""127\.0\.0\.1:(\d+)""").find(url)!!.groupValues[1].toInt()
-        val socket = Socket(InetAddress.getLoopbackAddress(), port)
+        val socket = Socket(InetAddress.getByName("127.0.0.1"), port)
         private val input = BufferedInputStream(socket.getInputStream())
         private var cseq = 0
 
@@ -109,6 +110,60 @@ class RtspSdpProxyTest {
         assertThat(notes.single { "DESCRIBE" in it }).isEqualTo(
             "proxy ${recorder.url}: DESCRIBE 200: kept m=video 0 RTP/AVP 96, a=control:* added to 1, dropped m=audio 0 RTP/AVP 8",
         )
+        // The hand-off to Media3: listening before the URL is used, then one accepted connection.
+        assertThat(notes.take(2)).containsExactly(
+            "proxy ${recorder.url}: listening ${proxy.url.removePrefix("rtsp://").substringBefore('/')}",
+            "proxy ${recorder.url}: accepted",
+        ).inOrder()
+    }
+
+    @Test
+    fun `the recorder's exact SDP of 2026-10-02 gets session lines, a control and bare parameter sets`() {
+        val rewrite = rewriteSdp(RECORDER_SDP, "192.168.42.1")
+
+        assertThat(rewrite.sdp).isEqualTo(
+            listOf(
+                "v=0", "o=- 0 0 IN IP4 192.168.42.1", "s=My Forthing", "c=IN IP4 192.168.42.1", "t=0 0",
+                "m=video 0 RTP/AVP 96", "a=rtpmap:96 H264/90000",
+                "a=fmtp:96 profile-level-id=4DE028;packetization-mode=1;sprop-parameter-sets=Z00AH42NQG4f0IAAAu4AAK/ICg==,aO44gA==",
+                "a=control:*",
+            ).joinToString("") { "$it\r\n" },
+        )
+        assertThat(rewrite.added).containsExactly("o=", "s=", "c=", "t=").inOrder()
+        assertThat(rewrite.stripped).isEqualTo(2)
+        assertThat(rewrite.spsCut).isEqualTo(1) // last byte 0F -> 0A: bitstream_restriction_flag 0, then the stop bit
+        assertThat(rewrite.injected).isEqualTo(1)
+        // Idempotent: a second pass (or a recorder that fixes its SDP) changes nothing.
+        assertThat(rewriteSdp(rewrite.sdp, "192.168.42.1").sdp).isEqualTo(rewrite.sdp)
+        // 3-byte start codes too; entries that are not Base64 stay as sent.
+        assertThat(rewriteSdp("v=0\nm=video 0 RTP/AVP 96\na=fmtp:96 sprop-parameter-sets=AAABZ0IAHg==,%%;x=1\n", "h").sdp)
+            .contains("a=fmtp:96 sprop-parameter-sets=Z0IAHg==,%%;x=1\r\n")
+    }
+
+    @Test
+    fun `a complete SPS stays, a cut one ends before its bitstream restriction, emulation prevention survives`() {
+        val clip = "6742c0298d681417a420c020c0f08846a0".hexBytes() // with all restriction fields
+        assertThat(repairSps(clip)).isNull()
+        assertThat(repairSps("6742c0298d681417a420c020c0e0".hexBytes())!!.hex()).isEqualTo("6742c0298d681417a420c020c040")
+        // An SPS that ends before the flag stays as sent.
+        assertThat(repairSps("674d001f8d8d406e1fd0".hexBytes())).isNull()
+        // The recorder's, with num_units_in_tick 00 00 01 …: the 03 that escapes it is read past and written back.
+        assertThat(repairSps("674d001f8d8d406e1fd080000003010000afc80f".hexBytes())!!.hex()).isEqualTo("674d001f8d8d406e1fd080000003010000afc80a")
+    }
+
+    @Test
+    fun `the proxy notes what it repaired in the recorder's exact SDP`() {
+        val recorder = FakeRecorder(RECORDER_SDP, contentBase = null)
+        val notes = CopyOnWriteArrayList<String>()
+        val proxy = proxy(recorder, notes)
+
+        val describe = Client(proxy.url).send("DESCRIBE", proxy.url, "Accept: application/sdp")
+
+        assertThat(describe.header("Content-Length")!!.toInt()).isEqualTo(describe.body.size)
+        assertThat(notes.single { "DESCRIBE" in it }).isEqualTo(
+            "proxy ${recorder.url}: DESCRIBE 200: kept m=video 0 RTP/AVP 96, a=control:* added to 1, added o= s= c= t=, " +
+                "start codes removed from 2 sprop-parameter-sets, SPS cut before its missing bitstream_restriction fields",
+        )
     }
 
     @Test
@@ -139,6 +194,26 @@ class RtspSdpProxyTest {
     }
 
     @Test
+    fun `after close with linger, Media3's TEARDOWN still reaches the recorder`() {
+        val recorder = FakeRecorder(recorderSdp, contentBase = null)
+        val notes = CopyOnWriteArrayList<String>()
+        val proxy = proxy(recorder, notes)
+        val client = Client(proxy.url)
+        client.send("SETUP", proxy.url, "Transport: RTP/AVP/TCP;unicast;interleaved=0-1")
+        client.send("PLAY", proxy.url, "Session: 1234")
+
+        proxy.close(lingerMs = 2_000) // ExoLivePlayer.stop(): Media3 sends TEARDOWN afterwards, then closes
+        client.socket.getOutputStream().apply { write(RtspMessage("TEARDOWN ${proxy.url} RTSP/1.0", listOf("CSeq: 3", "Session: 1234")).bytes()); flush() }
+        client.socket.close()
+
+        val teardown = "TEARDOWN ${recorder.url} RTSP/1.0"
+        val deadline = System.currentTimeMillis() + 1_500
+        while (teardown !in recorder.requests && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertThat(recorder.requests).contains(teardown)
+        assertThat(notes).contains("proxy ${recorder.url}: TEARDOWN forwarded")
+    }
+
+    @Test
     fun `an absolute Content-Base points to the proxy and a present control is kept`() {
         val sdp = recorderSdp.replace("a=rtpmap:96 H264/90000", "a=rtpmap:96 H264/90000\r\na=Control:trackID=0")
         val recorder = FakeRecorder(sdp, contentBase = "rtsp://192.168.42.1:554/ch1/sub/")
@@ -157,11 +232,16 @@ class RtspSdpProxyTest {
 
     @Test
     fun `without a video section every section is kept, each with a control`() {
-        val rewrite = rewriteSdp("v=0\nm=audio 0 RTP/AVP 8\na=rtpmap:8 PCMA/8000\nm=audio 0 RTP/AVP 0\na=control:track2\n")
+        val rewrite = rewriteSdp("v=0\no=- 1 1 IN IP4 h\ns=x\nt=0 0\nc=IN IP4 h\nm=audio 0 RTP/AVP 8\na=rtpmap:8 PCMA/8000\nm=audio 0 RTP/AVP 0\na=control:track2\n", "h")
         assertThat(rewrite.kept).containsExactly("m=audio 0 RTP/AVP 8", "m=audio 0 RTP/AVP 0").inOrder()
         assertThat(rewrite.dropped).isEmpty()
         assertThat(rewrite.injected).isEqualTo(1)
-        assertThat(rewrite.sdp).isEqualTo("v=0\r\nm=audio 0 RTP/AVP 8\r\na=rtpmap:8 PCMA/8000\r\na=control:*\r\nm=audio 0 RTP/AVP 0\r\na=control:track2\r\n")
+        assertThat(rewrite.added).isEmpty()
+        // Session lines in RFC 4566 order (c= before t=).
+        assertThat(rewrite.sdp).isEqualTo(
+            "v=0\r\no=- 1 1 IN IP4 h\r\ns=x\r\nc=IN IP4 h\r\nt=0 0\r\n" +
+                "m=audio 0 RTP/AVP 8\r\na=rtpmap:8 PCMA/8000\r\na=control:*\r\nm=audio 0 RTP/AVP 0\r\na=control:track2\r\n",
+        )
     }
 
     @Test
@@ -187,3 +267,14 @@ class RtspSdpProxyTest {
         assertThat(lines).containsExactly("DESCRIBE rtsp://x/ch1 RTSP/1.0", "CSeq: 2", "Authorization: ***").inOrder()
     }
 }
+
+/** The recorder's DESCRIBE body as captured on hardware 2026-10-02 (app 1.0.1, Content-Length 174). */
+internal val RECORDER_SDP = listOf(
+    "v=0",
+    "m=video 0 RTP/AVP 96",
+    "a=rtpmap:96 H264/90000",
+    "a=fmtp:96 profile-level-id=4DE028;packetization-mode=1;sprop-parameter-sets=AAAAAWdNAB+NjUBuH9CAAALuAACvyA8=,AAAAAWjuOIA=",
+).joinToString("") { "$it\r\n" }
+
+private fun String.hexBytes() = chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+private fun ByteArray.hex() = joinToString("") { "%02x".format(it) }

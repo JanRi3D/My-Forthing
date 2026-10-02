@@ -26,7 +26,8 @@ import java.util.Properties
  * fictional replies. 8192 changes are applied to the scripted 4097 state so the app's readback confirms them;
  * 12288 frees the card, 12289 restores the defaults. After the first encrypted request it sends an sdStatus and a
  * recStatus notification and one manual-record event. 20485 is never answered (exercises the app's -205 path).
- * 4100 / 4101 page and delete [files], which [SimulatorHttpServer] serves (`main` starts both).
+ * 4100 / 4101 page and delete [files], which [SimulatorHttpServer] serves. 20481 reports the RTSP URL of
+ * [SimulatorRtspServer] as the emulator reaches it (`rtsp://10.0.2.2:7554/ch1/sub`). `main` starts all three.
  */
 class SimulatorTcpServer(
     private val keyPair: KeyPair,
@@ -124,6 +125,9 @@ class SimulatorTcpServer(
 
     companion object {
         private const val TOTAL_SPACE = 30528L
+
+        /** Port of [SimulatorRtspServer] in `main`: 554 needs privileges, 8554 is the running Android emulator's gRPC port. */
+        const val RTSP_PORT = 7554
         private val CHANNEL_KEYS = setOf("videoResolution", "frameRate", "soundSwitch", "wdrSwitch", "distCorr", "faceDetect", "privateInfo", "osd")
         private fun obj(json: String) = Json.parseToJsonElement(json).jsonObject
 
@@ -143,7 +147,7 @@ class SimulatorTcpServer(
                 """"dateTime":"2026-10-01 12:00:00","semifinishProductSN":"SIM-SEMI"}}""",
             20480 to """{"msgId":20480,"rval":0,"param":{"basic":1,"imageEncode":1,"network":1,"storage":1,"intelligence":0}}""",
             20481 to """{"msgId":20481,"rval":0,"param":{"totalSensor":1,"poweroffDelay":[0,10,60],"factoryRestore":1,""" +
-                """"rtspServer":[{"chanNo":1,"url":"rtsp://192.168.42.1:554/ch1/sub"}],"downloadPath":"http://192.168.42.1:80","deleteFile":1,""" +
+                """"rtspServer":[{"chanNo":1,"url":"rtsp://10.0.2.2:$RTSP_PORT/ch1/sub"}],"downloadPath":"http://192.168.42.1:80","deleteFile":1,""" +
                 """"supportReboot":0,"recordSwitch":1,"supportShutdown":0,"supportCanComm":0,"gSensorSensitivity":[1,2,3],"parkMonitor":1}}""",
             20482 to """{"msgId":20482,"rval":0,"param":[{"chanNo":1,"videoResolution":[0,1],"frameRate":[0]}]}""",
             20483 to """{"msgId":20483,"rval":0,"param":{"type":0,"wifi":{"mode":[0]},"wifiFrequency":[0],"wifiPwdSetting":1,"wifiSsidSetting":1}}""",
@@ -167,7 +171,8 @@ class SimulatorTcpServer(
 
 /**
  * `./gradlew :recorder:runSimulator` → args: path of local.properties, optional port (default 7878), optional media
- * HTTP port (default 8080), optional HTTP throttle in bytes per second (default 0 = unthrottled).
+ * HTTP port (default 8080), optional HTTP throttle in bytes per second (default 0 = unthrottled), optional RTSP port
+ * (default 7554).
  * Reads `dashcam.rsaKey` itself (never printed). Without it, a throwaway key is generated and printed with
  * instructions; that key is a test key, not the vendor key.
  */
@@ -190,6 +195,7 @@ fun main(args: Array<String>) {
     val port = args.getOrNull(1)?.toIntOrNull() ?: RecorderClient.DEFAULT_PORT
     val httpPort = args.getOrNull(2)?.toIntOrNull() ?: 8080
     val throttle = args.getOrNull(3)?.toLongOrNull() ?: 0L
+    val rtspPort = args.getOrNull(4)?.toIntOrNull() ?: SimulatorTcpServer.RTSP_PORT
     val files = SimulatedFiles()
     val http = try {
         SimulatorHttpServer(files, httpPort, throttle, log = ::println).also {
@@ -199,6 +205,14 @@ fun main(args: Array<String>) {
         println("Port $httpPort is busy: continuing without the media HTTP server (listings work, downloads do not).")
         null
     }
+    val rtsp = try {
+        SimulatorRtspServer(rtspPort, log = ::println).also {
+            println("RTSP on 127.0.0.1:${it.port} (emulator: rtsp://10.0.2.2:${it.port}/ch1/sub)")
+        }
+    } catch (e: BindException) {
+        println("Port $rtspPort is busy: continuing without the RTSP server (live view fails).")
+        null
+    }
     try {
         ServerSocket(port, 50, InetAddress.getLoopbackAddress()).use { server ->
             println("Recorder simulator listening on ${server.inetAddress.hostAddress}:$port (emulator: 10.0.2.2:$port). Ctrl+C stops it.")
@@ -206,5 +220,6 @@ fun main(args: Array<String>) {
         }
     } finally {
         http?.close()
+        rtsp?.close()
     }
 }

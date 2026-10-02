@@ -32,6 +32,25 @@ mobile Daten aus; die Verbindung blieb die ganze Zeit „Verbunden“, Keepalive
   15 s, 45 s selbst fort („Übertragung ins Stocken geraten, neuer Versuch in … s“), mit Geschwindigkeitsanzeige.
 - **Beim nächsten Test (mit 1.0.1):** A4, danach B1 (nur **ein** Clip), danach sofort A2 – Details bei A4 und B1.
 
+**Stand 2026-10-02 – dritter Test** (Version 1.0.1, **mobile Daten an**, WLAN der Dashcam gebunden, Verbindung
+„Verbunden“):
+- **Bestätigt:** **Downloads gehen** – 28.563.628 Bytes in 26 s (≈ 1,1 MB/s) ohne Stocken, mit mobilen Daten an (die
+  Bindung an das Dashcam-WLAN trägt also auch HTTP). Die Dashcam beantwortet RTSP auf Port 554 auch mit mobilen Daten
+  an: OPTIONS 200 (`Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE`) und DESCRIBE 200 mit dieser
+  Beschreibung des Livebilds (174 Bytes):
+  `v=0` / `m=video 0 RTP/AVP 96` / `a=rtpmap:96 H264/90000` /
+  `a=fmtp:96 profile-level-id=4DE028;packetization-mode=1;sprop-parameter-sets=AAAAAWdNAB+NjUBuH9CAAALuAACvyA8=,AAAAAWjuOIA=`.
+  Daraus: H.264 Main, **880 × 496**, ≈ 30 Bilder/s, kein Ton im Livebild.
+- **Live-Ansicht:** jeder Versuch endete mit „Code 2000 · ErrnoException: connect failed: ECONNREFUSED“, ohne eine
+  einzige `proxy …`-Zeile. Ursache (in der App, nicht an der Dashcam): der Vermittler im Handy lauschte auf der
+  IPv6-Adresse `::1`, das Abspielprogramm wählte `127.0.0.1`. Auf dem Emulator genau so nachgestellt und behoben.
+- Die Beschreibung hat außerdem drei Eigenheiten, die das Abspielprogramm nicht verträgt und die **1.0.3** jetzt
+  repariert: keine `a=control`-Zeile, Startcodes `00 00 00 01` in den Parametersätzen, und die Videoparameter (SPS)
+  brechen mitten in einem Feld ab – ohne Reparatur wäre die App beim Öffnen des Livebilds abgestürzt. Fehlende Kopfzeilen
+  (`o=`, `s=`, `c=`, `t=`) werden ergänzt. Gegen eine nachgebaute Dashcam (Simulator mit genau dieser Beschreibung)
+  läuft das Livebild auf dem Emulator: Bild, Screenshot, Kennzeichen-Bilder, Vollbild, Verlassen und erneutes Öffnen.
+- **Beim nächsten Test (mit 1.0.3):** A4 (Livebild), danach sofort A2 – Details bei A4.
+
 Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zuletzt Befehle, die an der Dashcam etwas
 ändern oder löschen. Bitte nicht springen: Wenn ein früher Schritt scheitert, sind spätere meist sinnlos.
 
@@ -100,6 +119,18 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - **Beobachten:** kommt ein Bild? Wie lange bis zum ersten Bild? Verzögerung (Hand vor die Kamera, Sekunden zählen)?
   Bildfehler, Farben, ruckelt es? Mit mobilen Daten an und aus. Fehlermeldung und Code, falls nicht – die zweite
   Zeile der Meldung zeigt jetzt die rohe Ursache (z. B. „Code 2000 · RtspPlaybackException: SETUP 461“): abfotografieren.
+- **Mit 1.0.3:** Live-Ansicht öffnen, bis Bild oder Fehler, kurz Vollbild, zurück, dann **A2** (verbunden). Unter
+  `notes` → `rtsp` sollte je Versuch stehen: `proxy rtsp://192.168.42.1:554/ch1/sub: listening 127.0.0.1:…`,
+  `… accepted`, `… OPTIONS 200`, `… DESCRIBE 200: kept m=video 0 RTP/AVP 96, a=control:* added to 1, added o= s= c= t=,
+  start codes removed from 2 sprop-parameter-sets, SPS cut before its missing bitstream_restriction fields`,
+  `… SETUP 200 (Transport: …)`, `… PLAY 200`, dann `rtsp://192.168.42.1:554/ch1/sub tcp: video 880x496` und
+  `… tcp: playing`; beim Verlassen `… TEARDOWN forwarded` und `… stream connection ended after N bytes`.
+  Abweichungen bitte abfotografieren bzw. die Diagnose schicken: fehlt `listening`, startet der Vermittler nicht; fehlt
+  `accepted`, erreicht ihn das Abspielprogramm nicht; `SETUP 4xx` = die Dashcam will eine andere Adresse; `PLAY 200`,
+  aber kein `video …` und ein Code 4xxx = das Handy kann das Video nicht dekodieren; Bild schwarz oder kaputt trotz
+  `video …` = Hardware-Decoder (Foto machen). Verzögerung zählen (Hand vor die Kamera).
+- 2026-10-02, dritter Test (1.0.1): **kein Bild**, „Code 2000 · ErrnoException: connect failed: ECONNREFUSED“ – Fehler
+  der App (siehe oben), in 1.0.3 behoben.
 - 2026-10-02, zweiter Test: **kein Bild**, Meldung „Code 2000 · IllegalArgumentException: missing attribute
   control“ (Beschreibung des Livebilds abgelehnt). Mit 1.0.1: Live-Ansicht öffnen, bis Bild oder Fehler, dann **A2**
   (verbunden). In der Diagnose: `rtsp` → `describe` (die rohe Beschreibung) und unter `notes` → `rtsp` die Zeilen
@@ -132,6 +163,9 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 
 **B1 Download**
 - Einen Schleifen-Clip herunterladen. **Beobachten:** Dauer und Größe (MB/s), Benachrichtigung, spielt der Clip?
+- 2026-10-02, dritter Test (1.0.1, mobile Daten **an**): **geht** – 28.563.628 Bytes in 26 s (≈ 1,1 MB/s), kein
+  Stocken. Offen: ob der Clip auf dem Handy abspielt, ein ganzer 5-Minuten-Clip (132 MB, also ≈ 2 min), und das
+  Fortsetzen nach einer Unterbrechung (Punkte unten).
 - 2026-10-02, zweiter Test: ein 132-MB-Clip blieb nach 3,2 MB stehen („SocketTimeoutException: timeout“), auch das
   Fortsetzen. Mit 1.0.1: **nur einen** Clip laden, nichts anderes nebenbei; *Aufnahmen → Übertragungen* offen lassen:
   Geschwindigkeit (KB/s) notieren, ob „Übertragung ins Stocken geraten, neuer Versuch in … s“ erscheint und wie oft;

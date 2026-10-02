@@ -49,8 +49,11 @@ object LiveStream {
      */
     const val URL = "rtsp://192.168.42.1/ch1/sub/av_stream"
 
-    /** Debug simulator mode: the development machine as the emulator sees it (`:recorder:runSimulator` has no RTSP). */
-    const val SIMULATOR_URL = "rtsp://${RecorderConnectionManagerImpl.SIMULATOR_HOST}/ch1/sub/av_stream"
+    /**
+     * Debug simulator mode: the traced path on `:recorder:runSimulator`'s RTSP server (port 7554 of the development
+     * machine as the emulator sees it); the fallback after the simulator's capability URL.
+     */
+    const val SIMULATOR_URL = "rtsp://${RecorderConnectionManagerImpl.SIMULATOR_HOST}:7554/ch1/sub/av_stream"
 
     /** Upper bound for [LiveFrameSource] frames. */
     const val MAX_FRAME_WIDTH = 1280
@@ -63,17 +66,19 @@ object LiveStream {
  * RTSP URLs in the order they are tried: the recorder's own URL for its first channel (capability 20481
  * `rtspServer`; on hardware `rtsp://192.168.42.1:554/ch1/sub`), then the traced [LiveStream.URL]. A reported URL is
  * used only when it is rtsp:// on the recorder's address without credentials. [preferred] (the URL that played
- * last) moves to the front.
+ * last) moves to the front. In debug [simulator] mode the address is the simulator host and the fallback
+ * [LiveStream.SIMULATOR_URL].
  */
-fun rtspCandidates(basic: BasicCapabilities?, preferred: String? = null): List<String> {
-    val reported = basic?.rtspServer?.minByOrNull { it.chanNo ?: Int.MAX_VALUE }?.url?.takeIf(::isRecorderRtspUrl)
-    val urls = listOfNotNull(reported, LiveStream.URL).distinct()
+fun rtspCandidates(basic: BasicCapabilities?, preferred: String? = null, simulator: Boolean = false): List<String> {
+    val host = if (simulator) RecorderConnectionManagerImpl.SIMULATOR_HOST else RecorderClient.DEFAULT_HOST
+    val reported = basic?.rtspServer?.minByOrNull { it.chanNo ?: Int.MAX_VALUE }?.url?.takeIf { isRtspUrlOn(it, host) }
+    val urls = listOfNotNull(reported, if (simulator) LiveStream.SIMULATOR_URL else LiveStream.URL).distinct()
     return if (preferred != null && preferred in urls) listOf(preferred) + (urls - preferred) else urls
 }
 
-private fun isRecorderRtspUrl(url: String): Boolean {
+private fun isRtspUrlOn(url: String, host: String): Boolean {
     val uri = runCatching { URI(url) }.getOrNull() ?: return false
-    return uri.scheme.equals("rtsp", ignoreCase = true) && uri.host == RecorderClient.DEFAULT_HOST && uri.rawUserInfo == null
+    return uri.scheme.equals("rtsp", ignoreCase = true) && uri.host == host && uri.rawUserInfo == null
 }
 
 /** The status of Media3's RTSP error message ("SETUP 461"), null for any other message. */
@@ -213,7 +218,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
 
     override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) {
         size = null
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS) // the replaced source's TEARDOWN still passes
         // The proxy's socket to the recorder comes from socketFactory; Media3 itself only reaches 127.0.0.1.
         val local = RtspSdpProxy(url, socketFactory, note).also { proxy = it }
         player().apply {
@@ -229,7 +234,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
 
     override fun stop() {
         player?.stop()
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS) // Media3's TEARDOWN follows on its playback thread
         proxy = null
         size = null
     }
@@ -237,7 +242,7 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
     override fun release() {
         player?.release()
         player = null
-        proxy?.close()
+        proxy?.close(PROXY_LINGER_MS)
         proxy = null
         view = null
     }
@@ -267,6 +272,9 @@ class ExoLivePlayer(private val context: Context, private val note: (String) -> 
         private const val MAX_BUFFER_MS = 3_000
         private const val START_BUFFER_MS = 500
         private const val REBUFFER_MS = 1_000
+
+        /** How long a stopped attempt's proxy keeps its connections for Media3's TEARDOWN. */
+        private const val PROXY_LINGER_MS = 2_000L
     }
 }
 

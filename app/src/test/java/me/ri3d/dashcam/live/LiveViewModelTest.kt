@@ -510,6 +510,11 @@ class LiveViewModelTest {
         assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"http://192.168.42.1/ch1/sub"}]"""))).containsExactly(traced)
         assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"not a url"}]"""))).containsExactly(traced)
         assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$HW_RTSP_URL"}]"""), preferred = traced)).containsExactly(traced, HW_RTSP_URL).inOrder()
+        // Debug simulator mode: the simulator host's URL (runSimulator's 20481), then the traced path on its RTSP port.
+        val sim = "rtsp://10.0.2.2:7554/ch1/sub"
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$sim"}]"""), simulator = true)).containsExactly(sim, LiveStream.SIMULATOR_URL).inOrder()
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$HW_RTSP_URL"}]"""), simulator = true)).containsExactly(LiveStream.SIMULATOR_URL)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$sim"}]"""))).containsExactly(traced)
 
         assertThat(rtspStatus("SETUP 461")).isEqualTo(461)
         assertThat(rtspStatus("DESCRIBE 404")).isEqualTo(404)
