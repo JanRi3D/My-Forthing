@@ -3,6 +3,7 @@ package me.ri3d.dashcam.media
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
@@ -58,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +83,7 @@ import me.ri3d.dashcam.core.ui.AxoTopBar
 import me.ri3d.dashcam.core.ui.ConfirmDialog
 import me.ri3d.dashcam.core.ui.LocalSnackbarHostState
 import me.ri3d.dashcam.core.ui.listRowShape
+import me.ri3d.dashcam.core.log.Log
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import me.ri3d.dashcam.dashcam.errorText
 import java.io.File
@@ -102,6 +105,7 @@ fun RecordingsScreen(
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     LaunchedEffect(tab) { viewModel.show(tab) }
+    val firstContent = rememberFirstContent { "tab ${tab.name}" }
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val ready = connection is RecorderConnectionState.Ready
     val selection by viewModel.selection.collectAsStateWithLifecycle()
@@ -168,14 +172,14 @@ fun RecordingsScreen(
                 }
             }
             if (type == null) {
-                LocalLibrary(viewModel, selection, onTap)
+                LocalLibrary(viewModel, selection, onTap, firstContent)
             } else if (!ready) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     NotConnectedCard(onConnect)
                     Text(stringResource(R.string.media_offline_hint), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                RecorderListing(type, grid = tab == RecordingsTab.USER, viewModel, selection, onTap, download, onRawList = { onRawList(tab) })
+                RecorderListing(type, grid = tab == RecordingsTab.USER, viewModel, selection, onTap, download, onRawList = { onRawList(tab) }, onFirstContent = firstContent)
             }
         }
     }
@@ -275,6 +279,31 @@ fun SdFilesScreen(
     }
 }
 
+/**
+ * Debug measurement (docs/features/media.md, "Snappiness"): logs once per screen how long the first rows took from the
+ * screen's first composition (about one frame after the tap on "Aufnahmen") to the frame after they were composed.
+ */
+@Composable
+private fun rememberFirstContent(label: () -> String): () -> Unit {
+    val openedAt = remember { SystemClock.uptimeMillis() }
+    var reported by remember { mutableStateOf(false) }
+    return {
+        if (!reported) {
+            reported = true
+            Log.d(PERF_TAG, "first content after ${SystemClock.uptimeMillis() - openedAt} ms (${label()})")
+        }
+    }
+}
+
+/** Calls [onFirstContent] once the frame with the content has been produced. */
+@Composable
+private fun ReportFirstContent(onFirstContent: () -> Unit) {
+    LaunchedEffect(Unit) {
+        withFrameMillis { }
+        onFirstContent()
+    }
+}
+
 @Composable
 private fun NoticeSnackbars(viewModel: RecordingsViewModel) {
     val snackbar = LocalSnackbarHostState.current
@@ -316,6 +345,7 @@ private fun RecorderListing(
     onTap: (MediaItem) -> Unit,
     download: (Collection<String>) -> Unit,
     onRawList: (() -> Unit)?,
+    onFirstContent: () -> Unit = {},
 ) {
     val state by viewModel.browser(type).collectAsStateWithLifecycle()
     val entries by remember(type) { viewModel.entries(type) }.collectAsStateWithLifecycle(emptyList())
@@ -337,6 +367,7 @@ private fun RecorderListing(
         }
         return
     }
+    ReportFirstContent(onFirstContent)
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
     LaunchedEffect(gridState, type) {
@@ -533,7 +564,7 @@ private fun TransferControl(entry: RecorderEntry, download: (Collection<String>)
 
 /** Downloaded files, screenshots and enhanced outputs: everything with a phone copy (works offline). */
 @Composable
-private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit) {
+private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit, onFirstContent: () -> Unit) {
     val items by viewModel.local.collectAsStateWithLifecycle()
     if (items.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -541,6 +572,7 @@ private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>,
         }
         return
     }
+    ReportFirstContent(onFirstContent)
     val context = LocalContext.current
     LazyVerticalGrid(
         columns = GridCells.Fixed(1),
@@ -698,3 +730,4 @@ private fun TransfersSheet(
 }
 
 private const val LOAD_AHEAD = 8
+private const val PERF_TAG = "RecordingsPerf"
