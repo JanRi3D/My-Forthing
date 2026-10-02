@@ -181,7 +181,7 @@ Wiring (`AxoNavHost`): `liveGraph(navController, leadingControls, belowControls,
 
 **Detail** (`PlateDetail(plateId)`): sightings count, first/last seen, "Vorfall" badge, sightings newest first: time, source ("Live-Ansicht" or "Vorfall 00:53:00 · bei 00:02" with the raw recorder clock), crop, "Gelesen als …" when the sighting's reading differs, "unsicher gelesen" when `confidence == null`; a sighting whose recording is on the phone opens `Clip(mediaId, positionMs)`, otherwise "Aufnahme nicht auf dem Handy". "Verlauf dieses Kennzeichens löschen" asks first.
 
-**Settings** (`PlatesSettings`): "In der Live-Ansicht" (`platesLive`), "In gespeicherten Clips" (`platesClips`), "Kennzeichen-Daten in Drive-Sicherung einschließen" (`backupIncludePlateMetadata`, explained as local by default), "Verlauf löschen" (danger confirmation → `PlateRepository.clear()`), and the note "Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt – nichts wird geraten, und es gibt keine Trefferquote."
+**Settings** (`PlatesSettings`): "In der Live-Ansicht" (`platesLive`), "In gespeicherten Clips" (`platesClips`), "Kennzeichen-Daten in Drive-Sicherung einschließen" (`backupIncludePlateMetadata`, explained as local by default; the text says the sidecar also carries "einen internen Lesewert, der keine Trefferquote ist" – `confidence` is kept in the sidecar), "Verlauf löschen" (danger confirmation → `PlateRepository.clear()`), and the note "Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt. Auch Lesungen ohne ? können falsch sein – prüfe im Zweifel die Aufnahme. Es gibt keine Trefferquote."
 
 ### Honesty rules as rendered
 

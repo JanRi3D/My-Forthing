@@ -680,10 +680,10 @@
     <string name="plates_setting_live_text">Erkennt Kennzeichen im Livebild, solange die Live-Ansicht offen ist.</string>
     <string name="plates_setting_clips">In gespeicherten Clips</string>
     <string name="plates_setting_clips_text">Prüft neu heruntergeladene Clips automatisch, einen nach dem anderen.</string>
-    <string name="plates_honesty">Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt – nichts wird geraten, und es gibt keine Trefferquote.</string>
+    <string name="plates_honesty">Die Erkennung läuft auf diesem Handy. Unsichere Zeichen werden als ? angezeigt. Auch Lesungen ohne ? können falsch sein – prüfe im Zweifel die Aufnahme. Es gibt keine Trefferquote.</string>
     <string name="plates_section_history">Verlauf</string>
     <string name="plates_setting_backup">Kennzeichen-Daten in Drive-Sicherung einschließen</string>
-    <string name="plates_setting_backup_text">Standardmäßig bleibt der Verlauf nur auf diesem Handy. Eingeschaltet kommen Kennzeichen, Position im Clip und Rahmen in die Begleitdatei jeder gesicherten Aufnahme.</string>
+    <string name="plates_setting_backup_text">Standardmäßig bleibt der Verlauf nur auf diesem Handy. Eingeschaltet kommen Kennzeichen, Position im Clip und Rahmen in die Begleitdatei jeder gesicherten Aufnahme, inklusive eines internen Lesewerts, der keine Trefferquote ist.</string>
     <string name="plates_clear">Verlauf löschen</string>
     <string name="plates_clear_title">Ganzen Verlauf löschen?</string>
     <string name="plates_clear_text">Alle Kennzeichen, Sichtungen und Ausschnitte werden von diesem Handy gelöscht. Die Aufnahmen bleiben erhalten.</string>
