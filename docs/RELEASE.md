@@ -65,7 +65,7 @@ Certificate fingerprints (public values; register them in Firebase / Google Clou
 ```bash
 git clone <repository> my-forthing && cd my-forthing
 # put local.properties (and optionally app/google-services.json) in place, see section 2
-./gradlew clean :app:assembleRelease
+./gradlew clean :app:assembleRelease :app:assembleDebug
 ./gradlew :recorder:test :app:testDebugUnitTest :app:lintDebug     # must pass before anything is handed out
 ```
 
@@ -76,17 +76,35 @@ MyForthing-<versionName>-<versionCode>-arm64-v8a.apk     almost every phone sinc
 MyForthing-<versionName>-<versionCode>-armeabi-v7a.apk   old 32-bit phones only
 ```
 
-Copy them to `dist/` (git-ignored) with checksums:
+and the universal debug APK in `app/build/outputs/apk/debug/app-debug.apk` (emulator / x86 tests, section 7).
+
+Copy them to `dist/` (git-ignored) with checksums; the debug APK gets a name that cannot be mistaken for a release:
 
 ```bash
 mkdir -p dist && cp app/build/outputs/apk/release/MyForthing-*.apk dist/
+cp app/build/outputs/apk/debug/app-debug.apk dist/MyForthing-<versionName>-<versionCode>-debug-universal.apk
 (cd dist && sha256sum MyForthing-*.apk > SHA256SUMS.txt)
 ```
 
+Hand testers only the per-ABI release APKs; the debug APK is for the owner's emulator and ADB measurements
+(`HARDWARE_CHECKLIST.md` H) and cannot update a release install (section 5).
+
+**Build stability.** One clean `:app:assembleDebug` on `main` (`b153bf4`) once failed in `:app:packageDebug`
+("A failure occurred while executing …PackageAndroidArtifact$IncrementalSplitterRunnable", no cause recorded) and passed
+on re-run. It did not come back in eight further clean builds of the same code that reached packaging (four
+`clean :app:assembleDebug`, three `clean :app:assembleRelease :app:assembleDebug`, one `clean :app:assembleRelease`);
+only the universal debug output is packaged (one `packageDebug` work item), so the ABI outputs do not race for one file.
+What did happen once is `Java heap space` in `:app:mergeReleaseResources` in a warm daemon that had just run lint and
+the unit tests: with up to 32 parallel workers on this machine 2 GiB was too little, so `org.gradle.jvmargs` is now
+`-Xmx4096m` (`gradle.properties`; four builds plus tests and lint passed with it). The splitter failure may have been
+the same memory pressure; that is unproven, because its cause was not recorded. If a clean build still fails in
+`packageDebug` / `packageRelease` or with `Java heap space`: run the same command again; if it fails twice,
+`./gradlew --stop`, re-run with `--stacktrace` and keep the log.
+
 Two clean builds of the same commit with the same `local.properties` and keystore on this machine give
-byte-identical APKs (checked for 1.0.0; this needs `dependenciesInfo.includeInApk = false`, because AGP otherwise adds
-a dependency list encrypted with a random key for Google Play). Across other JDK, SDK or machine setups byte
-identity is not guaranteed; there, compare package, version and signing certificate (section 4).
+byte-identical APKs (checked again for the final 1.0.0 release APKs; this needs `dependenciesInfo.includeInApk = false`,
+because AGP otherwise adds a dependency list encrypted with a random key for Google Play). Across other JDK, SDK or
+machine setups byte identity is not guaranteed; there, compare package, version and signing certificate (section 4).
 
 ## 4. Verify an APK
 
@@ -149,7 +167,7 @@ build without committing the number.
 | | debug | release |
 | --- | --- | --- |
 | Signing | machine debug key | `release.jks` (`myforthing`) |
-| APKs | one universal `app-debug.apk` (arm64-v8a, armeabi-v7a, x86, x86_64 – runs on the x86_64 emulator) | one per ABI: arm64-v8a, armeabi-v7a (no x86) |
+| APKs | one universal `app-debug.apk` (arm64-v8a, armeabi-v7a, x86, x86_64 – runs on the x86_64 emulator; in `dist/` as `MyForthing-<versionName>-<versionCode>-debug-universal.apk`) | one per ABI: arm64-v8a, armeabi-v7a (no x86) |
 | Recorder simulator | Verbindung → "Entwickler" → "Simulator (10.0.2.2:7878)" (`BuildConfig.DEBUG`), `./gradlew :recorder:runSimulator` | not available (the switch is not shown and ignored) |
 | Cleartext HTTP | `192.168.42.1` and `10.0.2.2` (simulator media server, `src/debug/res/xml/network_security_config.xml`) | `192.168.42.1` only |
 | Logging | `Log.d` through `core/log/Log.kt` | no debug logs (warnings only, never tokens / keys / passwords) |
@@ -164,12 +182,12 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 
 | APK | Size |
 | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,155,770 bytes (34.5 MiB) |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,029,674 bytes (28.6 MiB) |
-| `app-debug.apk` (universal, for comparison) | 87,984,641 bytes (83.9 MiB) |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,958 bytes (34.7 MiB) |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,862 bytes (28.9 MiB) |
+| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,340,008 bytes (84.2 MiB) |
 
-Inside the arm64 APK: dex 16.9 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
-stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.5 MB, assets (OCR and
+Inside the arm64 APK: dex 17.1 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
+stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.6 MB, assets (OCR and
 super-resolution models, licence texts) 1.6 MB.
 
 R8 is deliberately off (`optimization { enable = false }`): no shrinking, no obfuscation, so the dex is the largest
