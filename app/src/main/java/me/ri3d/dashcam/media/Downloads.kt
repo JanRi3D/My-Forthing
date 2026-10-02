@@ -70,6 +70,12 @@ enum class DownloadFailure(@StringRes val text: Int) {
     NOT_MEDIA(R.string.media_failure_not_media),
     INCOMPLETE(R.string.media_failure_incomplete),
     NETWORK(R.string.media_failure_network),
+
+    // "Vom Drive laden" (DriveDownloadQueue)
+    NOT_ON_DRIVE(R.string.media_failure_not_on_drive),
+    DRIVE(R.string.media_failure_drive),
+    DRIVE_NOT_CONNECTED(R.string.media_failure_drive_not_connected),
+    CHECKSUM(R.string.media_failure_checksum),
 }
 
 /** A download that cannot finish now; [permanent] = retrying will not help. [contentType]: as the recorder sent it. */
@@ -235,6 +241,8 @@ data class TransferProgress(
     val detail: String? = null,
     val bytesPerSecond: Long? = null,
     val retryInSeconds: Int? = null,
+    /** From Google Drive ([DriveDownloadQueue]), not from the recorder. */
+    val fromDrive: Boolean = false,
 )
 
 /** Transfer speed in bytes per second over the last [windowMs], from (time, bytes) samples. */
@@ -355,8 +363,8 @@ class DownloadQueue @Inject constructor(
 
     companion object {
         const val TAG = "media-download"
-        private const val ID_TAG = "media-id:"
-        private const val NAME_TAG = "media-name:"
+        internal const val ID_TAG = "media-id:" // also on Drive downloads, so [toProgress] reads both
+        internal const val NAME_TAG = "media-name:"
         private const val HELD = "media-held"
         private const val HOLD_DAYS = 3650L
         private const val BACKOFF_SECONDS = 15L
@@ -435,7 +443,7 @@ class DownloadWorker @AssistedInject constructor(
             return result
         } finally {
             // The progress notification belongs to this run: none may remain after success, retry, failure or stop.
-            runCatching { NotificationManagerCompat.from(applicationContext).cancel(notificationId) }
+            TransferNotifications.cancel(applicationContext, id)
         }
     }
 
@@ -532,51 +540,13 @@ class DownloadWorker @AssistedInject constructor(
 
     override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(inputData.getString(KEY_NAME).orEmpty(), 0, null)
 
-    private val notificationId get() = id.hashCode()
+    private fun title(name: String) = applicationContext.getString(R.string.media_download_notification_title, name)
 
-    /**
-     * Without the notification permission (Android 13+) the transfer runs silently; the in-app sheet shows it.
-     * A failing notification never fails the transfer.
-     */
-    private fun updateNotification(name: String, bytes: Long, total: Long?, perSecond: Long?, retryIn: Int?) {
-        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        try {
-            if (granted) notifications().notify(notificationId, notification(name, bytes, total, perSecond, retryIn))
-        } catch (e: RuntimeException) {
-            Log.w(TAG, "progress notification failed", e)
-        }
-    }
+    private fun updateNotification(name: String, bytes: Long, total: Long?, perSecond: Long?, retryIn: Int?) =
+        TransferNotifications.update(applicationContext, id, title(name), bytes, total, perSecond, retryIn)
 
-    private fun notifications() = NotificationManagerCompat.from(applicationContext).apply {
-        createNotificationChannel(
-            NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName(applicationContext.getString(R.string.media_transfers_channel))
-                .build(),
-        )
-    }
-
-    private fun notification(name: String, bytes: Long, total: Long?, perSecond: Long? = null, retryIn: Int? = null) =
-        NotificationCompat.Builder(applicationContext, CHANNEL)
-        .setSmallIcon(R.drawable.ic_media_download)
-        .setContentTitle(applicationContext.getString(R.string.media_download_notification_title, name))
-        .setContentText(transferText(applicationContext, bytes, total, perSecond, retryIn))
-        .setProgress(100, total?.takeIf { it > 0 }?.let { (bytes * 100 / it).toInt() } ?: 0, total == null || total <= 0)
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setSilent(true)
-        .addAction(0, applicationContext.getString(R.string.action_cancel), WorkManager.getInstance(applicationContext).createCancelPendingIntent(id))
-        .build()
-
-    private fun foregroundInfo(name: String, bytes: Long, total: Long?): ForegroundInfo {
-        notifications()
-        val notification = notification(name, bytes, total)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            ForegroundInfo(notificationId, notification)
-        }
-    }
+    private fun foregroundInfo(name: String, bytes: Long, total: Long?): ForegroundInfo =
+        TransferNotifications.foregroundInfo(applicationContext, id, title(name), bytes, total)
 
     companion object {
         const val KEY_ID = "mediaId"
@@ -593,9 +563,61 @@ class DownloadWorker @AssistedInject constructor(
         /** Waits before resuming after the 1st, 2nd and every further stall in a row. */
         val STALL_BACKOFF_S = intArrayOf(5, 15, 45)
         private const val ATTEMPTS = "media_download_attempts"
-        private const val TAG = "DownloadWorker"
-        private const val CHANNEL = "media_transfers"
-        private const val PROGRESS_INTERVAL_MS = 500L
+        const val PROGRESS_INTERVAL_MS = 500L
+    }
+}
+
+/**
+ * The silent progress notification of a download worker (recorder or Drive) with "Abbrechen", id = the work's hash.
+ * Without the notification permission (Android 13+) the transfer runs silently; the in-app sheet shows it. A failing
+ * notification never fails the transfer.
+ */
+internal object TransferNotifications {
+    private const val CHANNEL = "media_transfers"
+    private const val TAG = "TransferNotifications"
+
+    fun foregroundInfo(context: Context, workId: UUID, title: String, bytes: Long, total: Long?): ForegroundInfo {
+        val notification = notification(context, workId, title, bytes, total)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(workId.hashCode(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(workId.hashCode(), notification)
+        }
+    }
+
+    fun update(context: Context, workId: UUID, title: String, bytes: Long, total: Long?, perSecond: Long? = null, retryIn: Int? = null) {
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        try {
+            if (granted) NotificationManagerCompat.from(context).notify(workId.hashCode(), notification(context, workId, title, bytes, total, perSecond, retryIn))
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "progress notification failed", e)
+        }
+    }
+
+    fun cancel(context: Context, workId: UUID) {
+        runCatching { NotificationManagerCompat.from(context).cancel(workId.hashCode()) }
+    }
+
+    private fun notification(context: Context, workId: UUID, title: String, bytes: Long, total: Long?, perSecond: Long? = null, retryIn: Int? = null) =
+        NotificationCompat.Builder(context, channel(context))
+            .setSmallIcon(R.drawable.ic_media_download)
+            .setContentTitle(title)
+            .setContentText(transferText(context, bytes, total, perSecond, retryIn))
+            .setProgress(100, total?.takeIf { it > 0 }?.let { (bytes * 100 / it).toInt() } ?: 0, total == null || total <= 0)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .addAction(0, context.getString(R.string.action_cancel), WorkManager.getInstance(context).createCancelPendingIntent(workId))
+            .build()
+
+    private fun channel(context: Context): String {
+        NotificationManagerCompat.from(context).createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName(context.getString(R.string.media_transfers_channel))
+                .build(),
+        )
+        return CHANNEL
     }
 }
 

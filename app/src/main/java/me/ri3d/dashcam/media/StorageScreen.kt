@@ -66,6 +66,7 @@ class StorageViewModel @Inject constructor(
     private val repository: MediaRepository,
     private val downloads: DownloadQueue,
     private val http: RecorderHttp,
+    private val driveDownloads: DriveDownloadQueue,
 ) : ViewModel() {
     private val _usage = MutableStateFlow<StorageUsage?>(null)
     val usage: StateFlow<StorageUsage?> = _usage.asStateFlow()
@@ -113,10 +114,14 @@ class StorageViewModel @Inject constructor(
         )
     }
 
-    /** Interrupted downloads (`media/<id>/<name>.part` and its `.part.size`). */
-    private fun partFiles() = repository.mediaDir.walk().filter { it.isFile && (it.name.endsWith(".part") || it.name.endsWith(".part.size")) }.toList()
+    /** Interrupted downloads (`media/<id>/<name>.part` and its `.part.size`; from Drive `<name>.drive` and its `.part`). */
+    private fun partFiles() = repository.mediaDir.walk()
+        .filter { it.isFile && (it.name.endsWith(".part") || it.name.endsWith(".part.size") || it.name.endsWith(".drive")) }.toList()
 
-    private fun inTransfer(part: File) = downloads.progress.value[part.parentFile?.name]?.state in DownloadQueue.ACTIVE
+    private fun inTransfer(part: File): Boolean {
+        val id = part.parentFile?.name
+        return downloads.progress.value[id]?.state in DownloadQueue.ACTIVE || driveDownloads.progress.value[id]?.state in DownloadQueue.ACTIVE
+    }
 
     private fun dirSize(dir: File) = dir.walk().filter { it.isFile }.sumOf { it.length() }
 }
