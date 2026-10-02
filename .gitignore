@@ -21,6 +21,8 @@ local.properties
 *.keystore
 /app/google-services.json
 /keystore.properties
+# Release APKs handed out (docs/RELEASE.md)
+/dist/
 
 # Claude Code agent worktrees
 /.claude/worktrees/
