@@ -68,7 +68,7 @@ private val UnsureColor = Color(0xFFFFD54F)
 
 /**
  * Boxes plus text chips over a video showing frames of [frame] size in [videoRect]. Text is shown as read (`?`
- * as-is). TalkBack reads one summary ("Erkannt: …") instead of the single chips.
+ * as-is). TalkBack reads one summary ("Erkannte Kennzeichen: …") on the first chip instead of the single chips.
  */
 @Composable
 fun PlateOverlay(plates: List<OverlayPlate>, frame: IntSize, videoRect: Rect, modifier: Modifier = Modifier) {
@@ -81,7 +81,8 @@ fun PlateOverlay(plates: List<OverlayPlate>, frame: IntSize, videoRect: Rect, mo
         plates.joinToString("; ") { if (it.unsure) "${it.text}, $unsureLabel" else it.text },
     )
     val mapped = plates.map { it to mapBox(it.box, frame, videoRect) }
-    Box(modifier.fillMaxSize().clearAndSetSemantics { contentDescription = summary }) {
+    // TalkBack: one summary on the first chip; the full-size box stays free so the video below remains explorable.
+    Box(modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             val width = 2.dp.toPx()
             val dashes = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
@@ -94,7 +95,7 @@ fun PlateOverlay(plates: List<OverlayPlate>, frame: IntSize, videoRect: Rect, mo
                 )
             }
         }
-        mapped.forEach { (plate, r) ->
+        mapped.forEachIndexed { index, (plate, r) ->
             Row(
                 Modifier
                     .layout { measurable, constraints ->
@@ -106,6 +107,7 @@ fun PlateOverlay(plates: List<OverlayPlate>, frame: IntSize, videoRect: Rect, mo
                             p.place(r.left.roundToInt(), if (above >= 0) above else r.bottom.roundToInt() + gap)
                         }
                     }
+                    .clearAndSetSemantics { if (index == 0) contentDescription = summary } // after layout: bounds = the chip
                     .background(if (plate.unsure) UnsureColor else sure, RoundedCornerShape(6.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -139,8 +141,7 @@ fun PlateChip(text: String, modifier: Modifier = Modifier, large: Boolean = fals
 fun seenText(context: Context, epochMs: Long, seconds: Boolean = false): String {
     val zone = ZoneId.systemDefault()
     val at = Instant.ofEpochMilli(epochMs).atZone(zone)
-    val time = if (seconds) DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM).format(at)
-    else DateUtils.formatDateTime(context, epochMs, DateUtils.FORMAT_SHOW_TIME)
+    val time = if (seconds) timeOfDay(epochMs) else DateUtils.formatDateTime(context, epochMs, DateUtils.FORMAT_SHOW_TIME)
     val today = LocalDate.now(zone)
     return when (at.toLocalDate()) {
         today -> context.getString(R.string.plates_today, time)
@@ -152,3 +153,7 @@ fun seenText(context: Context, epochMs: Long, seconds: Boolean = false): String 
         )
     }
 }
+
+/** Phone time of day with seconds, "17:42:05". */
+fun timeOfDay(epochMs: Long): String =
+    DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM).format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
