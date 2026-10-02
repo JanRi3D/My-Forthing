@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.stateIn
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.core.FeatureFlags
 import me.ri3d.dashcam.core.model.LocalProfile
+import me.ri3d.dashcam.core.navigation.Account
 import me.ri3d.dashcam.core.navigation.Live
 import me.ri3d.dashcam.core.navigation.Plates
 import me.ri3d.dashcam.core.navigation.Recordings
@@ -95,7 +96,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
     ) {
-        SearchBar(profile, onSearch = { onNavigate(Plates()) }, onProfile = { onNavigate(Settings) })
+        SearchBar(profile, onSearch = { onNavigate(Plates()) }, onProfile = { onNavigate(Account) })
         Spacer(Modifier.height(20.dp))
         dashcamCard()
         Spacer(Modifier.height(12.dp))
@@ -111,7 +112,7 @@ fun HomeScreen(
     }
 }
 
-/** Plate search (once feature/plates-ui exists, otherwise the app name) plus the profile button. */
+/** Plate search (once feature/plates-ui exists, otherwise the app name) plus the profile button (opens Konto). */
 @Composable
 private fun SearchBar(profile: LocalProfile?, onSearch: () -> Unit, onProfile: () -> Unit) {
     Row(

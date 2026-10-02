@@ -24,8 +24,9 @@ recorder or on a real phone yet**; the owner checklist is [`HARDWARE_CHECKLIST.m
 | `feature/plates-ui` | merged (`b153bf4`) |
 | `feature/release-final` | merged (`9ba3eb5`) |
 | `fix/final-polish` | merged (`d21c42f`) |
-| `feature/rename-dashcam` | this branch: package id changed to `me.ri3d.dashcam`, rebuilt APKs |
-| `feature/lion-icon` | the owner's lion replaces the axolotl as launcher icon (light `#F4F5F7` background, themed-icon layer) and Welcome logo; rebuilt APKs |
+| `feature/rename-dashcam` | merged (`ae0bcc6`): package id changed to `me.ri3d.dashcam`, rebuilt APKs |
+| `feature/lion-icon` | merged (`8932583`): the owner's lion replaces the axolotl as launcher icon (light `#F4F5F7` background, themed-icon layer) and Welcome logo; rebuilt APKs |
+| `fix/profile-shortcut` | this branch: the Home profile picture opens Konto (guest, signed-out and signed-in state) instead of Einstellungen; Welcome logo no longer announced twice; rebuilt APKs |
 
 ## Release 1.0.0 (Build 1)
 
@@ -34,9 +35,9 @@ In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`; build, veri
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,390,706 | `c3bcd81699bd169c4f72b9c40c92308ede648dbb28c82dbc459e5227777d28e8` |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,264,610 | `2b508e3a98ec3706f1293314d5e705d6fdcbd40fadd86507253ea9e567895375` |
-| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,383,591 | `d7e8d87d0ee9cdfeb5a4498f41710a23ae02118a27ea176f8eec39cd61947da5` |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,391,202 | `91efe94b84e058ff310538481696816ea0cef6d529c13b45e39f45107c94a76f` |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,265,106 | `4dc4ed69ecdcc1f6994f8c07e80d500ef2d81ebb095d11ea70e9da3bb1e9b335` |
+| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,384,087 | `6b2fd70a0bc38425f64fdbc4d893bf8280f7a36382d6b7e0ca7b99f5670643ff` |
 
 - Release APKs: `me.ri3d.dashcam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc`. A second clean build gave

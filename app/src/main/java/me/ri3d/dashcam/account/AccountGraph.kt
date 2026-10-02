@@ -69,6 +69,8 @@ fun NavGraphBuilder.accountGraph(navController: NavController) {
             onBack = { navController.navigateUp() },
             onVerify = { navController.navigate(VerifyEmail) { launchSingleTop = true } },
             onSignedOut = { navController.navigateUp() },
+            onUpgrade = { navController.navigate(Upgrade) { launchSingleTop = true } },
+            onSignIn = { navController.navigate(SignIn) { launchSingleTop = true } },
         )
     }
 }

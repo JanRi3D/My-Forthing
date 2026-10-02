@@ -1,5 +1,7 @@
 package me.ri3d.dashcam.account
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -63,12 +65,17 @@ import me.ri3d.dashcam.core.ui.UiText
 import java.io.File
 import javax.inject.Inject
 
-/** Konto: works offline from the local profile; edits sync when online. */
+/**
+ * Konto, opened from the Home avatar or Settings: works offline from the local profile; edits sync when online.
+ * Guests get the way into an account ([onUpgrade], [onSignIn]), a signed-out linked profile gets [onSignIn].
+ */
 @Composable
 fun AccountScreen(
     onBack: () -> Unit,
     onVerify: () -> Unit,
     onSignedOut: () -> Unit,
+    onUpgrade: () -> Unit,
+    onSignIn: () -> Unit,
     viewModel: AccountViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -104,7 +111,8 @@ fun AccountScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     textAlign = TextAlign.Center,
                 )
-                signedIn?.email?.let {
+                val subtitle = signedIn?.email ?: stringResource(R.string.upgrade_profile_label).takeIf { current.linkedUid == null }
+                subtitle?.let {
                     Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -148,6 +156,28 @@ fun AccountScreen(
                 OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                     Text(stringResource(R.string.account_sign_out))
                 }
+            } else if (current.linkedUid != null) {
+                ListGroup(
+                    listOf { shape ->
+                        LinkRow(R.string.welcome_sign_in, R.string.account_signed_out_text, R.drawable.ic_account, shape, onSignIn)
+                    },
+                )
+            } else {
+                ListGroup(
+                    listOf(
+                        { shape ->
+                            ListRow(
+                                stringResource(R.string.offline_local_title),
+                                supporting = stringResource(R.string.offline_local_text),
+                                icon = R.drawable.ic_phone,
+                                shape = shape,
+                                verticalAlignment = Alignment.Top,
+                            )
+                        },
+                        { shape -> LinkRow(R.string.upgrade_title, R.string.upgrade_text, R.drawable.ic_cloud_upload, shape, onUpgrade) },
+                        { shape -> LinkRow(R.string.upgrade_sign_in, R.string.upgrade_existing, R.drawable.ic_account, shape, onSignIn) },
+                    ),
+                )
             }
         }
     }
@@ -201,6 +231,21 @@ private fun VerificationRow(state: AccountState.SignedIn, shape: Shape, sending:
             onClick = onSend.takeIf { !sending && secondsLeft == 0 },
         )
     }
+}
+
+@Composable
+private fun LinkRow(@StringRes title: Int, @StringRes supporting: Int, @DrawableRes icon: Int, shape: Shape, onClick: () -> Unit) {
+    ListRow(
+        stringResource(title),
+        supporting = stringResource(supporting),
+        icon = icon,
+        shape = shape,
+        onClick = onClick,
+        verticalAlignment = Alignment.Top,
+        trailing = {
+            Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+    )
 }
 
 /** Settings → App → Konto; the target depends on the account state. */

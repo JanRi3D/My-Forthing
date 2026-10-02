@@ -49,7 +49,7 @@ fun WelcomeScreen(onCreateAccount: () -> Unit, onSignIn: () -> Unit, onContinueO
             val colors = MaterialTheme.colorScheme
             Image(
                 painterResource(R.drawable.ic_logo_lion),
-                contentDescription = stringResource(R.string.app_name),
+                contentDescription = null, // the heading below says "My Forthing"
                 modifier = Modifier.size(160.dp),
                 colorFilter = if (colors.surface.luminance() < 0.5f) ColorFilter.tint(colors.onSurface) else null,
             )
