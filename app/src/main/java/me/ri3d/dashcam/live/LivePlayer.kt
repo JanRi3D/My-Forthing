@@ -33,13 +33,19 @@ import kotlinx.coroutines.withContext
 import me.ri3d.dashcam.core.log.Log
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.plates.Frame
+import me.ri3d.dashcam.recorder.BasicCapabilities
+import me.ri3d.dashcam.recorder.RecorderClient
+import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
 import javax.net.SocketFactory
 import kotlin.math.roundToInt
 
 object LiveStream {
-    /** The original app's hardcoded preview URL (protocol report, "Live view"): port 554, no credentials. */
+    /**
+     * The original app's hardcoded preview URL (protocol report, "Live view"): port 554, no credentials. The fallback
+     * after the recorder's own URL ([rtspCandidates]).
+     */
     const val URL = "rtsp://192.168.42.1/ch1/sub/av_stream"
 
     /** Debug simulator mode: the development machine as the emulator sees it (`:recorder:runSimulator` has no RTSP). */
@@ -47,14 +53,42 @@ object LiveStream {
 
     /** Upper bound for [LiveFrameSource] frames. */
     const val MAX_FRAME_WIDTH = 1280
+
+    /** RTSP 461 Unsupported Transport: the server refused the transport asked for in SETUP. */
+    const val UNSUPPORTED_TRANSPORT = 461
 }
+
+/**
+ * RTSP URLs in the order they are tried: the recorder's own URL for its first channel (capability 20481
+ * `rtspServer`; on hardware `rtsp://192.168.42.1:554/ch1/sub`), then the traced [LiveStream.URL]. A reported URL is
+ * used only when it is rtsp:// on the recorder's address without credentials. [preferred] (the URL that played
+ * last) moves to the front.
+ */
+fun rtspCandidates(basic: BasicCapabilities?, preferred: String? = null): List<String> {
+    val reported = basic?.rtspServer?.minByOrNull { it.chanNo ?: Int.MAX_VALUE }?.url?.takeIf(::isRecorderRtspUrl)
+    val urls = listOfNotNull(reported, LiveStream.URL).distinct()
+    return if (preferred != null && preferred in urls) listOf(preferred) + (urls - preferred) else urls
+}
+
+private fun isRecorderRtspUrl(url: String): Boolean {
+    val uri = runCatching { URI(url) }.getOrNull() ?: return false
+    return uri.scheme.equals("rtsp", ignoreCase = true) && uri.host == RecorderClient.DEFAULT_HOST && uri.rawUserInfo == null
+}
+
+/** The status of Media3's RTSP error message ("SETUP 461"), null for any other message. */
+fun rtspStatus(message: String?): Int? = message?.let(RTSP_STATUS::matchEntire)?.groupValues?.get(1)?.toInt()
+
+private val RTSP_STATUS = Regex("""[A-Z_]+ (\d{3})""")
 
 /** What the live view needs from a player: [ExoLivePlayer] in the app, a fake in tests. Main thread only. */
 interface LivePlayer {
     var listener: ((PlayerEvent) -> Unit)?
 
-    /** (Re)starts the stream; RTSP and its interleaved RTP use sockets from [socketFactory]. */
-    fun play(url: String, socketFactory: SocketFactory)
+    /**
+     * (Re)starts the stream; RTSP (and with [tcp] its interleaved RTP) uses sockets from [socketFactory]. Without
+     * [tcp] Media3 asks for UDP first: those RTP sockets are not bound to the recorder network.
+     */
+    fun play(url: String, socketFactory: SocketFactory, tcp: Boolean = true)
     fun stop()
     fun release()
 
@@ -78,8 +112,21 @@ sealed interface PlayerEvent {
     data class Failed(val error: StreamError) : PlayerEvent
 }
 
-/** A stream failure: Media3's `PlaybackException.errorCode` and its name, or a local reason ([code] null). */
-data class StreamError(val name: String, val code: Int? = null) {
+/**
+ * A stream failure: Media3's `PlaybackException.errorCode` and its name, or a local reason ([code] null). [cause]:
+ * the innermost cause as "Class: message" (raw, e.g. "RtspPlaybackException: SETUP 461"); [rtspStatus] from Media3's
+ * RTSP error; [udp]: the failed attempt used UDP.
+ */
+data class StreamError(
+    val name: String,
+    val code: Int? = null,
+    val cause: String? = null,
+    val rtspStatus: Int? = null,
+    val udp: Boolean = false,
+) {
+    /** One line for the Diagnose export. */
+    fun describe(): String = name + (code?.let { " ($it)" } ?: "") + (rtspStatus?.let { ", RTSP $it" } ?: "") + (cause?.let { ": $it" } ?: "")
+
     companion object {
         /** The stream ended; the original app stops the preview on stream closure. */
         val ENDED = StreamError("STREAM_ENDED")
@@ -90,7 +137,7 @@ data class StreamError(val name: String, val code: Int? = null) {
 }
 
 /**
- * Media3 ExoPlayer with RTSP over TCP (interleaved, as traced), no credentials, live sound disabled (the original
+ * Media3 ExoPlayer with RTSP over TCP (interleaved, as traced; UDP on request), no credentials, live sound disabled (the original
  * app turns preview sound off; this says nothing about the recordings). Hardware decoders first, with Media3's
  * decoder fallback to the next (software) decoder when one fails to initialise. The ExoPlayer is created on the
  * first [play] and lives until [release].
@@ -124,8 +171,15 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.w(TAG, "stream error ${error.errorCodeName}") // the URL carries no credentials
-            listener?.invoke(PlayerEvent.Failed(StreamError(error.errorCodeName, error.errorCode)))
+            val causes = generateSequence(error.cause) { it.cause }.toList()
+            val failure = StreamError(
+                name = error.errorCodeName,
+                code = error.errorCode,
+                cause = causes.lastOrNull()?.let { "${it.javaClass.simpleName}: ${it.message}" }, // the URLs carry no credentials
+                rtspStatus = causes.filterIsInstance<RtspMediaSource.RtspPlaybackException>().firstNotNullOfOrNull { rtspStatus(it.message) },
+            )
+            Log.w(TAG, "stream error ${failure.describe()}")
+            listener?.invoke(PlayerEvent.Failed(failure))
         }
     }
 
@@ -147,12 +201,12 @@ class ExoLivePlayer(private val context: Context) : LivePlayer {
             player = this
         }
 
-    override fun play(url: String, socketFactory: SocketFactory) {
+    override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) {
         size = null
         player().apply {
             setMediaSource(
                 RtspMediaSource.Factory()
-                    .setForceUseRtpTcp(true)
+                    .setForceUseRtpTcp(tcp)
                     .setSocketFactory(socketFactory)
                     .createMediaSource(MediaItem.fromUri(url)),
             )

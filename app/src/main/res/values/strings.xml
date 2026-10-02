@@ -440,6 +440,7 @@
     <string name="live_buffering">Puffern …</string>
     <string name="live_failed">Livebild nicht verfügbar</string>
     <string name="live_failed_code">Code %1$d</string>
+    <string name="live_udp_hint">Über UDP kommt das Livebild nur an, wenn das Dashcam-WLAN die Hauptverbindung des Handys ist (mobile Daten aus).</string>
     <string name="live_err_network">Recorder liefert kein Livebild (RTSP, Port 554)</string>
     <string name="live_err_format">Livebild des Recorders nicht lesbar (Datenformat)</string>
     <string name="live_err_decoder">Videoformat auf diesem Handy nicht abspielbar</string>

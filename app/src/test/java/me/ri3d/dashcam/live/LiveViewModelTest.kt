@@ -32,8 +32,10 @@ import me.ri3d.dashcam.dashcam.FakeWifi
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.plates.Frame
+import me.ri3d.dashcam.recorder.RecorderReply
 import me.ri3d.dashcam.recorder.RecorderResult
 import me.ri3d.dashcam.recorder.RecorderSimulator
+import me.ri3d.dashcam.recorder.parseBasicCapabilities
 import java.io.File
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -59,13 +61,15 @@ class FakePlayer : LivePlayer {
     override var listener: ((PlayerEvent) -> Unit)? = null
     val plays = mutableListOf<String>()
     val sockets = mutableListOf<SocketFactory>()
+    val transports = mutableListOf<Boolean>() // true = TCP interleaved
     var stops = 0
     var released = false
     var frame: Bitmap? = null
 
-    override fun play(url: String, socketFactory: SocketFactory) {
+    override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) {
         plays += url
         sockets += socketFactory
+        transports += tcp
     }
 
     override fun stop() {
@@ -131,7 +135,7 @@ class LiveViewModelTest {
         vm.onForeground(true)
         runCurrent()
 
-        assertThat(player.plays).containsExactly(LiveStream.URL)
+        assertThat(player.plays).containsExactly(HW_RTSP_URL) // the recorder's own URL (capability 20481) first
         assertThat(player.sockets.single()).isSameInstanceAs(network.socketFactory)
     }
 
@@ -197,6 +201,7 @@ class LiveViewModelTest {
         assertThat(vm.stream.value).isEqualTo(StreamState.Failed(ioError))
 
         vm.retry()
+        runCurrent() // the start asks the session's capabilities first
         assertThat(player.plays).hasSize(3)
         assertThat(vm.stream.value).isEqualTo(StreamState.Loading)
 
@@ -412,4 +417,106 @@ class LiveViewModelTest {
         assertThrows(IllegalArgumentException::class.java) { frames.frames(0) }
         assertThrows(IllegalArgumentException::class.java) { frames.frames(LiveFrameSource.MAX_FPS + 1) }
     }
+
+    /** Outside simulator mode (Robolectric network): the RTSP candidates of capability 20481 apply. */
+    private fun TestScope.networkSetUp(): Pair<RecorderConnectionManagerImpl, LiveViewModel> {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val manager = managerFor(sim, FakeWifi().apply { network.value = ShadowNetwork.newInstance(7) })
+        return manager to LiveViewModel(context, manager, player, frames)
+    }
+
+    private fun rtspNotes(manager: RecorderConnectionManagerImpl) = manager.notes().getValue("rtsp").map { it.message }
+
+    @Test
+    fun `the recorder's own RTSP URL is tried first, then the traced one, then one retry of both`() = runTest {
+        val (manager, vm) = networkSetUp()
+        manager.connect()
+        vm.onForeground(true)
+        runCurrent()
+        assertThat(player.plays).containsExactly(HW_RTSP_URL)
+
+        player.emit(PlayerEvent.Failed(ioError))
+        assertThat(player.plays).containsExactly(HW_RTSP_URL, LiveStream.URL).inOrder() // at once, no error shown
+        assertThat(vm.stream.value).isEqualTo(StreamState.Loading)
+
+        player.emit(PlayerEvent.Failed(ioError))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS + 1)
+        player.emit(PlayerEvent.Failed(ioError))
+        player.emit(PlayerEvent.Failed(ioError))
+
+        assertThat(player.plays).containsExactly(HW_RTSP_URL, LiveStream.URL, HW_RTSP_URL, LiveStream.URL).inOrder()
+        assertThat(player.transports).doesNotContain(false)
+        assertThat(vm.stream.value).isEqualTo(StreamState.Failed(ioError))
+        assertThat(sim.received.count { it.msgId == 20481 }).isEqualTo(1) // cached for the session
+        val notes = rtspNotes(manager)
+        assertThat(notes.first()).isEqualTo("start: $HW_RTSP_URL, ${LiveStream.URL}")
+        assertThat(notes).contains("$HW_RTSP_URL tcp: ERROR_CODE_IO_UNSPECIFIED (2000)")
+        assertThat(notes).contains("${LiveStream.URL} tcp: ERROR_CODE_IO_UNSPECIFIED (2000)")
+    }
+
+    @Test
+    fun `the URL that played is tried first after a drop`() = runTest {
+        val (manager, vm) = networkSetUp()
+        manager.connect()
+        vm.onForeground(true)
+        runCurrent()
+        player.emit(PlayerEvent.Failed(ioError))
+        player.emit(PlayerEvent.Size(1280, 720))
+        player.emit(PlayerEvent.Playing)
+        assertThat(rtspNotes(manager)).containsAtLeast("${LiveStream.URL} tcp: video 1280x720", "${LiveStream.URL} tcp: playing").inOrder()
+
+        player.emit(PlayerEvent.Failed(StreamError.ENDED))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS + 1)
+
+        assertThat(player.plays).containsExactly(HW_RTSP_URL, LiveStream.URL, LiveStream.URL).inOrder()
+    }
+
+    @Test
+    fun `a 461 to TCP retries the same URL over UDP, whose failure carries the UDP hint`() = runTest {
+        sim.replies[20481] = """{"msgId":20481,"rval":0,"param":{}}""" // only the traced URL
+        val (manager, vm) = networkSetUp()
+        manager.connect()
+        vm.onForeground(true)
+        runCurrent()
+        val refused = StreamError("ERROR_CODE_IO_UNSPECIFIED", 2000, "RtspPlaybackException: SETUP 461", rtspStatus = 461)
+
+        player.emit(PlayerEvent.Failed(refused))
+        assertThat(player.plays).containsExactly(LiveStream.URL, LiveStream.URL)
+        assertThat(player.transports).containsExactly(true, false).inOrder()
+        player.emit(PlayerEvent.Failed(ioError))
+        advanceTimeBy(LiveViewModel.RETRY_DELAY_MS + 1)
+        player.emit(PlayerEvent.Failed(refused))
+        player.emit(PlayerEvent.Failed(ioError))
+
+        assertThat(player.transports).containsExactly(true, false, true, false).inOrder()
+        assertThat(vm.stream.value).isEqualTo(StreamState.Failed(ioError.copy(udp = true)))
+        assertThat(rtspNotes(manager)).contains(
+            "${LiveStream.URL} tcp: ERROR_CODE_IO_UNSPECIFIED (2000), RTSP 461: RtspPlaybackException: SETUP 461",
+        )
+    }
+
+    @Test
+    fun `RTSP candidates - the recorder's URL of its first channel, then the traced one`() {
+        fun caps(servers: String) = parseBasicCapabilities(RecorderReply.parse("""{"msgId":20481,"rval":0,"param":{"rtspServer":$servers}}""")!!)
+        val traced = LiveStream.URL
+        assertThat(rtspCandidates(null)).containsExactly(traced)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$HW_RTSP_URL"}]"""))).containsExactly(HW_RTSP_URL, traced).inOrder()
+        assertThat(rtspCandidates(caps("""[{"chanNo":2,"url":"rtsp://192.168.42.1:554/ch2/sub"},{"chanNo":1,"url":"$HW_RTSP_URL"}]""")))
+            .containsExactly(HW_RTSP_URL, traced).inOrder()
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$traced"}]"""))).containsExactly(traced)
+        // Only rtsp:// on the recorder's address without credentials.
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"rtsp://10.1.2.3/ch1/sub"}]"""))).containsExactly(traced)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"rtsp://admin:pw@192.168.42.1/ch1/sub"}]"""))).containsExactly(traced)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"http://192.168.42.1/ch1/sub"}]"""))).containsExactly(traced)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"not a url"}]"""))).containsExactly(traced)
+        assertThat(rtspCandidates(caps("""[{"chanNo":1,"url":"$HW_RTSP_URL"}]"""), preferred = traced)).containsExactly(traced, HW_RTSP_URL).inOrder()
+
+        assertThat(rtspStatus("SETUP 461")).isEqualTo(461)
+        assertThat(rtspStatus("DESCRIBE 404")).isEqualTo(404)
+        assertThat(rtspStatus("java.net.SocketTimeoutException: timeout")).isNull()
+        assertThat(rtspStatus(null)).isNull()
+    }
 }
+
+/** What the physical recorder reports in capability 20481 (2026-10-02). */
+private const val HW_RTSP_URL = "rtsp://192.168.42.1:554/ch1/sub"

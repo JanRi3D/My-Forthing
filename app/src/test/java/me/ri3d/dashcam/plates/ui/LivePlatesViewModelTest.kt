@@ -55,7 +55,7 @@ class LivePlatesViewModelTest {
     private class FakePlayer : LivePlayer {
         val grabs = AtomicInteger()
         override var listener: ((PlayerEvent) -> Unit)? = null
-        override fun play(url: String, socketFactory: SocketFactory) = Unit
+        override fun play(url: String, socketFactory: SocketFactory, tcp: Boolean) = Unit
         override fun stop() = Unit
         override fun release() = Unit
         override fun attach(view: TextureView) = Unit

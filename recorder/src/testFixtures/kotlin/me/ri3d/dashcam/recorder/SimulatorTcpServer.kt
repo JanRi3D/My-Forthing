@@ -143,7 +143,7 @@ class SimulatorTcpServer(
                 """"dateTime":"2026-10-01 12:00:00","semifinishProductSN":"SIM-SEMI"}}""",
             20480 to """{"msgId":20480,"rval":0,"param":{"basic":1,"imageEncode":1,"network":1,"storage":1,"intelligence":0}}""",
             20481 to """{"msgId":20481,"rval":0,"param":{"totalSensor":1,"poweroffDelay":[0,10,60],"factoryRestore":1,""" +
-                """"rtspServer":[{"chanNo":1,"url":"rtsp://192.168.42.1/ch1/sub/av_stream","auth":0}],"deleteFile":1,""" +
+                """"rtspServer":[{"chanNo":1,"url":"rtsp://192.168.42.1:554/ch1/sub"}],"downloadPath":"http://192.168.42.1:80","deleteFile":1,""" +
                 """"supportReboot":0,"recordSwitch":1,"supportShutdown":0,"supportCanComm":0,"gSensorSensitivity":[1,2,3],"parkMonitor":1}}""",
             20482 to """{"msgId":20482,"rval":0,"param":[{"chanNo":1,"videoResolution":[0,1],"frameRate":[0]}]}""",
             20483 to """{"msgId":20483,"rval":0,"param":{"type":0,"wifi":{"mode":[0]},"wifiFrequency":[0],"wifiPwdSetting":1,"wifiSsidSetting":1}}""",

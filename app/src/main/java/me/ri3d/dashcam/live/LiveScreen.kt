@@ -297,7 +297,11 @@ private fun StateMessage(connection: RecorderConnectionState, stream: StreamStat
                 Message(
                     title = stringResource(R.string.live_failed),
                     text = stringResource(e.reason),
-                    detail = e.code?.let { stringResource(R.string.live_failed_code, it) }, // the name stays in the log
+                    // Second line: code and raw cause ("Code 2000 · RtspPlaybackException: SETUP 461"); the name is in Diagnose.
+                    detail = listOfNotNull(
+                        listOfNotNull(e.code?.let { stringResource(R.string.live_failed_code, it) }, e.cause).joinToString(" · ").ifEmpty { null },
+                        if (e.udp) stringResource(R.string.live_udp_hint) else null,
+                    ).joinToString("\n").ifEmpty { null },
                     action = stringResource(if (notBound) R.string.dashcam_open_connection else R.string.action_retry),
                     onAction = if (notBound) onConnect else onRetry,
                 )
