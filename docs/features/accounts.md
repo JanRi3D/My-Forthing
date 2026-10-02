@@ -123,7 +123,9 @@ Settings then shows "Abgemeldet · Anmelden".
 
 `accountGraph(navController)` registers SignIn, CreateAccount (step 1/2), VerifyEmail (step 2/2), ForgotPassword,
 ResetSent, Upgrade and Account (new route `Account`). Settings → App → "Konto" (`AccountSettingsRow`) opens Upgrade
-(guest), SignIn (signed out) or Account (signed in). Deviations from the artboards: no Apple sign-in, no e-mail code;
+(guest), SignIn (signed out) or Account (signed in). The Home avatar always opens Account, which shows every state:
+signed in (verification, sync info, sign-out), signed out (row → SignIn) or guest ("Offline-Profil", rows → Upgrade and
+→ SignIn); the name is editable in all of them. Deviations from the artboards: no Apple sign-in, no e-mail code;
 verification by link ("Mail-App öffnen", "Ich habe bestätigt", "Erneut senden" with 60 s cooldown, automatic check
 when returning to the app and every 5 s while visible, "Später bestätigen"); the artboard's "Wrong email? Change it" is
 not offered (sign out on the Konto screen instead). The Upgrade screen also offers e-mail/password and the terms

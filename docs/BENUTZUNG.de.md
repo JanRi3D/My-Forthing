@@ -20,8 +20,10 @@ echten Dashcam (siehe „Bekannte Einschränkungen“ und [`HARDWARE_CHECKLIST.m
 2. **Ohne Konto nutzen**: das Feld **Profilname** ausfüllen (z. B. „Mein Auto“), optional ein **Profilbild** wählen.
 3. **Offline-Profil erstellen**. Das Profil bleibt nur auf diesem Handy; kein Internet, keine E-Mail, kein Passwort.
 
-Du landest auf dem **Startbildschirm**: oben die Suchleiste **Kennzeichen suchen** mit deinem Profilbild (öffnet die
-Einstellungen), darunter die Karte **Meine Dashcam** und die Kacheln **Live-Ansicht**, **Aufnahmen**, **SD-Karte** und
+Du landest auf dem **Startbildschirm**: oben die Suchleiste **Kennzeichen suchen** mit deinem Profilbild, darunter die
+Karte **Meine Dashcam** und die Kacheln **Live-Ansicht**, **Aufnahmen**, **SD-Karte** und **Einstellungen**. Das
+Profilbild öffnet **Konto** mit Bild, Namen (unter **Profilname** änderbar) und – ohne Konto – „Offline-Profil“,
+**Online-Konto hinzufügen** und **Anmelden und verknüpfen**; die App-Einstellungen liegen hinter der Kachel
 **Einstellungen**. Ein Konto kannst du jederzeit später hinzufügen (Abschnitt 7).
 
 Aussehen: *Einstellungen → Darstellung*: **Material You** (Farben aus deinem Hintergrundbild, hell/dunkel wie das
@@ -170,8 +172,10 @@ Regeln:
 Ein Konto speichert dein Profil online, damit es auf einem neuen Handy wieder da ist. Für alles andere brauchst du es
 nicht.
 
-- *Einstellungen → Konto → Online-Konto hinzufügen*: **Mit Google fortfahren** oder E-Mail + Passwort (mindestens
-  8 Zeichen) und Zustimmung zu Nutzungsbedingungen und Datenschutzerklärung.
+- *Profilbild auf dem Startbildschirm → Online-Konto hinzufügen* (oder *Einstellungen → Konto*): **Mit Google
+  fortfahren** oder E-Mail + Passwort (mindestens 8 Zeichen) und Zustimmung zu Nutzungsbedingungen und
+  Datenschutzerklärung. Hast du schon ein Konto: **Anmelden und verknüpfen**.
+- Angemeldet zeigt **Konto** (über das Profilbild) Bild, Namen, E-Mail, ob sie bestätigt ist, und **Abmelden**.
 - Bei E-Mail kommt ein **Bestätigungslink** („E-Mail bestätigen“: **Mail-App öffnen**, **Ich habe bestätigt**,
   **Erneut senden**). Bestätigen geht auch später.
 - Hat das Konto schon ein Profil, fragt die App „**Welches Profil behalten?**“ – **Dieses Handy** oder **Konto**. Ohne
