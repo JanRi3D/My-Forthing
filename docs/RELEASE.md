@@ -34,7 +34,7 @@ export ANDROID_HOME="C:\Users\<you>\AppData\Local\Android\Sdk"
 ```properties
 sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
 dashcam.rsaKey=<single-line Base64 PKCS#8 private key>
-release.storeFile=C\:/Users/Jan/Desktop/Axolotl Cam/release.jks
+release.storeFile=C\:/Users/Jan/Desktop/My Forthing/release.jks
 release.storePassword=<keystore password>
 release.keyAlias=myforthing
 release.keyPassword=<key password>
@@ -50,7 +50,7 @@ release.keyPassword=<key password>
   `My Forthing: release APKs will be UNSIGNED - local.properties lacks …` and the release APKs are unsigned
   (Android refuses to install them). The keystore is PKCS12, so `release.keyPassword` equals `release.storePassword`.
 
-Current release keystore: `C:\Users\Jan\Desktop\Axolotl Cam\release.jks`, alias `myforthing`, RSA 4096,
+Current release keystore: `C:\Users\Jan\Desktop\My Forthing\release.jks`, alias `myforthing`, RSA 4096,
 SHA384withRSA, DN `CN=My Forthing, O=Jan Ried`, valid 2026-10-02 to 2054-02-17. Its password is only in
 `local.properties` (and in the owner's backup, section 5).
 

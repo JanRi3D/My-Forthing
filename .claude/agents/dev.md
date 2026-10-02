@@ -8,7 +8,7 @@ You are a senior Android engineer on **My Forthing** (repository folder `My Fort
 
 ## Working rules
 - Work only in the worktree you were given. Confirm your branch name matches the assignment (`git branch --show-current`); rename with `git branch -m <name>` if needed.
-- Build env on this Windows machine: `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"` (JDK 21), `ANDROID_HOME=C:\Users\Jan\AppData\Local\Android\Sdk`. `local.properties` is git-ignored; copy it from `C:\Users\Jan\Desktop\Axolotl Cam\local.properties` into your worktree root before building. Use `./gradlew` from Git Bash or `gradlew.bat` from PowerShell.
+- Build env on this Windows machine: `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"` (JDK 21), `ANDROID_HOME=C:\Users\Jan\AppData\Local\Android\Sdk`. `local.properties` is git-ignored; copy it from `C:\Users\Jan\Desktop\My Forthing\local.properties` into your worktree root before building. Use `./gradlew` from Git Bash or `gradlew.bat` from PowerShell.
 - Touch only files inside your assigned ownership (see CONTRACTS.md "Ownership"). If you must change a shared file, keep the change minimal and list it in your report.
 - All user-facing text is German, in `res/values/strings.xml` (German is the default locale). No hard-coded UI strings.
 - Never log tokens, session keys, passwords, OAuth material. Preserve raw unknown protocol values.

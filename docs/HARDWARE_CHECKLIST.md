@@ -14,7 +14,7 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
   Android-Version, App-Version (*Einstellungen des Handys → Apps → My Forthing*), WLAN-Name und Passwort der Dashcam.
 - **Eine Sache nach der anderen.** Bei einer Überraschung (Absturz, Dashcam startet neu, falsche Werte) anhalten,
   Diagnose erfassen (A2), notieren.
-- **Ablage**: alles in einen Ordner `C:\Users\Jan\Desktop\Axolotl Cam\reference\hardware\<Datum>\` (vom Git
+- **Ablage**: alles in einen Ordner `C:\Users\Jan\Desktop\My Forthing\reference\hardware\<Datum>\` (vom Git
   ausgenommen, wird nie veröffentlicht):
   - Diagnose-Dateien (`myforthing-diagnose-….json`, über **Teilen** z. B. an dich selbst / in Drive),
   - Bildschirmfotos des Handys (Ein/Aus + Leiser),
