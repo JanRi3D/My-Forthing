@@ -83,9 +83,10 @@ mkdir -p dist && cp app/build/outputs/apk/release/MyForthing-*.apk dist/
 (cd dist && sha256sum MyForthing-*.apk > SHA256SUMS.txt)
 ```
 
-The build is reproducible in the sense that matters here: the same commit, `local.properties` and keystore give
-APKs with the same package, version and signing certificate. Byte-identical output is not guaranteed across JDK,
-SDK or machine changes; compare the certificate, not the APK hash, when checking a rebuild.
+Two clean builds of the same commit with the same `local.properties` and keystore on this machine give
+byte-identical APKs (checked for 1.0.0; this needs `dependenciesInfo.includeInApk = false`, because AGP otherwise adds
+a dependency list encrypted with a random key for Google Play). Across other JDK, SDK or machine setups byte
+identity is not guaranteed; there, compare package, version and signing certificate (section 4).
 
 ## 4. Verify an APK
 
@@ -163,8 +164,8 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 
 | APK | Size |
 | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,172,154 bytes (34.5 MiB) |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,046,058 bytes (28.7 MiB) |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,155,770 bytes (34.5 MiB) |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,029,674 bytes (28.6 MiB) |
 | `app-debug.apk` (universal, for comparison) | 87,984,641 bytes (83.9 MiB) |
 
 Inside the arm64 APK: dex 16.9 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
@@ -179,8 +180,9 @@ WorkManager/Hilt workers. `app/src/main/keepRules/rules.keep` is the place for t
 
 ## 9. Not covered
 
-- Google Play: would need an AAB (`./gradlew :app:bundleRelease`), Play App Signing (register the app signing key's
-  fingerprints too, `SETUP.md`), in-app account deletion and a privacy policy.
+- Google Play: would need an AAB (`./gradlew :app:bundleRelease`, with `dependenciesInfo.includeInBundle` back on so
+  Play can scan the dependencies), Play App Signing (register the app signing key's fingerprints too, `SETUP.md`),
+  in-app account deletion and a privacy policy.
 - CI: none in this repository (the sibling project builds on GitHub Actions with the keystore as a secret).
 - Google has announced developer verification for apps installed outside the Play Store on certified Android
   devices (first countries from September 2026, wider rollout from 2027). Check the current rules before handing out

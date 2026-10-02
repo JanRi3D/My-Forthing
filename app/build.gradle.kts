@@ -106,6 +106,12 @@ android {
             isUniversalApk = true
         }
     }
+    // The dependency list AGP would add to the signing block is encrypted for Google Play with a random key, so every
+    // build differed; without it a rebuild of the same commit with the same keystore is byte-identical.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
