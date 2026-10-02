@@ -83,6 +83,9 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - Einen größeren Clip starten und bei ≈ 50 % den Flugmodus 10 s einschalten, dann wieder verbinden: macht der Download
   an der gleichen Stelle weiter oder fängt er neu an? (Zeigt, ob die Dashcam Teil-Downloads unterstützt.)
 - Zwei Clips gleichzeitig: laufen beide?
+- Einen größeren Clip starten und dann in der App **Trennen** (Dashcam-WLAN bleibt verbunden): läuft der Download
+  weiter? (Zeigt, ob die Dashcam nach dem Ende der Steuer-Sitzung weiter Dateien über HTTP liefert; die App lässt einen
+  laufenden Download weiterlaufen.)
 - Länger als eine Clip-Länge warten und dann einen alten Schleifen-Clip laden, der inzwischen überschrieben sein könnte:
   welche Meldung?
 
@@ -115,7 +118,7 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
   der gespeicherten Datei, Meldungen zu Speicher auf einem Handy mit 2–3 GB RAM.
 - Gesten: ohne Zoom mit einem Finger über das Bild scrollen (hoch und quer), mit zwei Fingern zoomen, Umschalter behält
   den Zoom.
-- Einen echten Clip **hochskalieren** auf 1440p und 2160p (Klassisch): Dauer pro Minute, spielt das Ergebnis in der App
+- Einen echten Clip **hochskalieren** auf 1080p, 1440p und 2160p (Klassisch; auf dem Emulator ging keine Ausgabe): Dauer pro Minute, spielt das Ergebnis in der App
   und in einem anderen Player, Ton synchron? Zweiter Lauf: steht jetzt „etwa … Rechenzeit“? Einmal mit Bildschirm aus und
   App im Hintergrund, einmal **Abbrechen** aus der Benachrichtigung (bleibt nichts übrig?).
 - Welche Ausgaben sind auf diesem Handy ausgegraut? Darf nie eine angeboten werden, die dann mit „Encoder“ scheitert.
