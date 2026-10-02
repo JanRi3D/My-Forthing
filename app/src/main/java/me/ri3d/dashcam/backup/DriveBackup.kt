@@ -31,6 +31,7 @@ import java.io.File
 import java.net.URLConnection
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -402,12 +403,21 @@ class DriveBackup @Inject constructor(
         if (previous == account) return@withLock false
         if (previous != null) {
             store.forgetAccountState()
-            repository.observe().first()
+            val stale = repository.observe().first()
                 .filter { it.driveFileId != null || it.driveMd5 != null || it.backupState != BackupState.NONE || it.backupError != null }
-                .forEach { repository.markDriveDeleted(it.id) }
+            stale.forEach { repository.markDriveDeleted(it.id) }
+            val fileIds = stale.mapNotNull { it.driveFileId }
+            resetListeners.forEach { it(fileIds) }
         }
         store.account = account
         previous != null
+    }
+
+    private val resetListeners = CopyOnWriteArrayList<(fileIds: List<String>) -> Unit>()
+
+    /** [listener] gets the Drive file ids the library forgot in an account switch (cached Drive images go too). */
+    fun onAccountReset(listener: (fileIds: List<String>) -> Unit) {
+        resetListeners += listener
     }
 
     /**

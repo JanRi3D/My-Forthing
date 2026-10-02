@@ -63,8 +63,11 @@ import javax.inject.Singleton
 /** The running or waiting upload of one item, as WorkManager reports it. */
 data class BackupProgress(val running: Boolean, val bytes: Long, val total: Long)
 
-/** Outcome of "Drive-Status prüfen": [missing] backups forgotten, [imported] from Drive into the library. */
-data class DriveCheck(val missing: Int, val imported: Int)
+/**
+ * Outcome of "Drive-Status prüfen": [missing] backups forgotten, [imported] from Drive into the library, or the
+ * [importError] when that second part failed (the first part stands).
+ */
+data class DriveCheck(val missing: Int, val imported: Int, val importError: Throwable? = null)
 
 /** Outcome of a manual "Sichern". */
 data class EnqueueResult(val queued: Int, val notOnPhone: Int, val alreadyDone: Int)
@@ -216,7 +219,8 @@ class BackupQueue @Inject constructor(
     /** "Drive-Status prüfen": DONE items missing in Drive are forgotten, then backups the library lacks are imported. */
     suspend fun reconcile(): Result<DriveCheck> {
         val missing = backup.reconcile().getOrElse { return Result.failure(it) }
-        return restore.importFromDrive().map { DriveCheck(missing, it.imported) }
+        val import = restore.importFromDrive()
+        return Result.success(DriveCheck(missing, import.getOrNull()?.imported ?: 0, import.exceptionOrNull()))
     }
 
     /**

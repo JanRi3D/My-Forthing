@@ -2,6 +2,7 @@ package me.ri3d.dashcam.backup
 
 import android.content.Context
 import androidx.work.WorkManager
+import coil3.memory.MemoryCache
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ import me.ri3d.dashcam.media.MediaCategory
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaKind
 import me.ri3d.dashcam.media.MediaRepository
+import me.ri3d.dashcam.media.RecorderHttp
 import me.ri3d.dashcam.media.RecorderThumb
 import me.ri3d.dashcam.plates.ui.ClipScans
 import java.time.OffsetDateTime
@@ -73,6 +75,7 @@ class DriveRestore @Inject constructor(
     private val store: BackupStore,
     private val preferences: PreferencesRepository,
     private val clipScans: ClipScans,
+    private val http: RecorderHttp,
     @ApplicationContext private val context: Context,
 ) {
     internal var clock: () -> Long = System::currentTimeMillis
@@ -87,6 +90,23 @@ class DriveRestore @Inject constructor(
 
     // ponytail: in memory; the links expire within hours. After a restart only cached thumbnails show until an import.
     private val thumbnailLinks = ConcurrentHashMap<String, String>()
+
+    init {
+        backup.onAccountReset(::forgetImages)
+    }
+
+    /** Account switch: the previous account's thumbnail links and its cached thumbnails and photos go. */
+    private fun forgetImages(fileIds: List<String>) {
+        thumbnailLinks.clear()
+        val loader = http.imageLoader
+        scope.launch(Dispatchers.IO) {
+            fileIds.forEach { id ->
+                loader.diskCache?.remove(thumbKey(id))
+                loader.memoryCache?.remove(MemoryCache.Key(thumbKey(id)))
+                loader.memoryCache?.remove(MemoryCache.Key(photoKey(id)))
+            }
+        }
+    }
 
     /** An import runs (Drive tab progress). */
     val importing: StateFlow<Boolean> = _importing.asStateFlow()
@@ -276,6 +296,9 @@ class DriveRestore @Inject constructor(
 
         /** Disk and memory cache key of a Drive thumbnail: stable, the thumbnailLink expires. */
         fun thumbKey(fileId: String) = "drive-thumb:$fileId"
+
+        /** Memory cache key of a Drive photo shown in the clip screen (never on disk). */
+        fun photoKey(fileId: String) = "drive-file:$fileId"
 
         /**
          * The library row of a complete [entry] from its sidecar, or null when the sidecar is unusable: unparsable,

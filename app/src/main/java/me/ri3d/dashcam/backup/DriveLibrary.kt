@@ -112,7 +112,7 @@ fun DriveMedia(item: MediaItem, modifier: Modifier = Modifier, viewModel: DriveL
             val request = remember(fileId) {
                 ImageRequest.Builder(context)
                     .data(DriveRestApi.contentUrl(fileId))
-                    .memoryCacheKey("drive-file:$fileId")
+                    .memoryCacheKey(DriveRestore.photoKey(fileId))
                     .diskCachePolicy(CachePolicy.DISABLED) // full photos would push the thumbnails out of the cache
                     .build()
             }

@@ -358,6 +358,27 @@ class DriveRestoreTest {
     }
 
     @Test
+    fun `an account switch forgets the previous account's thumbnail links and cached thumbnails`() = runTest {
+        val f = fixture()
+        val backup = sidecar()
+        val media = f.api.backup(backup)
+        f.restore.importFromDrive().getOrThrow()
+        val row = f.item(backup.id)!!
+        assertThat(f.restore.thumbnail(row)!!.network).isTrue()
+        val cache = f.http.imageLoader.diskCache!!
+        val key = DriveRestore.thumbKey(media.id)
+        cache.openEditor(key)!!.also { editor -> cache.fileSystem.write(editor.data) { writeUtf8("jpeg") }; editor.commit() }
+        assertThat(cache.openSnapshot(key)?.use { true }).isTrue()
+
+        f.auth.state.value = DriveAuthState.Connected("b@example.com", setOf(DRIVE_FILE_SCOPE))
+        assertThat(f.backup.adoptAccount("b@example.com")).isTrue()
+
+        eventually { cache.openSnapshot(key)?.use { true } == null }
+        assertThat(f.restore.thumbnail(row)!!.network).isFalse() // no link of the old account is used any more
+        java.io.File(context.cacheDir, me.ri3d.dashcam.media.MediaModule.THUMB_CACHE_DIR).deleteRecursively()
+    }
+
+    @Test
     fun `the Drive account follows the connection, empty after a disconnect`() = runTest {
         val f = fixture()
         var hint: String? = null

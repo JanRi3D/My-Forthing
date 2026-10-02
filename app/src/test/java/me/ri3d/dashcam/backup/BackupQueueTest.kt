@@ -260,6 +260,25 @@ class BackupQueueTest {
     }
 
     @Test
+    fun `the Drive check keeps its result when taking over backups from Drive fails`() = runTest {
+        setup()
+        f.api.backup(
+            me.ri3d.dashcam.drive.format.DriveSidecar(
+                id = java.util.UUID.randomUUID().toString(), kind = "ORIGINAL_VIDEO", category = "EVENT", recorderType = 1,
+                originalFileName = "e.mp4", recorderTime = "2026-10-01 11:00:00", sizeBytes = 0, md5 = "", mime = "video/mp4",
+                backup = me.ri3d.dashcam.drive.format.DriveSidecar.Backup(complete = true),
+            ),
+        )
+        f.api.readHooks += { DriveError.Offline(IOException("offline")) }
+
+        val check = queue.reconcile().getOrThrow()
+
+        assertThat(check.missing).isEqualTo(0)
+        assertThat(check.imported).isEqualTo(0)
+        assertThat(check.importError).isInstanceOf(DriveError.Offline::class.java)
+    }
+
+    @Test
     fun `nothing is queued automatically before the connected account was imported once`() = runTest {
         setup()
         f.preferences.update { it.copy(backupMode = BackupMode.ALL) }

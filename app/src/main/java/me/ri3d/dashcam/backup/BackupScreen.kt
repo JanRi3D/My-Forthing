@@ -206,11 +206,12 @@ fun BackupScreen(onBack: () -> Unit, onDrive: () -> Unit, viewModel: BackupViewM
                     busy = true
                     scope.launch {
                         val text = viewModel.verify().fold(
-                            { (missing, imported) ->
+                            { (missing, imported, importError) ->
                                 listOfNotNull(
                                     if (missing == 0) resources.getString(R.string.backup_verify_ok)
                                     else resources.getQuantityString(R.plurals.backup_verify_missing, missing, missing),
                                     if (imported > 0) resources.getQuantityString(R.plurals.backup_verify_imported, imported, imported) else null,
+                                    importError?.let { resources.getString(R.string.backup_verify_import_failed, it.driveMessage().resolve(resources)) },
                                 ).joinToString(" ")
                             },
                             { resources.getString(R.string.backup_verify_failed, it.driveMessage().resolve(resources)) },

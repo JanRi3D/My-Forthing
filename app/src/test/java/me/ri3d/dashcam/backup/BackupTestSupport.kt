@@ -18,6 +18,7 @@ import me.ri3d.dashcam.drive.format.DriveSidecar
 import me.ri3d.dashcam.media.BackupState
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaRepository
+import me.ri3d.dashcam.media.RecorderHttp
 import me.ri3d.dashcam.media.recorderFile
 import me.ri3d.dashcam.plates.PlateExport
 import me.ri3d.dashcam.plates.ui.ClipScans
@@ -156,15 +157,18 @@ class FakeDriveApi : DriveApi {
 class BackupFixture(val context: Context, val db: AppDatabase, scope: TestScope, dataStore: File) {
     val api = FakeDriveApi()
     val auth = FakeDriveAuth("token")
-    val repository = MediaRepository(context, db, scope.managerFor(RecorderSimulator()).apply { setSimulator(true) })
+    private val manager = scope.managerFor(RecorderSimulator()).apply { setSimulator(true) }
+    val repository = MediaRepository(context, db, manager)
+    val http = RecorderHttp(manager, "http://127.0.0.1:1", context)
     val preferences = PreferencesRepository(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { dataStore })
     val store = BackupStore(context)
     val backup = DriveBackup(api, auth, repository, preferences, PlateExport(db.plateDao(), preferences), store)
 
-    /** Needs WorkManager (test driver) initialised: the import asks it about running recorder downloads. */
-    /** Plate checks the import must not pull a row away from. */
+    /** Plate checks the import must not pull a row away from (a check never ends here). */
     val clipScans = ClipScans(repository, scope.backgroundScope, 0L, { 0L }, flowOf(false)) { _, _ -> awaitCancellation() }
-    val restore by lazy { DriveRestore(api, auth, repository, backup, store, preferences, clipScans, context) }
+
+    /** Needs WorkManager (test driver) initialised: the import asks it about running work. */
+    val restore by lazy { DriveRestore(api, auth, repository, backup, store, preferences, clipScans, http, context) }
 
     /** A downloaded recording of recorder [type] with [bytes] on the phone. */
     suspend fun local(path: String, type: Int = 1, bytes: ByteArray = ByteArray(1000) { it.toByte() }): MediaItem {
