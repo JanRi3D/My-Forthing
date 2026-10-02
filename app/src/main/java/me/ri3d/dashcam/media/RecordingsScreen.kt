@@ -47,10 +47,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -80,7 +79,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -175,15 +173,10 @@ fun RecordingsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                RecordingsTab.entries.forEachIndexed { index, t ->
-                    SegmentedButton(
-                        selected = t == tab,
-                        onClick = { tab = t },
-                        shape = SegmentedButtonDefaults.itemShape(index, RecordingsTab.entries.size),
-                        icon = {}, // five tabs: the label needs the room of the check mark (the fill shows the selection)
-                        label = { Text(stringResource(t.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    )
+            // Five tabs: scrollable, so every label stays whole on narrow phones.
+            PrimaryScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 16.dp) {
+                RecordingsTab.entries.forEach { t ->
+                    Tab(selected = t == tab, onClick = { tab = t }, text = { Text(stringResource(t.label), maxLines = 1) })
                 }
             }
             val type = tab.type
