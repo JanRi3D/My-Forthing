@@ -15,15 +15,17 @@ class SimulatedMediaTest {
     private fun request(cmd: RecorderCommand) = RecorderReply.parse("""{"msgId":${cmd.msgId},"token":1,"param":${cmd.param}}""")!!
 
     @Test
-    fun `pages follow the exclusive cursor and end with a short page`() {
-        val first = page(0, "")
-        val second = page(0, first.fileList.last().fileName!!)
-        val third = page(0, second.fileList.last().fileName!!)
-        assertThat(first.fileList).hasSize(50)
-        assertThat(second.fileList.first().fileName).isNotEqualTo(first.fileList.last().fileName)
-        assertThat(third.fileList).hasSize(20)
-        assertThat(first.totalFileNum).isEqualTo(120)
+    fun `pages follow the exclusive cursor, hold 20 entries when 50 are asked, and carry no totalFileSize`() {
+        val pages = generateSequence(page(0, "")) { prev -> prev.fileList.lastOrNull()?.let { page(0, it.fileName!!) } }
+            .takeWhile { it.fileList.isNotEmpty() }.toList()
+        assertThat(pages.map { it.fileList.size }).containsExactly(20, 20, 20, 20, 20, 20).inOrder() // as on the recorder
+        assertThat(pages[1].fileList.first().fileName).isNotEqualTo(pages[0].fileList.last().fileName)
+        assertThat(pages.flatMap { it.fileList }.map { it.fileName }.distinct()).hasSize(120)
+        assertThat(pages[0].totalFileNum).isEqualTo(120)
+        assertThat(pages[0].totalFileSize).isNull()
         assertThat(page(0, "/unknown").fileList).isEmpty()
+        assertThat(parseFileList(RecorderReply.parse(SimulatedFiles(maxPage = 50).listReply(request(RecorderCommand.ListFiles(0, "", 50))))!!).fileList)
+            .hasSize(50)
     }
 
     @Test

@@ -24,13 +24,14 @@ import javax.imageio.ImageIO
  * Test fixture: a fictional SD card for 4100 (list), 4101 (delete) and the media HTTP server
  * ([SimulatorHttpServer]). Paths, names and times are invented; the real recorder's layout is not established.
  *
- * Simulated paging (the real behaviour needs a recorder): newest first per type, `lastFileName` is exclusive
- * (the page starts after that entry), an unknown cursor yields an empty page. `totalFileSize` is reported in KiB
- * (the real unit is unknown). Videos are the committed 3 s clip `sim/clip.mp4` padded with an MP4 `free` box to
+ * Simulated paging: newest first per type, `lastFileName` is exclusive (the page starts after that entry), an unknown
+ * cursor yields an empty page. Pages hold at most [maxPage] entries (default [RECORDER_PAGE] = 20: the physical
+ * recorder answers `pageNum` 50 with 20 entries, 2026-10-02) and, like the recorder, no `totalFileSize`. Order and
+ * cursor inclusivity of the real recorder are not established. Videos are the committed 3 s clip `sim/clip.mp4` padded with an MP4 `free` box to
  * [Entry.size]; JPEGs (thumbnails and photos) are drawn at runtime. Thumbnails are `<name>.thm` like on the physical
  * recorder (2026-10-02: `/sd/DCIM/ch1_20261002_091128_0782.thm` next to the `.mp4`).
  */
-class SimulatedFiles(entries: List<Entry> = defaults()) {
+class SimulatedFiles(entries: List<Entry> = defaults(), private val maxPage: Int = RECORDER_PAGE) {
     data class Entry(val type: Int, val fileName: String, val fileThm: String, val fileTime: String, val size: Long)
 
     private val entries = CopyOnWriteArrayList(entries)
@@ -46,7 +47,7 @@ class SimulatedFiles(entries: List<Entry> = defaults()) {
         val pageNum = p?.get("pageNum")?.jsonPrimitive?.int ?: 50
         val all = entries(type)
         val start = if (cursor.isEmpty()) 0 else all.indexOfFirst { it.fileName == cursor }.let { if (it < 0) all.size else it + 1 }
-        return listReply(all, all.drop(start).take(pageNum))
+        return listReply(all, all.drop(start).take(minOf(pageNum, maxPage)))
     }
 
     /** 4101: deletes the listed paths; rval 107 ("no file") if none of them exists. */
@@ -67,6 +68,9 @@ class SimulatedFiles(entries: List<Entry> = defaults()) {
     }
 
     companion object {
+        /** Entries per 4100 page of the physical recorder (asked for 50). */
+        const val RECORDER_PAGE = 20
+
         private val NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
         private val FILE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
@@ -78,15 +82,14 @@ class SimulatedFiles(entries: List<Entry> = defaults()) {
             put("msgId", 4100)
             put("rval", 0)
             putJsonObject("param") {
-                put("totalFileNum", all.size)
-                put("totalFileSize", all.sumOf { it.size } / 1024)
+                put("totalFileNum", all.size) // no totalFileSize: the physical recorder sends none
                 putJsonArray("fileList") {
                     page.forEach { addJsonObject { put("fileName", it.fileName); put("fileThm", it.fileThm); put("fileTime", it.fileTime) } }
                 }
             }
         }.toString()
 
-        /** 120 loop clips (3 pages, across midnight), 3 incidents, 12 photos; newest first. */
+        /** 120 loop clips (6 pages of 20, across midnight), 3 incidents, 12 photos; newest first. */
         fun defaults(newest: LocalDateTime = LocalDateTime.of(2026, 10, 1, 1, 0, 0)): List<Entry> =
             series(0, "normal", "N", ".mp4", 120, newest, 60, 6L shl 20) +
                 series(1, "event", "E", ".mp4", 3, newest.minusMinutes(7), 1500, 3L shl 20) +
