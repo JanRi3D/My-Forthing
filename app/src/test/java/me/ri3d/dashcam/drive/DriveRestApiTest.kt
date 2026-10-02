@@ -9,6 +9,7 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import mockwebserver3.SocketEffect
 import okhttp3.OkHttpClient
+import okio.Buffer
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -279,6 +280,86 @@ class DriveRestApiTest {
     }
 
     @Test
+    fun `readJson returns a file's content`() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body("""{"format":1}""").build())
+
+        assertThat(api.readJson("s1").getOrThrow()).isEqualTo("""{"format":1}""")
+        val request = server.takeRequest()
+        assertThat(request.url.encodedPath).isEqualTo("/drive/v3/files/s1")
+        assertThat(request.url.queryParameter("alt")).isEqualTo("media")
+    }
+
+    @Test
+    fun `a download resumes its part with Range after an interruption`() = runTest {
+        val target = File(tmp.root, "media/id/clip.mp4")
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(content)).onResponseBody(SocketEffect.CloseSocket()).build())
+
+        assertThat(api.download("f1", target).exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
+        val part = File(target.path + ".part")
+        val kept = part.length().toInt()
+        assertThat(kept).isIn(1 until content.size)
+        assertThat(target.exists()).isFalse()
+
+        server.enqueue(rest(kept))
+        val progress = mutableListOf<Long>()
+        assertThat(api.download("f1", target) { bytes, _ -> progress += bytes }.isSuccess).isTrue()
+
+        val first = server.takeRequest()
+        assertThat(first.url.encodedPath).isEqualTo("/drive/v3/files/f1")
+        assertThat(first.url.queryParameter("alt")).isEqualTo("media")
+        assertThat(first.headers["Range"]).isNull()
+        assertThat(server.takeRequest().headers["Range"]).isEqualTo("bytes=$kept-")
+        assertThat(target.readBytes()).isEqualTo(content)
+        assertThat(part.exists()).isFalse()
+        assertThat(progress.first()).isGreaterThan(kept.toLong())
+        assertThat(progress.last()).isEqualTo(content.size.toLong())
+    }
+
+    @Test
+    fun `a download starts over when Drive does not continue the part`() = runTest {
+        val target = File(tmp.root, "clip.mp4")
+        File(target.path + ".part").writeBytes(ByteArray(9000)) // longer than the file: 416
+        server.enqueue(MockResponse.Builder().code(416).build())
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(content)).build())
+
+        assertThat(api.download("f1", target).isSuccess).isTrue()
+
+        assertThat(server.takeRequest().headers["Range"]).isEqualTo("bytes=9000-")
+        assertThat(server.takeRequest().headers["Range"]).isNull()
+        assertThat(target.readBytes()).isEqualTo(content)
+    }
+
+    @Test
+    fun `a download refreshes the token once on 401 and retries`() = runTest {
+        val target = File(tmp.root, "clip.mp4")
+        server.enqueue(MockResponse.Builder().code(401).build())
+        server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(content)).build())
+
+        assertThat(api.download("f1", target).isSuccess).isTrue()
+
+        assertThat(server.takeRequest().headers["Authorization"]).isEqualTo("Bearer t1")
+        assertThat(server.takeRequest().headers["Authorization"]).isEqualTo("Bearer t2")
+        assertThat(auth.invalidated).containsExactly("t1" to false)
+        assertThat(target.readBytes()).isEqualTo(content)
+    }
+
+    @Test
+    fun `a file missing in Drive is HTTP 404`() = runTest {
+        server.enqueue(MockResponse.Builder().code(404).body("""{"error":{"errors":[{"reason":"notFound"}]}}""").build())
+
+        val error = api.download("gone", File(tmp.root, "x.mp4")).exceptionOrNull()
+
+        assertThat(error).isInstanceOf(DriveError.Http::class.java)
+        assertThat((error as DriveError.Http).code).isEqualTo(404)
+        assertThat(error.reason).isEqualTo("notFound")
+    }
+
+    private val content = ByteArray(5000) { (it % 251).toByte() }
+
+    private fun rest(from: Int) = MockResponse.Builder().code(206)
+        .setHeader("Content-Range", "bytes $from-${content.size - 1}/${content.size}").body(Buffer().write(content, from, content.size - from)).build()
+
+    @Test
     fun `network failure is Offline`() = runTest {
         server.close()
         assertThat(api.about().exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
@@ -307,6 +388,18 @@ class FakeDriveAuth(vararg tokens: String) : DriveAuth {
     override val state = MutableStateFlow<DriveAuthState>(DriveAuthState.Connected("a@example.com", setOf(DRIVE_FILE_SCOPE)))
 
     override suspend fun connect(activity: android.app.Activity, chooseAccount: Boolean) = Result.success(Unit)
+
+    /** E-mails [reconnectSilently] was asked for; [onReconnect] decides the outcome (default: connected). */
+    val reconnects = mutableListOf<String>()
+    var onReconnect: (String) -> Result<Unit> = { email ->
+        state.value = DriveAuthState.Connected(email, setOf(DRIVE_FILE_SCOPE))
+        Result.success(Unit)
+    }
+
+    override suspend fun reconnectSilently(accountEmail: String): Result<Unit> {
+        reconnects += accountEmail
+        return onReconnect(accountEmail)
+    }
 
     override suspend fun disconnect() = Unit
 

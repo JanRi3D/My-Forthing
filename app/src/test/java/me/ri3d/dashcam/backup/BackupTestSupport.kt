@@ -7,6 +7,7 @@ import me.ri3d.dashcam.core.data.AppDatabase
 import me.ri3d.dashcam.core.data.PreferencesRepository
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.drive.DriveApi
+import me.ri3d.dashcam.drive.DriveError
 import me.ri3d.dashcam.drive.DriveFile
 import me.ri3d.dashcam.drive.DriveQuota
 import me.ri3d.dashcam.drive.FakeDriveAuth
@@ -19,7 +20,10 @@ import me.ri3d.dashcam.media.recorderFile
 import me.ri3d.dashcam.plates.PlateExport
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import java.io.File
+import java.security.MessageDigest
 import java.time.Instant
+
+fun md5(bytes: ByteArray): String = MessageDigest.getInstance("MD5").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /** The stored session of [id] for the current account. */
 fun BackupStore.currentSession(id: String): String? = session(id, account.orEmpty())
@@ -73,6 +77,7 @@ class FakeDriveApi : DriveApi {
     }
 
     override suspend fun list(query: String): Result<List<DriveFile>> {
+        listCalls++
         val id = Regex("key='mf.id' and value='([^']*)'").find(query)?.groupValues?.get(1)
         return Result.success(files.filter { if (id != null) it.appProperties[DriveFormat.KEY_ID] == id else it.appProperties[DriveFormat.KEY_FORMAT] == "1" })
     }
@@ -85,6 +90,49 @@ class FakeDriveApi : DriveApi {
     }
 
     override suspend fun about() = Result.success(DriveQuota(limit = 100, usage = 100))
+
+    /** Content of media files by Drive id, for [download]. */
+    val contents = mutableMapOf<String, ByteArray>()
+
+    /** Each sidecar read runs the next hook first; a returned error fails the read. */
+    val readHooks = ArrayDeque<() -> Throwable?>()
+    var listCalls = 0
+
+    // The import reads sidecars in parallel.
+    override suspend fun readJson(id: String): Result<String> = synchronized(this) {
+        readHooks.removeFirstOrNull()?.invoke()?.let { return Result.failure(it) }
+        json[id]?.let { Result.success(it) } ?: Result.failure(DriveError.Http(404, "notFound"))
+    }
+
+    override suspend fun download(id: String, target: File, onProgress: (Long, Long?) -> Unit): Result<Unit> {
+        val bytes = contents[id] ?: return Result.failure(DriveError.Http(404, "notFound"))
+        target.parentFile?.mkdirs()
+        target.writeBytes(bytes)
+        onProgress(bytes.size.toLong(), bytes.size.toLong())
+        return Result.success(Unit)
+    }
+
+    /**
+     * A complete backup as an earlier installation left it: media file (with [content], its md5 and a thumbnail link)
+     * and the sidecar [sidecar] (its md5 set to the content's unless [sidecarJson] is given). Returns the media file.
+     */
+    fun backup(
+        sidecar: DriveSidecar,
+        content: ByteArray = ByteArray(100) { it.toByte() },
+        createdTime: Instant = Instant.parse("2026-10-01T10:00:00Z"),
+        sidecarJson: String? = null,
+    ): DriveFile {
+        val md5 = md5(content)
+        val props = DriveFormat.mediaAppProperties(sidecar.id, sidecar.kind, sidecar.category, sidecar.parent?.id)
+        val media = driveFile(newId("media"), "${sidecar.id}.mp4", props, "month", md5, createdTime)
+            .copy(thumbnailLink = "https://lh3.googleusercontent.com/t/${sidecar.id}")
+        files += media
+        contents[media.id] = content
+        val json = driveFile(newId("json"), "${sidecar.id}.json", DriveFormat.sidecarAppProperties(sidecar.id), "month", null, createdTime)
+        files += json
+        this.json[json.id] = sidecarJson ?: sidecar.copy(md5 = md5, sizeBytes = content.size.toLong()).toJson()
+        return media
+    }
 
     /** [createdTime] defaults to now (later files are newer). */
     fun driveFile(

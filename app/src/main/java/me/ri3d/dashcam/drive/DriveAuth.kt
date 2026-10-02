@@ -29,6 +29,13 @@ interface DriveAuth {
      */
     suspend fun connect(activity: Activity, chooseAccount: Boolean = false): Result<Unit>
 
+    /**
+     * Connects [accountEmail] without any UI (e.g. after a reinstall) while nothing is stored: connected when Google
+     * grants it silently; when Google needs the user, [DriveAuthState.NeedsReconnect] for that account (in memory only,
+     * nothing is launched), so the one-tap "Erneut verbinden" finishes it. A stored connection is never replaced.
+     */
+    suspend fun reconnectSilently(accountEmail: String): Result<Unit>
+
     /** Revokes the grant at Google (best effort, needs network) and forgets the account. Files stay in Drive. */
     suspend fun disconnect()
 

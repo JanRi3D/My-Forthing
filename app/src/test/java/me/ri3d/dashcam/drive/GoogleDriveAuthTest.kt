@@ -263,6 +263,63 @@ class GoogleDriveAuthTest {
         assertThat(prefs.contains("account")).isFalse()
     }
 
+    @Test
+    fun `a silent reconnect connects the hinted account without any UI and remembers it`() = runTest {
+        val auth = newAuth()
+
+        assertThat(auth.reconnectSilently("a@example.com").isSuccess).isTrue()
+
+        assertThat(authorizer.calls).containsExactly("authorize a@example.com false")
+        val connected = DriveAuthState.Connected("a@example.com", setOf(DRIVE_FILE_SCOPE))
+        assertThat(auth.state.value).isEqualTo(connected)
+        assertThat(store.load()).isEqualTo(StoredDriveAccount("a@example.com", setOf(DRIVE_FILE_SCOPE), connectedAt = 1_000))
+        assertThat(newAuth().state.value).isEqualTo(connected)
+    }
+
+    @Test
+    fun `a silent reconnect that needs Google's screen only offers the one-tap reconnect for that account`() = runTest {
+        authorizer.authorize = { _, _ -> Authorization.NeedsUi(pendingIntent) }
+        val auth = newAuth()
+
+        assertThat(auth.reconnectSilently("a@example.com").isSuccess).isTrue() // nothing launched (no consent lambda here)
+
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NeedsReconnect(ReconnectReason.CONSENT_REQUIRED.name, "a@example.com"))
+        assertThat(store.load()).isNull() // in memory only: the next start tries silently again
+        assertThat(newAuth().state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(auth.accessToken().exceptionOrNull()).isInstanceOf(DriveError.NeedsReconnect::class.java)
+
+        // "Erneut verbinden" asks Google for exactly that account.
+        authorizer.fromIntent = { granted }
+        assertThat(auth.connectWith(false) { ActivityResult(Activity.RESULT_OK, Intent()) }.isSuccess).isTrue()
+        assertThat(authorizer.calls.last { it.startsWith("authorize") }).isEqualTo("authorize a@example.com false")
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.Connected("a@example.com", setOf(DRIVE_FILE_SCOPE)))
+    }
+
+    @Test
+    fun `a failed silent reconnect leaves Drive not connected`() = runTest {
+        authorizer.authorize = { _, _ -> throw ApiException(Status(CommonStatusCodes.SIGN_IN_REQUIRED)) }
+        val auth = newAuth()
+        assertThat(auth.reconnectSilently("a@example.com").exceptionOrNull()).isInstanceOf(DriveError.Authorization::class.java)
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
+
+        authorizer.authorize = { _, _ -> granted }
+        authorizer.emailError = DriveError.Offline(IOException("no network"))
+        assertThat(auth.reconnectSilently("a@example.com").exceptionOrNull()).isInstanceOf(DriveError.Offline::class.java)
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(store.load()).isNull()
+    }
+
+    @Test
+    fun `a silent reconnect never replaces a stored connection`() = runTest {
+        val auth = connected()
+        val calls = authorizer.calls.size
+
+        assertThat(auth.reconnectSilently("b@example.com").isSuccess).isTrue()
+
+        assertThat(authorizer.calls).hasSize(calls)
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.Connected("a@example.com", setOf(DRIVE_FILE_SCOPE)))
+    }
+
     private suspend fun TestScope.connected(): GoogleDriveAuth = newAuth().also { it.connectWith(false, noConsentScreen).getOrThrow() }
 
     private inner class FakeAuthorizer : DriveAuthorizer {
