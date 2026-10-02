@@ -617,6 +617,13 @@
     </plurals>
     <string name="media_storage_free_space">Frei auf dem Handy: %1$s</string>
     <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
+    <string name="media_stand">Stand: %1$s</string>
+    <string name="media_stand_refreshing">Stand: %1$s · wird aktualisiert…</string>
+    <string name="media_stand_offline">Stand: %1$s · nicht verbunden</string>
+    <plurals name="media_known_files">
+        <item quantity="one">%d Datei aus der letzten Liste</item>
+        <item quantity="other">%d Dateien aus der letzten Liste</item>
+    </plurals>
     <!-- /media -->
     <!-- plates -->
     <string name="plates_recognition">Kennzeichenerkennung</string>

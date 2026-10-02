@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,11 +13,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.dashcam.RecorderConnectionManager
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
@@ -43,11 +47,11 @@ enum class RecordingsTab(val type: Int?, @StringRes val label: Int) {
 }
 
 /**
- * One listed recorder file, its library row and its download. [thumb]: the local thumbnail once the file is on the
- * phone (also the fallback should a `.thm` be no image), else the recorder's URL – null (placeholder) while a download
- * runs, so the recorder serves only that one.
+ * One recorder copy as the library knows it, and its download. [thumb]: the local thumbnail once the file is on the
+ * phone (also the fallback should a `.thm` be no image), else the cached recorder thumbnail ([RecorderThumb]) – which
+ * asks the recorder only with a session and while no download runs, so the recorder serves only that one.
  */
-data class RecorderEntry(val file: RecorderFile, val item: MediaItem, val transfer: TransferProgress?, val thumb: Any? = null)
+data class RecorderEntry(val item: MediaItem, val transfer: TransferProgress?, val thumb: Any? = null)
 
 /** One-shot results shown as snackbar. */
 sealed interface MediaNotice {
@@ -57,22 +61,52 @@ sealed interface MediaNotice {
     data object NothingToDownload : MediaNotice
 }
 
-/** Recordings and SD files: recorder listings (one [RecorderBrowser] per type), phone library, selection. */
+/**
+ * Recordings and SD files: the recorder tabs show the library's recorder copies at once (also offline) while one
+ * [RecorderBrowser] per type lists the recorder again page by page; phone library, selection, thumbnail prefetch.
+ */
 @HiltViewModel
 class RecordingsViewModel @Inject constructor(
     private val manager: RecorderConnectionManager,
     private val repository: MediaRepository,
     private val downloads: DownloadQueue,
     val http: RecorderHttp,
+    prefetcher: ThumbnailPrefetcher,
 ) : ViewModel() {
     val connection: StateFlow<RecorderConnectionState> = manager.state
     val transfers: StateFlow<Map<String, TransferProgress>> = downloads.progress
-    val local: StateFlow<List<MediaItem>> = repository.observeLocal().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Everything with a phone copy; null until the library answered (nothing to show, rather than "empty"). */
+    val local: StateFlow<List<MediaItem>?> = repository.observeLocal().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val ready = manager.state.map { it is RecorderConnectionState.Ready }.distinctUntilChanged()
+    private val downloading = downloads.progress.map { p -> p.values.any { it.state == TransferState.RUNNING } }.distinctUntilChanged()
 
     private val browsers = RecordingsTab.entries.mapNotNull { it.type }.associateWith { type ->
-        RecorderBrowser(type, manager, repository, viewModelScope) { id -> downloads.progress.value[id]?.state in DownloadQueue.ACTIVE }
+        RecorderBrowser(
+            type, manager, repository, viewModelScope,
+            inTransfer = { id -> downloads.progress.value[id]?.state in DownloadQueue.ACTIVE },
+            awaitTurn = { downloading.first { !it } },
+        )
     }
     private var shown: Int? = null // recorder type of the visible tab
+
+    // Kept while the tab is away (WhileSubscribed keeps the last value), so coming back shows the list at once; a
+    // reopened screen starts with the rows the process last saw, so its first frame has them.
+    private val entries = browsers.keys.associateWith { type ->
+        val transfersNow = transfers.value
+        val initial = repository.lastRecorderRows(type)?.let { rows ->
+            toEntries(rows, transfersNow, manager.state.value is RecorderConnectionState.Ready && transfersNow.values.none { it.state == TransferState.RUNNING })
+        }
+        combine(repository.observeRecorderType(type), transfers, ready, downloading) { items, transfers, ready, downloading ->
+            toEntries(items, transfers, ready && !downloading)
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
+    }
+
+    private fun toEntries(items: List<MediaItem>, transfers: Map<String, TransferProgress>, network: Boolean) =
+        items.map { item -> RecorderEntry(item, transfers[item.id], item.localThumbPath?.let(::File) ?: http.thumb(item, network)) }
+
+    private val focus = MutableStateFlow(PrefetchFocus())
+    private val scrolling = MutableStateFlow(false)
 
     private val _selection = MutableStateFlow<Set<String>>(emptySet())
     /** Selected media ids. */
@@ -88,42 +122,45 @@ class RecordingsViewModel @Inject constructor(
         repository.watchScreenshots()
         viewModelScope.launch { repository.importScreenshots() }
         viewModelScope.launch {
-            manager.state.map { it is RecorderConnectionState.Ready }.distinctUntilChanged().collect { ready ->
+            ready.collect { ready ->
                 if (ready) shown?.let { browsers[it]?.refresh() } else browsers.values.forEach { it.reset() }
             }
         }
         viewModelScope.launch { manager.notifications.collect(::onNotification) }
+        viewModelScope.launch { prefetcher.run(focus, scrolling) }
     }
 
     fun browser(type: Int): StateFlow<BrowserState> = browsers.getValue(type).state
 
     /**
-     * The listing of [type] joined with library rows (by recorder path) and transfers. Every page is registered
-     * before it is shown, so a listed file without a row was deleted on the recorder meanwhile (e.g. from the clip
-     * screen) and is left out.
+     * The recorder copies of [type] as the library knows them (newest recorder time first) with their transfers;
+     * null until the first read. Listing pages, `fileNew`, `fileDel` and deletions change it in place.
      */
-    fun entries(type: Int): Flow<List<RecorderEntry>> =
-        combine(browsers.getValue(type).state, repository.observeRecorderType(type), transfers) { state, items, transfers ->
-            val byPath = items.associateBy { it.recorderPath }
-            val downloading = transfers.values.any { it.state == TransferState.RUNNING }
-            state.listing.files.mapNotNull { file ->
-                byPath[file.fileName]?.let { item ->
-                    val thumb = item.localThumbPath?.let(::File) ?: file.fileThm?.takeUnless { downloading }?.let(http::url)
-                    RecorderEntry(file, item, transfers[item.id], thumb)
-                }
-            }
-        }
+    fun entries(type: Int): StateFlow<List<RecorderEntry>?> = entries.getValue(type)
+
+    /** When [type] was last listed to its end ("Stand"); null before the first time. */
+    fun listedAt(type: Int): Flow<Long?> = repository.listedAt(type)
 
     /** The tab became visible: its type is listed once per session (refresh and notifications list it again). */
     fun show(tab: RecordingsTab) {
         if (shown != tab.type) _selection.value = emptySet()
         shown = tab.type
+        if (focus.value.type != tab.type) focus.value = PrefetchFocus(tab.type)
         val browser = tab.type?.let(browsers::get) ?: return
         if (manager.state.value is RecorderConnectionState.Ready && !browser.state.value.started) browser.refresh()
     }
 
+    /** The media ids the recorder list of [type] shows right now, top first: their thumbnails are prefetched first. */
+    fun visible(type: Int, ids: List<String>) {
+        if (type == shown) focus.value = PrefetchFocus(type, ids)
+    }
+
+    /** While the list is scrolled the prefetch pauses, so the rows coming into view load first. */
+    fun scrolling(active: Boolean) {
+        scrolling.value = active
+    }
+
     fun refresh(type: Int) = browsers[type]?.refresh()
-    fun loadMore(type: Int) = browsers[type]?.loadMore()
     fun retry(type: Int) = browsers[type]?.retry()
 
     fun toggle(id: String) = _selection.update { if (id in it) it - id else it + id }
@@ -170,19 +207,34 @@ class RecordingsViewModel @Inject constructor(
         viewModelScope.launch { downloads.cancel(id) }
     }
 
-    /** `fileNew` / `fileDel` / `updateFileList` list the affected type again (all listed types when it is unknown). */
+    /**
+     * `fileNew` goes to the top of its tab (row + listing of this session), `fileDel` forgets the recorder copy; neither
+     * lists again. `updateFileList`, or a notification without a usable type or name, lists the affected type again
+     * (all listed types when it is unknown).
+     */
     private fun onNotification(notification: RecorderNotification) {
-        val type = when (val info = (notification as? RecorderNotification.Normal)?.info) {
-            is NormalInfo.FileNew -> info.fileType
-            is NormalInfo.FileDel -> {
-                info.fileName?.let { viewModelScope.launch { repository.markRecorderDeleted(it) } }
-                info.fileType
+        when (val info = (notification as? RecorderNotification.Normal)?.info) {
+            is NormalInfo.FileNew -> {
+                val browser = info.fileType?.let(browsers::get)
+                val name = info.fileName
+                if (browser == null || name == null) return relist(info.fileType)
+                viewModelScope.launch {
+                    val file = RecorderFile(name, info.fileThm, info.fileTime, JsonObject(emptyMap()))
+                    repository.upsertFromRecorderListing(browser.type, listOf(file))
+                    browser.add(file)
+                }
             }
-            is NormalInfo.UpdateFileList -> null
-            else -> return
+            is NormalInfo.FileDel -> {
+                val name = info.fileName ?: return relist(info.fileType)
+                browsers.values.forEach { it.removeAll(listOf(name)) }
+                viewModelScope.launch { repository.markRecorderDeleted(name) }
+            }
+            is NormalInfo.UpdateFileList -> relist(null)
+            else -> Unit
         }
-        browsers.values
-            .filter { it.state.value.started && (type == null || type !in browsers || it.type == type) }
-            .forEach { it.refresh() }
     }
+
+    private fun relist(type: Int?) = browsers.values
+        .filter { it.state.value.started && (type == null || type !in browsers || it.type == type) }
+        .forEach { it.refresh() }
 }

@@ -1,6 +1,9 @@
 package me.ri3d.dashcam.media
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -113,11 +116,7 @@ class RecorderListingTest {
         manager.connect()
         val browser = RecorderBrowser(0, manager, MediaRepository(context, db, manager), backgroundScope)
 
-        browser.refresh()
-        repeat(6) {
-            eventually { !browser.state.value.loading }
-            browser.loadMore()
-        }
+        browser.refresh() // then page by page by itself
         eventually { browser.state.value.listing.end != null }
 
         val state = browser.state.value
@@ -132,6 +131,63 @@ class RecorderListingTest {
     }
 
     @Test
+    fun `pages wait for their turn and the listing time is stored at the end`() = runTest {
+        val files = SimulatedFiles()
+        val sim = RecorderSimulator().apply { handlers[4100] = files::listReply }
+        val manager = managerFor(sim).apply { setSimulator(true) }
+        manager.connect()
+        val repository = MediaRepository(context, db, manager)
+        val turn = MutableStateFlow(false) // a download runs
+        val browser = RecorderBrowser(0, manager, repository, backgroundScope, awaitTurn = { turn.first { it } })
+
+        browser.refresh()
+        repeat(3) { runCurrent() }
+        assertThat(cursors(sim)).isEmpty()
+        assertThat(browser.state.value.refreshing).isTrue() // "wird aktualisiert…"
+        assertThat(repository.listedAt(0).first()).isNull()
+
+        turn.value = true
+        eventually { browser.state.value.listing.end != null }
+        assertThat(cursors(sim)).hasSize(6)
+        assertThat(browser.state.value.refreshing).isFalse()
+        assertThat(repository.listedAt(0).first()).isNotNull()
+    }
+
+    @Test
+    fun `fileNew and fileDel between pages keep the reconcile right`() = runTest {
+        val start = java.time.LocalDateTime.of(2026, 10, 1, 1, 0)
+        val before = SimulatedFiles.series(0, "normal", "N", ".mp4", 25, start, 60, 1000) // pages of 20 + 5
+        var card = SimulatedFiles(before)
+        val sim = RecorderSimulator().apply { handlers[4100] = { card.listReply(it) } }
+        val manager = managerFor(sim).apply { setSimulator(true) }
+        manager.connect()
+        val repository = MediaRepository(context, db, manager)
+        repository.upsertFromRecorderListing(0, listOf(recorderFile("/sim/stale.mp4", "2026-01-01 00:00:00")))
+        val turn = MutableStateFlow(false)
+        var pages = 0
+        val browser = RecorderBrowser(0, manager, repository, backgroundScope, awaitTurn = { if (pages++ == 1) turn.first { it } })
+
+        browser.refresh()
+        eventually { pages == 2 } // page 1 done, page 2 waits
+        // Loop recording between the pages: a new clip at the top, the oldest overwritten (total stays 25).
+        val new = SimulatedFiles.series(0, "normal", "N", ".mp4", 1, start.plusMinutes(1), 60, 1000).single()
+        card = SimulatedFiles(listOf(new) + before.dropLast(1))
+        val newFile = recorderFile(new.fileName, new.fileTime)
+        repository.upsertFromRecorderListing(0, listOf(newFile))
+        browser.add(newFile)
+        repository.markRecorderDeleted(before.last().fileName)
+        browser.removeAll(listOf(before.last().fileName))
+        turn.value = true
+        eventually { browser.state.value.listing.end != null }
+
+        assertThat(browser.state.value.listing.reachedTotal).isTrue()
+        val paths = db.mediaDao().recorderType(0).map { it.recorderPath }
+        assertThat(paths).contains(new.fileName) // listed by fileNew, not by a page: kept
+        assertThat(paths).doesNotContain("/sim/stale.mp4") // reconciled at the total
+        assertThat(paths).hasSize(25)
+    }
+
+    @Test
     fun `a recorder that ignores the cursor is stopped after the second page`() = runTest {
         val files = SimulatedFiles()
         val first = SimulatedFiles.listReply(files.entries(0), files.entries(0).take(50))
@@ -140,9 +196,7 @@ class RecorderListingTest {
         manager.connect()
         val browser = RecorderBrowser(0, manager, MediaRepository(context, db, manager), backgroundScope)
 
-        browser.refresh()
-        eventually { !browser.state.value.loading }
-        browser.loadMore()
+        browser.refresh() // the second page follows by itself
         eventually { browser.state.value.listing.end != null }
         browser.loadMore() // ended: no further request
 

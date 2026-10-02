@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,6 +32,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +52,7 @@ class MediaRepository @Inject constructor(
     private val mutex = Mutex() // read-modify-write of rows
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var screenshotObserver: FileObserver? = null // strong reference: a collected observer stops watching
+    private val lastRecorderRows = ConcurrentHashMap<Int, List<MediaItem>>() // per type, as last observed
 
     val mediaDir get() = File(context.filesDir, "media")
     val screenshotDir get() = File(context.filesDir, "screenshots")
@@ -58,7 +61,15 @@ class MediaRepository @Inject constructor(
     fun observe(id: String): Flow<MediaItem?> = dao.observe(id)
     fun observe(kind: MediaKind? = null, category: MediaCategory? = null): Flow<List<MediaItem>> = dao.observe(kind, category)
     fun observeLocal(): Flow<List<MediaItem>> = dao.observeLocal()
-    fun observeRecorderType(type: Int): Flow<List<MediaItem>> = dao.observeRecorderType(type)
+    fun observeRecorderType(type: Int): Flow<List<MediaItem>> = dao.observeRecorderType(type).onEach { lastRecorderRows[type] = it }
+
+    /** The rows [observeRecorderType] last delivered in this process: a reopened screen shows them in its first frame. */
+    fun lastRecorderRows(type: Int): List<MediaItem>? = lastRecorderRows[type]
+    fun observeRecorderCopies(): Flow<List<MediaItem>> = dao.observeRecorderCopies()
+
+    /** When a listing of [type] last ran to its end; null before the first. */
+    fun listedAt(type: Int): Flow<Long?> = dao.observeListedAt(type)
+    suspend fun setListedAt(type: Int, at: Long) = dao.setListedAt(ListingStamp(type, at))
     fun observeChildren(id: String): Flow<List<MediaItem>> = dao.observeChildren(id)
     suspend fun get(id: String): MediaItem? = dao.get(id)
     suspend fun localItems(kinds: Collection<MediaKind>): List<MediaItem> = dao.localOf(kinds.toList())
