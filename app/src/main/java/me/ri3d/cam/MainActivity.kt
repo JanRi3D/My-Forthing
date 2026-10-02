@@ -1,5 +1,6 @@
 package me.ri3d.cam
 
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,6 +35,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(newBase.withAppLocale())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // The splash stays until theme and start destination are known (a few ms), so neither flashes.

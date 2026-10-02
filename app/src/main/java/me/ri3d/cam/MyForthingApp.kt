@@ -13,4 +13,9 @@ class MyForthingApp : Application(), Configuration.Provider {
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
+
+    override fun onCreate() {
+        super.onCreate()
+        pinAppLocale(this)
+    }
 }

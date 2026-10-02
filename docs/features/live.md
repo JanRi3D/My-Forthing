@@ -38,8 +38,8 @@ the activity and, through the manager's ON_STOP, the session.
 
 **Retry.** Each start gets exactly one automatic retry on a stream error, 1.5 s later (`RETRY_DELAY_MS`; the
 pending retry is cancelled by any stop or new start), then `StreamState.Failed` with "Livebild nicht verfügbar", a
-German reason, the raw code as a second line ("Code: ERROR_CODE_IO_UNSPECIFIED (2000)") and "Erneut versuchen" (a
-fresh start with its own retry). Having played resets the retry, so a later drop is retried once again. Reasons by
+German reason, the numeric code as a second line ("Code 2000"; local reasons without a Media3 code show none, the
+`errorCodeName` stays in the warning log) and "Erneut versuchen" (a fresh start with its own retry). Having played resets the retry, so a later drop is retried once again. Reasons by
 Media3 `PlaybackException.errorCode` group: 2xxx (I/O, network) "Recorder liefert kein Livebild (RTSP, Port 554)",
 3xxx (parsing) "Livebild des Recorders nicht lesbar (Datenformat)", 4xxx (decoder) "Videoformat auf diesem Handy
 nicht abspielbar", the end of the stream (`STATE_ENDED` → `STREAM_ENDED`; the original app stops on stream closure

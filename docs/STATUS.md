@@ -1,10 +1,11 @@
 # My Forthing – Status
 
-As of 2026-10-02: **release 1.0.0 (Build 1)**, built from `main` at `b153bf4` plus `feature/release-final` (docs and
-the 4 GiB Gradle daemon heap only; the release APKs are byte-identical before and after it). Every feature branch is
-integrated. Unit tests on `feature/release-final` (`./gradlew :recorder:test :app:testDebugUnitTest :app:lintDebug`
-after a clean build): **441 unit tests, 0 failures, 0 skipped** (`:app` 369, `:recorder` 72); `:app:lintDebug`:
-0 errors, 24 warnings (dependency/AGP/targetSdk version notices and one plurals hint).
+As of 2026-10-02: **release 1.0.0 (Build 1)**, built from `main` at `9ba3eb5` plus `fix/final-polish` (fixes from the
+acceptance review: the app is pinned to German, accessibility labels, the live error line, user docs). Every feature
+branch is integrated. Unit tests on `fix/final-polish`
+(`./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :recorder:test`): **443 unit tests, 0 failures,
+0 skipped** (`:app` 371, `:recorder` 72); `:app:lintDebug`: 0 errors, 24 warnings (dependency/AGP/targetSdk version
+notices and one plurals hint).
 
 Labels: **[SIM]** = against `RecorderSimulator` or `:recorder:runSimulator`; **emulator** = AVD Pixel_10_Pro_XL,
 API 36, x86_64 (performance numbers indicative only). The instrumented tests in `app/src/androidTest` (plates 5,
@@ -21,7 +22,8 @@ recorder or on a real phone yet**; the owner checklist is [`HARDWARE_CHECKLIST.m
 | `fix/download-notification`, `feature/drive-backup` | merged (`02996be`, `6c38347`) |
 | `feature/release` | merged (`32f56f5`) |
 | `feature/plates-ui` | merged (`b153bf4`) |
-| `feature/release-final` | this branch: final APKs, status and user docs, daemon heap |
+| `feature/release-final` | merged (`9ba3eb5`) |
+| `fix/final-polish` | this branch: locale pin, accessibility labels, live error code, user docs, rebuilt APKs |
 
 ## Release 1.0.0 (Build 1)
 
@@ -30,9 +32,9 @@ In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`; build, veri
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,958 | `1451a901c472bc8606d76c85153fe029667774a9299f114e3b8790d39e5106a9` |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,862 | `0a89c0584ac191ebdd711f833f6f5663055e8ca7aacb8e6129e22344dd134f9e` |
-| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,340,008 | `760dc8d67f266436a3fc066de311ba2b00590df22d8cb66e48c530694690bafc` |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,986 | `ad770b9ea8eec2020d6d6b6e449210fb6755fc09e5fe6d51b866cc7ae79c2183` |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,890 | `14895053b56b1e96b34308f7979f8d0125e46af8094e46e4a806c300d1af6aa5` |
+| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,340,036 | `d874fcb649bea490dd262db85aefe227de9a54085a6a7b619c7e7b7de103d5f2` |
 
 - Release APKs: `me.ri3d.cam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc`. A second clean build gave
@@ -51,7 +53,7 @@ reported by the owning branch in `docs/features/*.md`.
 
 | Feature | Unit tests | Emulator / instrumented | Simulator-only [SIM] | Hardware-unverified | Blocked on owner input |
 | --- | --- | --- | --- | --- | --- |
-| **Foundation** (`core/`: theme, navigation, guest profile + onboarding, settings, Darstellung, log redaction) | 21 | emulator walkthrough | – | – | – |
+| **Foundation** (`core/`: theme, navigation, guest profile + onboarding, settings, Darstellung, log redaction; `AppLocale.kt`: UI pinned to German) | 23 | emulator walkthrough; on an en-US emulator Media3 controls ("Player-Steuerelemente anzeigen", "Geschwindigkeit"), Material 3 sheet ("Ziehpunkt"), dates ("2. Oktober 2026 um 05:24") and sizes ("6,3 MB") are German, also on the first start | – | the pin on Android 8–12 (no per-app language; covered by a Robolectric test only) | – |
 | **Recorder protocol** (`:recorder`: framing, session crypto, commands, notifications, error codes, SDK-defect regressions, simulator) | 72 [SIM] | – (pure JVM) | everything: fixtures from the protocol report, fragmentation, heartbeat loss, auto-ack, Wi-Fi mode / OSD / G-sensor / capability-flag regressions | handshake with the vendor key, AES traffic, timing, real replies and error codes | recorder sessions |
 | **Dashcam connection** (`dashcam/`: Wi-Fi binding, states, Verbindung, Home card, SD-Karte, recorder settings with readback, Diagnose) | 42 [SIM] | walkthrough against `:recorder:runSimulator` [SIM]; real Wi-Fi path up to -101 | session, settings readback, SD card, diagnostics | FORTHING hotspot binding with mobile data on, 4097/4098/4099 values and units, every 8192 change, Wi-Fi password, format, factory reset, notifications, capabilities (`features/dashcam.md` 1–14) | recorder sessions |
 | **Live view** (`live/`: RTSP via Media3, full screen, screenshot, Foto / 5er-Serie / Aufnahme) | 16 (Robolectric, fake player) | states, retries, commands [SIM] | commands; **RTSP playback never exercised** (the simulator has no RTSP server) | stream, codec, latency, screenshot from a real frame, keep-screen-on, command replies (`features/live.md` 1–9) | recorder sessions |
@@ -61,8 +63,8 @@ reported by the owning branch in `docs/features/*.md`.
 | **Drive backup** (`backup/`: rules, single-slot upload queue, MD5 verification, sidecars, pause/reconnect, Drive-Kopie löschen, Drive-Status prüfen) | 36 | Drive **not** connected; states seeded in the debug DB; two incident downloads [SIM] | connected states only in unit tests | every upload path (`features/backup.md` 1–8, checklist C3) | Cloud setup as above |
 | **Plates core** (`plates/`: ML Kit OCR, plate rules, history DB, live throttle, clip scanner, sidecar export) | 34 | instrumented: `PlateEvaluationTest` (synthetic 44 plates + 16 negatives), `PlateBenchmark` (2), `ClipPlateScannerTest` (2) | – | accuracy on real footage, phone speed, CPU/thermal | **real dashcam recordings**; decision on ML Kit usage metrics |
 | **Plates UI** (`plates/ui`: live overlay, clip check, search, detail, settings, honesty rules) | 25 | clip check on the simulator fixture, screens with a seeded history [SIM] | clip check (fixture without plates); **live overlay never exercised** (no RTSP) | live overlay alignment and lag, sharpening kept out of plate frames (checklist B3), real clip checks, automatic check after real downloads | real recordings |
-| **Enhance core** (`enhance/`: QuickSRNet ×4 + classical fallback, GPU clip upscaler, live-sharpen probe, honesty sidecars) | 20 | instrumented: `EnhanceInstrumentedTest` (17), `EnhanceBenchmark` (4, opt-in) | – | phone speed, 1440p/2160p encode (the emulator encoder stops at 2048 px), live sharpening on a real GPU, battery/thermal | real recordings for the model choice |
-| **Enhance UI** (`enhance/ui`: Bild verbessern, Clip hochskalieren, Schärfen, settings + licences) | 39 (Robolectric) | frame enhance + save; upscale targets disabled by the emulator encoder [SIM] | – | a real upscale, its notification, pinch zoom, live sharpening (needs RTSP) | – |
+| **Enhance core** (`enhance/`: QuickSRNet ×4 + classical fallback, GPU clip upscaler, live-sharpen probe, honesty sidecars) | 20 | instrumented: `EnhanceInstrumentedTest` (17), `EnhanceBenchmark` (4, opt-in) | – | phone speed, every clip encode incl. 1080p (the emulator's only H.264 encoder stops at 8192 macroblocks), live sharpening on a real GPU, battery/thermal | real recordings for the model choice |
+| **Enhance UI** (`enhance/ui`: Bild verbessern, Clip hochskalieren, Schärfen, settings + licences) | 39 (Robolectric) | frame enhance + save; **every** upscale target incl. 1080p (1964 × 1080 for the fixture) disabled, because the emulator's AVC encoder rejects that size – nothing about 1080p working on the emulator can be inferred [SIM] | – | any real upscale (1080p, 1440p, 2160p), its notification, pinch zoom, live sharpening (needs RTSP) | – |
 | **Release** (signing, versioning, per-ABI APKs, docs) | – | `apksigner` / `aapt2` verified; universal debug APK for the emulator | – | install and update on a real phone (Android 8–16) | keystore backup by the owner (`RELEASE.md` §5) |
 
 ## Open decisions and inputs for the owner

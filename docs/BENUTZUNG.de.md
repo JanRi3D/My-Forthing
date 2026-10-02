@@ -4,9 +4,11 @@ Für den Besitzer und Tester. My Forthing verbindet dein Handy mit der Dashcam d
 Aufnahmen herunterladen, Einstellungen der Dashcam, Sicherung in deinem Google Drive, Kennzeichenerkennung und
 Bildverbesserung – alles auf dem Handy, ohne Pflicht-Konto. Installation: [`INSTALLATION.de.md`](INSTALLATION.de.md).
 
-Diese Anleitung beschreibt Version 1.0.0 (Build 1). Das Online-Konto (Abschnitt 7) braucht eine Firebase-Einrichtung,
-die beim Bauen der App eingebaut wird. Build 1 hat sie noch nicht: Die App meldet beim Konto „Konto-Dienst ist in dieser
-Installation nicht eingerichtet.“ Das ist kein Fehler deines Handys; alles andere funktioniert ohne Konto.
+Diese Anleitung beschreibt Version 1.0.0 (Build 1). Die App ist immer auf Deutsch, auch wenn das Handy eine andere
+Sprache eingestellt hat (auch Datums- und Zahlenformate). Das Online-Konto (Abschnitt 7) braucht eine
+Firebase-Einrichtung, die beim Bauen der App eingebaut wird. Build 1 hat sie noch nicht: Die App meldet beim Konto
+„Konto-Dienst ist in dieser Installation nicht eingerichtet.“ Das ist kein Fehler deines Handys; alles andere
+funktioniert ohne Konto.
 
 **Wichtig vorab:** Die App ist bisher nur mit einem Simulator und auf dem Android-Emulator getestet, nicht mit der
 echten Dashcam (siehe „Bekannte Einschränkungen“ und [`HARDWARE_CHECKLIST.md`](HARDWARE_CHECKLIST.md)).
@@ -36,20 +38,26 @@ Verbindung“*):
 3. **WLAN-Passwort**: ab Werk **12345678** (kann abweichen, wenn es geändert wurde; die App zeigt den Werkswert unter
    „So klappt die Verbindung“).
 4. Fragt Android, ob du mit einem WLAN **ohne Internetzugang** verbunden bleiben willst: **Ja / Verbunden bleiben**.
-5. In der App auf die Karte **Meine Dashcam** tippen → Bildschirm **Verbindung** → **Verbinden**.
-   - Beim ersten Mal fragt die App nach der Berechtigung, um den **WLAN-Namen zu erkennen** (Standort). Ohne sie
-     verbindet die App trotzdem.
+5. In der App auf die Karte **Meine Dashcam** tippen → Bildschirm **Verbindung**. Die App verbindet beim Öffnen von
+   selbst (auch nach **Trennen**, wenn du den Bildschirm neu öffnest); klappt es nicht, **Erneut versuchen** bzw.
+   **Verbinden**.
+   - Die App fragt nicht von selbst nach einer Berechtigung. Sie zeigt die Karte **WLAN-Namen erkennen** mit
+     **Berechtigung erteilen** (Standort; Android verrät den WLAN-Namen nur damit). Ohne sie steht dort
+     „WLAN: unbekanntes WLAN (Berechtigung fehlt)“, und Verbinden funktioniert trotzdem.
    - Heißt das WLAN anders („Anderes WLAN verbunden“), aber es ist sicher deine Dashcam: **Trotzdem verbinden**.
 6. Die Schritte **WLAN**, **TCP-Verbindung (Port 7878)** und **Sitzung (Schlüsselaustausch)** werden nacheinander
-   „erledigt“. Erst bei **Verbunden** funktionieren Befehle; die Karte zeigt dann WLAN, Gerät, Firmware und freien
-   Speicher „laut Recorder“.
+   „erledigt“. Erst bei **Verbunden** funktionieren Befehle; die Karte **Meine Dashcam** auf dem Startbildschirm zeigt
+   dann WLAN, Aufnahmestatus und freien Speicher „laut Recorder“. Gerät und Firmware stehen auf dem Bildschirm
+   **Verbindung** und unter *Einstellungen → Gerät*.
 
 **Mobile Daten:** Die App spricht mit der Dashcam über deren WLAN und lässt die mobilen Daten für alles andere (Drive,
 Konto) eingeschaltet. Klappt die Verbindung trotz verbundenem WLAN nicht, **mobile Daten ausschalten** und erneut
 versuchen – die App weist darauf hin.
 
 Die Verbindung endet, wenn die App in den Hintergrund geht, und baut sich beim Zurückkehren wieder auf. **Trennen**
-beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht erreichbar (Code -101)“.
+beendet sie sofort. Verbindungsfehler zeigt der Bildschirm **Verbindung** mit Code, z. B. „Recorder nicht erreichbar
+(Code -101)“ oder „Verbindung getrennt (Code -202)“. Die Karte auf dem Startbildschirm und die WLAN-Zustände
+(„Kein Dashcam-WLAN“, „Anderes WLAN verbunden“) haben keinen Code.
 
 ## 3. Live-Ansicht
 
@@ -65,7 +73,8 @@ beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht
     Länge des Clips bestimmt die Dashcam.
   - Die Antwort steht darunter („Foto – Recorder meldet: …“). „**Ergebnis unbekannt – neu verbinden und prüfen**“
     heißt: keine Antwort; ob die Dashcam es ausgeführt hat, siehst du in den Aufnahmen.
-- Wenn das Livebild nicht kommt: „Livebild nicht verfügbar“ mit Grund und Code, dann **Erneut versuchen**.
+- Wenn das Livebild nicht kommt: „Livebild nicht verfügbar“ mit Grund (und „Code …“, wenn der Player einen meldet),
+  dann **Erneut versuchen**.
 - **Kennzeichen** (links neben Screenshot) schaltet die Kennzeichenerkennung ein (Abschnitt 8), **Schärfen** (rechts)
   die geschärfte Ansicht (Abschnitt 9).
 
@@ -82,10 +91,14 @@ beendet sie sofort. Fehler zeigt die App immer mit Code, z. B. „Recorder nicht
 
 - Die ersten drei Reiter brauchen die Verbindung. Die Liste lädt beim Scrollen weiter; **Aktualisieren** lädt neu.
 - Zeiten sind „**laut Recorder, Zeitzone unbekannt**“: die Uhr der Dashcam, als Handy-Zeit gelesen.
-- **Herunterladen**: Datei lange drücken (Auswahl), weitere antippen, dann **Herunterladen**. Höchstens zwei laufen
-  gleichzeitig. Fortschritt unter **Übertragungen** (oben) und in der Benachrichtigung („Download: …“, **Abbrechen**).
-  Bricht die Verbindung ab, wartet der Download („Wartet auf die Dashcam-Verbindung“) und macht nach dem nächsten
-  Verbinden an der gleichen Stelle weiter.
+- **Herunterladen**: das Download-Symbol in der Zeile („<Datei> herunterladen“) oder Datei lange drücken (Auswahl),
+  weitere antippen, dann **Herunterladen**. Höchstens zwei laufen gleichzeitig. Fortschritt unter **Übertragungen**
+  (oben) und in der Benachrichtigung („Download: …“, **Abbrechen**). Bricht die Verbindung ab, wartet der Download
+  („Wartet auf die Dashcam-Verbindung“) und macht nach dem nächsten Verbinden an der gleichen Stelle weiter.
+  Ein laufender Download läuft nach **Trennen** weiter, solange das Dashcam-WLAN besteht; neue Downloads warten auf
+  die Verbindung.
+- **Rohliste** (über der Liste, neben **Aktualisieren**) öffnet die unbearbeitete Dateiliste der Dashcam für diesen
+  Reiter.
 - **Clip öffnen** (antippen, wenn auf dem Handy): Player bzw. Bildansicht, **Teilen**, **Löschen**. Verbesserte Dateien
   zeigen ihr **Original**, Originale zeigen „**Daraus erzeugt**“.
 - **Löschen – drei getrennte Kopien.** Eine Aufnahme kann auf der Dashcam, auf dem Handy und in Google Drive liegen.
@@ -99,7 +112,10 @@ geladene bleiben. Die App fragt doppelt („Mir ist klar, dass sich das nicht r�
 
 **Dashcam-Einstellungen** (*Einstellungen*, unter den App-Einstellungen, nur bei „Verbunden“): Videoauflösung, Länge der
 Loop-Clips, Ton aufnehmen, WDR, Empfindlichkeit G-Sensor (Hoch/Mittel/Niedrig), Parküberwachung, Vorfälle
-überschreiben, Fahrinfo-Einblendung, Ausschaltverzögerung, WLAN-Passwort, Werkseinstellungen.
+überschreiben, Fahrinfo-Einblendung, Ausschaltverzögerung, „WLAN-Name und Passwort“ (nur das Passwort ist änderbar),
+Werkseinstellungen. Dazu die Abschnitte **Gerät** (Modell, Seriennummer, Firmware, Hardware, MCU-Firmware „laut
+Recorder“ und **Diagnose**, Abschnitt 10) und **Weitere Werte (unbestätigt)** (gemeldete Werte, die die App nicht
+deutet).
 - Nach einer Änderung liest die App den Wert zurück. Nur dann steht **bestätigt**. „gesendet: X, zurückgelesen: Y“ oder
   „angenommen, aber nicht zurückgelesen“ heißen: nicht sicher übernommen.
 - **WLAN-Passwort ändern**: nur das Passwort (8–16 Zeichen, Buchstaben und Ziffern, ohne Leerzeichen und Umlaute), zweimal
@@ -228,7 +244,8 @@ schicken. Ohne Verbindung enthält sie nur WLAN-Daten und das Protokoll.
   „Konto-Dienst ist in dieser Installation nicht eingerichtet.“ bzw. „Google-Cloud-Konfiguration fehlt (Statuscode 10)“.
 - **Kennzeichenerkennung** nur mit künstlich erzeugten Bildern geprüft, nicht mit echten Dashcam-Aufnahmen; die
   Live-Erkennung wurde mangels Videostrom gar nicht ausprobiert.
-- **Verbessern/Hochskalieren** nur auf dem Emulator gemessen; Zeiten und 1440p/2160p auf echten Handys sind offen.
+- **Verbessern** nur auf dem Emulator gemessen. **Hochskalieren** lief dort gar nicht: Der Emulator hat für keine
+  Ausgabe einen passenden Encoder, auch nicht für 1080p. Zeiten und alle drei Ausgaben auf echten Handys sind offen.
 - Zeiten der Dashcam: Zeitzone unbekannt. Die Bedeutung des Aufnahmestatus („Deutung unbestätigt“) ist offen.
 - Kein Streaming direkt von der Dashcam: Clips erst herunterladen. Kein Neustart der Dashcam, kein Firmware-Update,
   keine Zeitraffer-Funktion, keine automatische App-Aktualisierung (neue Versionen per APK, siehe Installation).

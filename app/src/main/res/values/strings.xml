@@ -438,7 +438,7 @@
     <string name="live_loading">Livebild wird geöffnet …</string>
     <string name="live_buffering">Puffern …</string>
     <string name="live_failed">Livebild nicht verfügbar</string>
-    <string name="live_failed_code">Code: %1$s</string>
+    <string name="live_failed_code">Code %1$d</string>
     <string name="live_err_network">Recorder liefert kein Livebild (RTSP, Port 554)</string>
     <string name="live_err_format">Livebild des Recorders nicht lesbar (Datenformat)</string>
     <string name="live_err_decoder">Videoformat auf diesem Handy nicht abspielbar</string>
@@ -558,7 +558,7 @@
     <string name="media_phone_time">%1$s (Handy-Zeit)</string>
     <string name="media_sd_files_title">Dateien: %1$s</string>
     <string name="media_clip_gone">Diese Datei gibt es nicht mehr.</string>
-    <string name="media_image_description">Bild %1$s</string>
+    <string name="media_image_description">%1$s, %2$s</string>
     <string name="media_original">Original</string>
     <string name="media_original_gone">Original nicht mehr vorhanden</string>
     <string name="media_at_position">bei %1$s</string>
@@ -872,7 +872,7 @@
     <string name="upscale_notification_failed">Hochskalieren fehlgeschlagen</string>
 
     <string name="enhance_live_sharpen">Schärfen</string>
-    <string name="enhance_live_sharpen_action">Geschärfte Live-Ansicht</string>
+    <string name="enhance_live_sharpen_action">Schärfen – geschärfte Live-Ansicht</string>
     <string name="enhance_live_sharpen_on_note">Geschärft – verbraucht mehr Akku</string>
     <string name="enhance_live_sharpen_checking">Wird geprüft …</string>
     <string name="enhance_live_sharpen_unavailable">Auf diesem Handy nicht verfügbar</string>
