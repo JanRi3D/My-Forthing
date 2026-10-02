@@ -610,7 +610,7 @@
     <string name="media_storage_free_downloads_text">Löscht alle heruntergeladenen Aufnahmen und Fotos auf diesem Handy, auch unvollständige Downloads. Kopien auf der Dashcam und in Google Drive bleiben.</string>
     <string name="media_storage_free_screenshots_text">Löscht alle Screenshots auf diesem Handy. Kopien in Google Drive bleiben.</string>
     <string name="media_storage_free_enhanced_text">Löscht alle verbesserten Bilder und hochskalierten Clips auf diesem Handy. Die Originale bleiben.</string>
-    <string name="media_storage_free_cache_text">Löscht zwischengespeicherte Vorschaubilder der Dashcam. Sie werden bei Bedarf neu geladen.</string>
+    <string name="media_storage_free_cache_text">Löscht die gespeicherten Vorschaubilder der Dashcam (höchstens 64 MB, die ältesten gehen zuerst). Sie werden bei der nächsten Verbindung neu geladen.</string>
     <plurals name="media_storage_last_copies">
         <item quantity="one">Achtung: Eine dieser Dateien gibt es nur auf diesem Handy. Sie ist danach endgültig weg.</item>
         <item quantity="other">Achtung: %d dieser Dateien gibt es nur auf diesem Handy. Sie sind danach endgültig weg.</item>

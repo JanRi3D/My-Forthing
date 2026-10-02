@@ -3,12 +3,19 @@ package me.ri3d.dashcam.media
 import android.content.Context
 import android.graphics.BitmapFactory
 import coil3.ImageLoader
+import coil3.annotation.ExperimentalCoilApi
 import coil3.asImage
 import coil3.decode.DecodeResult
 import coil3.decode.Decoder
+import coil3.disk.DiskCache
 import coil3.fetch.SourceFetchResult
+import coil3.network.CacheStrategy
 import coil3.network.ConnectivityChecker
+import coil3.network.NetworkRequest
+import coil3.network.NetworkResponse
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import coil3.request.Options
 import coil3.serviceLoaderEnabled
 import dagger.Module
@@ -19,9 +26,11 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okio.ByteString.Companion.toByteString
+import okio.Path.Companion.toOkioPath
 import me.ri3d.dashcam.dashcam.RecorderConnectionManager
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -69,21 +78,31 @@ class RecorderHttp(
     /** A line in the Diagnose export next to the HTTP request log. */
     fun note(message: String) = manager.note(RecorderConnectionManagerImpl.HTTP_NOTES, message)
 
+    /** True while no recorder HTTP request runs or waits: the thumbnail prefetch only asks then (lowest priority). */
+    fun idle(): Boolean = runCatching { client().dispatcher.run { runningCallsCount() + queuedCallsCount() == 0 } }.getOrDefault(false)
+
     /**
      * Thumbnails from the recorder. Every request asks [client] at call time, so a new or lost session applies at
      * once and without a Ready session the placeholder stays. Coil's own connectivity check is off: the recorder
      * Wi-Fi has no internet. No service-loaded fetchers: nothing may load recorder URLs unbound. Coil decodes by
      * content, so the recorder's `.thm` thumbnails (served as `application/binary`) load whatever their extension or
      * Content-Type; [ThmDecoderFactory] also finds a JPEG behind a header. Rows use the local thumbnail instead once
-     * the file is on the phone, and none from the recorder while a download runs.
+     * the file is on the phone. Requests come from [RecorderThumb]: stable cache keys, and no network while a download
+     * runs or without a session (then only the disk cache answers).
+     *
+     * Disk cache: `cacheDir/recorder_thumbs`, LRU, [MediaModule.THUMB_CACHE_BYTES]; [KeepThumbnails] stores every 2xx
+     * answer and always uses a stored one, whatever the recorder's headers say.
      */
+    @OptIn(ExperimentalCoilApi::class)
     val imageLoader: ImageLoader by lazy {
         ImageLoader.Builder(context)
             .serviceLoaderEnabled(false)
+            .diskCache { thumbnailDiskCache(context.cacheDir.resolve(MediaModule.THUMB_CACHE_DIR)) }
             .components {
                 add(
                     OkHttpNetworkFetcherFactory(
                         callFactory = { Call.Factory { request -> thumbnailClient().newCall(request) } },
+                        cacheStrategy = { KeepThumbnails },
                         connectivityChecker = { ConnectivityChecker.ONLINE },
                     ),
                 )
@@ -91,6 +110,52 @@ class RecorderHttp(
             }
             .build()
     }
+
+    /** The recorder thumbnail of [item] ([network]: may ask the recorder); null without one. */
+    fun thumb(item: MediaItem, network: Boolean): RecorderThumb? {
+        val path = item.recorderPath ?: return null
+        val thm = item.recorderThumbPath ?: return null
+        return RecorderThumb(thumbKey(path, item.recorderTime), url(thm), network)
+    }
+}
+
+/** Thumbnail disk cache in [dir]: Coil's DiskLruCache, least recently used entries go beyond [maxBytes]. */
+fun thumbnailDiskCache(dir: File, maxBytes: Long = MediaModule.THUMB_CACHE_BYTES): DiskCache =
+    DiskCache.Builder().directory(dir.toOkioPath()).maxSizeBytes(maxBytes).build()
+
+/**
+ * Disk and memory cache key of a recorder thumbnail: the recording's path and recorder time, so a path the recorder
+ * reuses for another recording (format, clock reset) gets its own entry, and the URL (recorder or simulator) does not
+ * matter.
+ */
+fun thumbKey(recorderPath: String, recorderTime: String?): String = "thm:$recorderPath@${recorderTime.orEmpty()}"
+
+/**
+ * A recorder thumbnail for [MediaThumb] and the prefetch. [network] false: only the caches answer (no session, or a
+ * download runs: downloads first); a changed flag is a new model, so the image loads once the network is allowed.
+ */
+data class RecorderThumb(val key: String, val url: String, val network: Boolean) {
+    fun request(context: Context, memory: Boolean = true): ImageRequest = ImageRequest.Builder(context)
+        .data(url)
+        .diskCacheKey(key)
+        .memoryCacheKey(key)
+        .placeholderMemoryCacheKey(key)
+        .networkCachePolicy(if (network) CachePolicy.ENABLED else CachePolicy.DISABLED)
+        .memoryCachePolicy(if (memory) CachePolicy.ENABLED else CachePolicy.DISABLED)
+        .build()
+}
+
+/**
+ * The recorder's HTTP headers are not established (hardware 2026-10-02: `application/binary`, nothing about caching):
+ * a stored thumbnail is always used and every 2xx answer stored; errors (404 …) are not, so they are asked again later.
+ */
+@OptIn(ExperimentalCoilApi::class)
+internal object KeepThumbnails : CacheStrategy {
+    override suspend fun read(cacheResponse: NetworkResponse, networkRequest: NetworkRequest, options: Options) =
+        CacheStrategy.ReadResult(cacheResponse)
+
+    override suspend fun write(cacheResponse: NetworkResponse?, networkRequest: NetworkRequest, networkResponse: NetworkResponse, options: Options) =
+        if (networkResponse.code in 200..299) CacheStrategy.WriteResult(networkResponse) else CacheStrategy.WriteResult.DISABLED
 }
 
 /**
@@ -136,6 +201,10 @@ internal class ThmDecoderFactory(private val note: (String) -> Unit) : Decoder.F
 object MediaModule {
     // ponytail: thumbnail read timeout, a guess; tune if recorder thumbnails time out while nothing else runs.
     const val THUMBNAIL_READ_TIMEOUT_S = 15L
+
+    /** Recorder thumbnails on disk: ~64 MB LRU ≈ 13,000 `.thm` of 3–6 KB, more than a full card lists. */
+    const val THUMB_CACHE_DIR = "recorder_thumbs"
+    const val THUMB_CACHE_BYTES = 64L * 1024 * 1024
 
     /** `:recorder:runSimulator` serves the simulated files here (emulator alias of the development machine). */
     const val SIMULATOR_BASE_URL = "http://10.0.2.2:8080"
