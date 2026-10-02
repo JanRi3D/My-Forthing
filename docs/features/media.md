@@ -7,8 +7,8 @@ Package `me.ri3d.dashcam.media`. Implements CONTRACTS §8 on top of the connecti
 | `MediaItem.kt` | Room entity `media_item` (§8 fields exactly), `MediaKind`, `MediaCategory`, `BackupState`, `MediaDao` |
 | `MediaRepository.kt` | Library: observe, `upsertFromRecorderListing`, `reconcileRecorderListing`, `registerDerived`, `importScreenshots` / `watchScreenshots`, `markDownloaded`, `deleteLocalCopy`, `deleteOnRecorder`, `markRecorderDeleted`, `markDriveDeleted`, `update`; local thumbnails |
 | `RecorderListing.kt` | `Listing.append` (cursor paging fold), `RecorderBrowser` (pages one type, registers every page) |
-| `Downloads.kt` | `MediaDownloader` (Range/206 resume, `.part` + atomic rename), `DownloadQueue` (WorkManager), `DownloadWorker` (Hilt, foreground), `TransferProgress` |
-| `MediaModule.kt` | `RecorderHttp` (bound client, URL, Coil `ImageLoader` for recorder thumbnails), Hilt module |
+| `Downloads.kt` | `MediaDownloader` (Range/206 resume, `.part` + atomic rename), `DownloadQueue` (WorkManager), `DownloadWorker` (Hilt, foreground, stall resume), `TransferProgress`, `SpeedMeter` |
+| `MediaModule.kt` | `RecorderHttp` (bound client, URL, Coil `ImageLoader` for recorder thumbnails), `ThmDecoderFactory`, Hilt module |
 | `RecordingsViewModel.kt` / `RecordingsScreen.kt` | Routes `Recordings(tab)` and `SdFiles(category)`, selection, details and "Übertragungen" sheets |
 | `ClipScreen.kt` | Route `Clip(mediaId, positionMs)`: Media3 player / image viewer, share (`MediaFileProvider`), delete targets, parent/children |
 | `StorageScreen.kt` | Route `Storage` (Settings → Speicher) |
@@ -43,8 +43,9 @@ gallery export (Android backup is off app-wide, so nothing leaves the phone).
 **Paging** (report "Cursor-based browsing"): `ListFiles(type, lastFileName, 50)`, empty cursor on refresh, the next
 cursor is the exact `fileName` of the last entry of the last page. The listing completes on an empty page, or on a page
 shorter than 50 once the listed count reaches `totalFileNum` (or none is reported); a short page below the total asks
-again (the recorder may page in smaller batches), and a short page holding only already listed entries (inclusive
-cursor) completes. It stops (note "Die Liste endet hier …") when the last `fileName` of a page is missing or was already listed,
+again, and a short page holding only already listed entries (inclusive cursor) completes. **Hardware 2026-10-02:**
+the recorder answers `pageNum 50` with pages of **20** entries (`totalFileNum` 144 loop clips, 1997 events), so a
+listing simply takes more requests; nothing to change. It stops (note "Die Liste endet hier …") when the last `fileName` of a page is missing or was already listed,
 which catches a recorder that ignores the cursor or cycles. Entries already listed are dropped (cursor inclusivity is
 unknown), entries without `fileName` are skipped. A failed page shows the raw code and waits for "Erneut versuchen"
 (no polling). The next page is requested when the list is scrolled to within 8 items of its end.
@@ -52,7 +53,8 @@ unknown), entries without `fileName` are skipped. A failed page shows the raw co
 **Order and grouping.** The recorder's order is kept (not established); consecutive entries of one day form a group
 ("Heute", "Gestern", localized date; "Datum unbekannt" for an unparsable `fileTime`). Rows show `HH:mm:ss` from the raw
 time and the raw file name; details (tap on a file not on the phone) show raw type, raw time, the phone-zone reading,
-path and thumbnail path. `totalFileNum` / `totalFileSize` are shown raw "laut Recorder".
+path and thumbnail path. `totalFileNum` / `totalFileSize` are shown raw "laut Recorder"; the recorder sends no
+`totalFileSize` (shown as "–").
 
 **Tabs.** "Schleife" (type 0), "Vorfälle" (1), "Fotos" (2, the report's "user data", 3-column grid; `recorderType` stays
 raw), plus **"Handy"** (addition): everything with a phone copy (downloads, screenshots, enhanced outputs), which works
@@ -67,6 +69,19 @@ recorder's counts; Recordings links to it ("Rohliste"); the SD card screen can l
 `ConfirmDialog(danger)`, outcome-unknown errors refresh the listing); phone tab → "Handy-Kopie löschen" (danger when an
 item has no other copy). Phase 4 adds actions through the `selectionActions` slot.
 
+**One recorder request at a time (hardware 2026-10-02).** A 132 MB loop clip stalled after 3,276,800 bytes
+(`SocketTimeoutException: timeout`, then again on the `Range` resume) while a second download and six `.thm` requests
+of the Vorfälle tab (ended with `SocketException: Socket closed`) ran next to it and the recorder kept recording.
+Working hypothesis: its HTTP server serves one connection at a time and slows down while writing the card. So: the
+manager's OkHttp client (shared by downloads and thumbnails) has a `Dispatcher` with `maxRequests = 1` and
+`maxRequestsPerHost = 1` (this limits enqueued calls, i.e. Coil's thumbnails; downloads use `execute()` and are kept
+to one by their queue), `connectTimeout` 10 s, `readTimeout` 90 s, `writeTimeout` 30 s, no `callTimeout` (a 5-minute
+clip takes minutes); thumbnails use a derived client with a 15 s read timeout (same dispatcher; `ponytail:` knob), so
+one unanswered `.thm` does not block the others for 90 s. **Downloads first:** while any download runs (WorkManager
+RUNNING, including the wait after a stall) the recorder rows and photo cells show their placeholder instead of
+requesting a `.thm` (`RecorderEntry.thumb` is null; local thumbnails still show); they load when it ends. Keep-alive
+is left on (no `Connection: close`; no keep-alive problem seen).
+
 **Recorder HTTP only with a Ready session.** `RecorderHttp.client()` hands out `connectionManager.httpClient()` only while
 the state is `Ready` and its network is the bound one (simulator mode: Ready only); otherwise
 `RecorderNotReadyException` and nothing is requested, so another device answering at 192.168.42.1 on some Wi-Fi is never
@@ -74,20 +89,26 @@ asked. **Thumbnails** load through a media-only Coil `ImageLoader`: `OkHttpNetwo
 `client()` per request (a new or lost session applies at once; no session shows the placeholder), Coil's connectivity check off (the recorder Wi-Fi has no internet), service-loaded fetchers off
 (nothing may load recorder URLs unbound). URL: `connectionManager.mediaUrl(path)`; in the debug simulator mode
 `http://10.0.2.2:8080/<path>` (`MediaModule.SIMULATOR_BASE_URL`). The physical recorder's thumbnails are **`.thm`**
-files next to the clip (`/sd/DCIM/ch1_20261002_091128_0782.thm`). Coil decodes by content (`BitmapFactory` /
-`ImageDecoder` sniff the bytes; its network fetcher takes the MIME type from the header or extension but never
-rejects one) and nothing in `media/` filters on extension or MIME type, so a `.thm` that is a JPEG loads as is. Rows
-and photo cells prefer the local thumbnail (`files/thumbs/<id>.jpg`, generated after the download) when there is
-one: that is also the fallback should a `.thm` turn out not to be an image.
+files next to the clip (`/sd/DCIM/ch1_20261002_091128_0782.thm`), served as `Content-Type: application/binary`, 3–6 KB. Coil decodes by
+content (`BitmapFactory` / `ImageDecoder` sniff the bytes; its network fetcher takes the MIME type from the header
+or extension but never rejects one) and nothing in `media/` filters on extension or MIME type, so a `.thm` that is a
+JPEG loads as is. `ThmDecoderFactory` (first in the media loader) covers a JPEG behind a container header: a body
+that does not start with `FF D8 FF` is searched for that marker and decoded from there; a body without any JPEG is
+noted once in `notes.http` (`thumbnail: no JPEG in N bytes (application/binary), starts xx xx …`) and left to Coil
+(placeholder). Rows and photo cells prefer the local thumbnail (`files/thumbs/<id>.jpg`, generated after the
+download) when there is one: that is also the fallback should a `.thm` turn out not to be an image.
 
 **HTTP request log.** The manager's OkHttp client (downloads and thumbnails) logs every request into the dashcam
 diagnostics notes (`notes.http` of the Diagnose export, last 50, redacted): `GET /sd/DCIM/x.mp4 Range: bytes=1000-
 -> 206 Content-Type: video/mp4 Content-Length: 5000`, or `-> SocketTimeoutException: timeout`. Only the path is
 logged (no host, no query). A failed download adds `download <path>: <Exception>: <message>` (e.g.
-`DownloadException: NOT_MEDIA (HTTP 200) Content-Type: text/html`).
+`DownloadException: NOT_MEDIA (HTTP 200) Content-Type: text/html`); a stall adds `download <name>: stalled at <bytes>
+bytes (SocketTimeoutException), attempt 1 of 10, resuming in 5 s`, a finished download `download <name>: done at
+<bytes> bytes after <s> s, <n> stalls`.
 
 **Downloads.** `DownloadQueue.enqueue(id)`: WorkManager unique work `media-download-<id>` (KEEP), no constraints (the
-recorder Wi-Fi has no internet), linear backoff 15 s. At most 2 downloads are runnable; more are enqueued *held* (tag
+recorder Wi-Fi has no internet), linear backoff 15 s. At most **1** download is runnable on the recorder
+(`MAX_PARALLEL`; 2 in the debug simulator mode, `SIMULATOR_PARALLEL`); more are enqueued *held* (tag
 `media-held`, initial delay 10 years) and promoted (REPLACE without delay) when a slot frees: by the finishing worker
 (success, failure, user cancel – a retried work keeps its slot), on queue start, on Ready and after a cancel. So no
 worker ever runs waiting for a slot. Duplicates: a file already on the phone is never queued again (and `download()`
@@ -101,7 +122,12 @@ Content-Length is optional: without it there is no length check and no `.part.si
 Content-Range total the remaining Content-Length gives the total, otherwise the part is appended unchecked). A
 present `Content-Length: 0` or an empty body is incomplete. When sizes are known the length is checked against
 Content-Length / Content-Range, then fsync, atomic rename, thumbnail, `markDownloaded`. 4xx (except 408/429) are
-permanent. **Attempts:** without a Ready session (`RecorderNotReadyException`,
+permanent. **Stalls** (`SocketTimeoutException`, `SocketException`: read timeout, socket closed or reset) resume
+within the same worker run from the `.part` size after 5 s, 15 s, then 45 s (`DownloadWorker.STALL_BACKOFF_S`); the
+sheet and the notification show "Übertragung ins Stocken geraten, neuer Versuch in N s · bisher 3,3 MB von 138 MB".
+Each stall counts as a real failure; a stall after progress starts the count (and the backoff) afresh, so a long clip
+that keeps moving is never given up, while 10 stalls in a row without a byte fail it. While data flows the sheet and
+the notification show the speed over the last 5 s ("3,3 MB von 138 MB · 412 KB/s", `SpeedMeter`). **Attempts:** without a Ready session (`RecorderNotReadyException`,
 `RecorderNotBoundException`) the worker returns `retry` without counting; only real failures count (SharedPreferences
 `media_download_attempts`), the 10th fails the work. After process death or reboot WorkManager runs the work again; it
 waits ("Wartet auf die Dashcam-Verbindung") and every waiting work still ENQUEUED is restarted as soon as a session is
@@ -185,8 +211,9 @@ feature/live-view writes, feature/media imports:
 Content-Range, past the end → 416, otherwise 200). Slow downloads for resume tests: `-PsimThrottle=262144` (bytes per
 second). Other ports: `--args="<local.properties> <tcpPort> <httpPort> <throttle>"`. When the HTTP port is busy the
 simulator still starts (listings work, downloads and thumbnails do not) and says so.
-`SimulatedFiles` is the fictional card: 120 loop clips (3 pages, across midnight), 3 incidents, 12 photos, newest first,
-exclusive cursor, unknown cursor → empty page, 4101 removes files (rval 107 if none existed), `totalFileSize` in KiB.
+`SimulatedFiles` is the fictional card: 120 loop clips (6 pages, across midnight), 3 incidents, 12 photos, newest first,
+exclusive cursor, unknown cursor → empty page, at most 20 entries per page whatever `pageNum` asks and no
+`totalFileSize` (both as the physical recorder), 4101 removes files (rval 107 if none existed).
 Videos are the committed 3-second `recorder/src/testFixtures/resources/sim/clip.mp4` (16.6 KB, recorded on the emulator
 with `screenrecord`) padded with an MP4 `free` box to 6 MiB / 3 MiB, so they play and take time to download; JPEGs
 (thumbnails 320×180, photos 1280×720) are drawn with `java.awt` at runtime. Thumbnails are `<name>.thm` (JPEG bytes,
@@ -216,6 +243,9 @@ inclusive cursor alone completes; reconcile leaves rows in transfer; path reuse 
 Since `fix/real-recorder-1`: Content-Type rule (HTML refused, other / none accepted); a chunked download without
 Content-Length and with `text/plain` completes and leaves no `.part.size`; the HTTP request log line and the noted
 failure with its Content-Type; a waiting download carries the last failure and its detail; worker output `detail`.
+Since `fix/real-recorder-2`: a connection reset after 1000 bytes resumes within the same worker run with
+`Range: bytes=1000-` after 5 s (virtual time) and notes the stall and the finish; the speed window; 120 simulated
+files in 6 pages of 20 (asked for 50) with exact cursors, reaching `totalFileNum` without `totalFileSize` [SIM].
 
 Emulator (`emulator-5554`, API 36) against `:recorder:runSimulator` [SIM], throttled to 256 KiB/s: all three recorder
 tabs with thumbnails (loop paged in 3 requests with the exact cursors, "Heute"/"Gestern", incidents tagged, photos grid);
@@ -235,18 +265,33 @@ unsolicited (frame sequence 0xFFFFFFFF, read as -1) while loop recording; capabi
 the phone, so `fileTime` is the recorder's clock, not the phone's. **Downloads did not work** in that build (exact
 error not captured); the lenient checks, the failure line and `notes.http` are the fix and the instrument.
 
+Second test the same day (build from `fix/real-recorder-1`, phone API 37, mobile data off, session `Ready` with
+keepalives every 4 s throughout):
+- **Listing works.** 4100 answers `pageNum 50` with pages of **20**; `totalFileNum` 144 (type 0) / 1997 (type 1);
+  no `totalFileSize`. Loop clips in `/sd/DCIM/`, events in `/sd/EVENT/` named `ch1_YYYYMMDD_HHMMSS_NNNNG.mp4`
+  (`G` suffix).
+- `.thm` thumbnails: `200 Content-Type: application/binary`, 3–6 KB (presumably JPEG; not yet seen decoded).
+- Clip download: `GET /sd/DCIM/ch1_20261002_091628_0783.mp4 -> 200 Content-Type: application/binary
+  Content-Length: 138152548` – 132 MB for a 5-minute clip, ≈ 3.7 Mbit/s of video. It **stalled** with
+  `SocketTimeoutException: timeout` (then a 10 s read timeout) after 3,276,800 bytes; the resume `Range:
+  bytes=3276800-` timed out too; meanwhile six `.thm` requests ended with `SocketException: Socket closed`. The
+  recorder kept recording (`recStatus` 1). The owner saw it as "bricht mit WLAN ab". Changes: one request at a time,
+  thumbnails paused during downloads, 90 s read timeout, in-run stall resume (above).
+
 Still to check on the car (read-only first: browse, then one download, one delete):
-0. **Next test first:** download one loop clip, then Diagnose → `notes.http`: status, Content-Type, Content-Length
-   and Range of the request (and of the `.thm` thumbnail requests), plus a `download …` line if it failed; the
-   Übertragungen sheet shows the same reason as its second line.
-1. Paging: order of entries, whether `lastFileName` is exclusive or inclusive, behaviour for an unknown cursor, maximum
-   page size, whether short pages really mean the end, duplicates across pages.
-2. Totals: `totalFileNum` per type, unit of `totalFileSize` (shown raw).
-3. `fileName` / `fileThm` paths: layout verified (above) for loop clips; events and photos (`fileType` 1/2) not yet
-   seen; whether the `.thm` is a JPEG (thumbnail shown) and its size.
-4. HTTP on port 80: `Range` support (206 with Content-Range) or 200 only (then every resume restarts), Content-Type
-   and `Content-Length` present, `If-Range` / ETag, authentication (none traced), parallel downloads (2 at once),
-   throughput, keep-alive.
+0. **Next test first:** download one loop clip (nothing else running; leave the Recordings screen open), watch the
+   Übertragungen sheet (speed, any "ins Stocken geraten" countdown), then Diagnose → `notes.http`: the `GET … Range:
+   bytes=…-> 206 …` resumes, `download …: stalled at …` lines (how often, how far apart in bytes), `download …: done
+   at … after … s` (throughput = bytes / seconds), and no `.thm` requests between them. Then once with the recorder
+   **not** recording (parking mode or SD idle, if possible) for comparison.
+1. Paging: order of entries, whether `lastFileName` is exclusive or inclusive, behaviour for an unknown cursor,
+   duplicates across pages (page size 20 verified).
+2. Totals: `totalFileNum` per type verified; `totalFileSize` is not sent.
+3. `fileName` / `fileThm` paths: loop clips and events verified (above); photos (`fileType` 2) not yet seen; whether
+   the `.thm` is a JPEG (thumbnail shown; else the `thumbnail: no JPEG …` note).
+4. HTTP on port 80: `Range` support (206 with Content-Range) or 200 only (then every resume restarts), `If-Range` /
+   ETag, authentication (none traced), throughput with and without recording, whether a second connection is
+   refused or slows the first, keep-alive (Content-Type `application/binary` and Content-Length verified).
 5. Type 2 ("user data"): photos only, or videos too (kind is decided by the file extension).
 6. `fileTime` format (verified `yyyy-MM-dd HH:mm:ss`) and the recorder's time zone (phone zone assumed and labelled;
    the recorder clock drifts, ≈ +2.5 min on 2026-10-02).

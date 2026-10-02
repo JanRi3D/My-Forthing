@@ -6,6 +6,7 @@ Package `me.ri3d.dashcam.live`. Builds on the connection manager (CONTRACTS §7)
 | File | Contents |
 | --- | --- |
 | `LivePlayer.kt` | `LiveStream` (URL constants), `rtspCandidates()`, `rtspStatus()`, `LivePlayer` seam + `PlayerEvent` + `StreamError`, `ExoLivePlayer` (Media3), `LiveFrameSource` (Phase 4 hook), Hilt `LiveModule` |
+| `RtspSdpProxy.kt` | `RtspSdpProxy` (loopback RTSP proxy that repairs the recorder's SDP), `rewriteSdp()`, RTSP message reader, `rtspDescribe()` / `captureRtspDescribe()` (raw OPTIONS + DESCRIBE for Diagnose) |
 | `LiveViewModel.kt` | `LiveViewModel` (stream lifecycle, retry, commands, late replies, screenshot), `StreamState`, `StreamError.reason`, `CommandUi`, `commandMessage()`, `replyText()` |
 | `Screenshot.kt` | `saveScreenshot()` – the screenshot folder contract and the gallery copy |
 | `LiveScreen.kt` | `liveGraph()`, `LiveScreen()` (slots), full screen, state views |
@@ -20,7 +21,9 @@ capability 20481 (once per session, 3 s) → candidates: 1. rtspServer URL of th
         │                                                (hardware: rtsp://192.168.42.1:554/ch1/sub)
         │                                             2. rtsp://192.168.42.1/ch1/sub/av_stream (traced)
         ▼
-ExoPlayer ── RtspMediaSource(forceUseRtpTcp = true, socketFactory = Ready.network.socketFactory)
+ExoPlayer ── RtspMediaSource(forceUseRtpTcp = true) → rtsp://127.0.0.1:<port>/<path>
+        │      RtspSdpProxy (one per attempt) ── socket from Ready.network.socketFactory ── recorder :554
+        │        DESCRIBE answer repaired (a=control:*, first video section only), raw piping after PLAY
         │      each candidate over TCP; RTSP 461 → the same URL with forceUseRtpTcp = false (UDP), then the next
         │      (no credentials, 8 s RTSP timeout per attempt)
         ▼
@@ -29,7 +32,8 @@ MediaCodec video renderer (audio track type disabled) ── TextureView (Androi
         │ PlayerEvent: Buffering / Playing / Size / Failed    └─ getBitmap(w, h) → screenshot, LiveFrameSource
         ▼
 LiveViewModel: Loading → Playing ⇄ Buffering; all candidates failed → retry after 1.5 s → StreamState.Failed
-               + "Erneut versuchen"; every attempt → manager.note("rtsp", …) → Diagnose export "notes.rtsp"
+               + "Erneut versuchen"; every attempt and every proxy step → manager.note("rtsp", …) → Diagnose
+               export "notes.rtsp"; a final failure on the description → raw DESCRIBE capture once
 ```
 
 ## Decisions
@@ -62,6 +66,32 @@ nicht abspielbar", the end of the stream (`STATE_ENDED` → `STREAM_ENDED`; the 
 and has no retry loop of its own) "Der Recorder hat das Livebild beendet", anything else "Unerwarteter Fehler beim
 Abspielen". Media3's RTSP client gives up after its default 8 s timeout per attempt.
 
+**SDP repair (hardware 2026-10-02).** On the physical recorder both URLs failed in Media3's description parsing:
+`ERROR_CODE_IO_UNSPECIFIED (2000): IllegalArgumentException: missing attribute control`. The recorder answers
+DESCRIBE, but the media section(s) of its SDP carry no `a=control`, which Media3 1.11 requires for every playable
+track (`RtspMediaTrack`'s constructor, called from `RtspClient.buildTrackList`). Media3 has no option for this (the
+1.11 sources: `RtspMediaSource.Factory` offers TCP, user agent, socket factory, debug logging and timeout only;
+`SessionDescriptionParser` matches attribute names exactly), so the player talks to `RtspSdpProxy`, a small RTSP proxy
+on `127.0.0.1:<ephemeral>` (one per attempt, closed on stop/next attempt):
+- Media3 plays `rtsp://127.0.0.1:<port><path>` with the default socket factory; the proxy opens one socket per Media3
+  connection to the recorder from `Ready.network.socketFactory` (bound to the recorder Wi-Fi, 5 s connect timeout).
+- Phone → recorder: every request line `rtsp://127.0.0.1:<port>/…` becomes the recorder's URL (its exact authority),
+  everything else verbatim, for the whole connection (keep-alives, TEARDOWN).
+- Recorder → phone: verbatim, except the DESCRIBE 200 answer. Its SDP is rewritten (`rewriteSdp`): only the first
+  `m=video` section is kept (sound is muted anyway, and a second `*` track would SETUP the same URL twice; without a
+  video section all stay); a kept section without control gets `a=control:*` – Media3 then SETUPs the aggregate
+  (session) URL, which RFC 2326 C.1.1 prescribes when per-track control is absent; a control attribute in other
+  letter case is written `a=control`; session lines untouched; Content-Length recomputed; an absolute
+  `Content-Base` / `Content-Location` points to the proxy (path kept). After the PLAY answer, or as soon as an
+  interleaved `$` frame appears, the recorder's side is piped raw.
+- Verified against Media3's own classes (`RecorderSdpMedia3Test`, in Media3's package for the package-private
+  parser): the recorder-shaped SDP throws "missing attribute control", the rewritten one gives one H.264 track on the
+  session URL. Media3 also needs `a=fmtp` with `sprop-parameter-sets` for H.264; if the recorder's SDP lacks them, the
+  next error will read "missing attribute fmtp" / "missing sprop parameter" and the proxy note says
+  "H264 without sprop-parameter-sets" (not handled yet: the parameter sets would have to come from the stream).
+- Any app on the phone could reach the recorder's RTSP through the loopback port while it is open, as it can over the
+  Wi-Fi itself.
+
 **Transport.** `RtspMediaSource.Factory().setForceUseRtpTcp(true)` – TCP interleaved, as traced; RTP shares the
 RTSP socket. If the server answers SETUP with **461 Unsupported Transport** (Media3: `RtspPlaybackException`
 "SETUP 461" inside a source error; `rtspStatus()` reads it), the same URL is tried once more with
@@ -70,8 +100,9 @@ RTSP socket. If the server answers SETUP with **461 Unsupported Transport** (Med
 binds only the RTSP control socket, Media3's RTP/RTCP datagram sockets are not bound to the recorder network. A
 failure of a UDP attempt adds that hint to the error state ("Über UDP kommt das Livebild nur an, wenn …").
 No user/password (none in the traced setup; not a claim about the recorder's access checks).
-`setSocketFactory(network.socketFactory)` with the network of the `Ready` state (the one the control socket is bound
-to), so RTSP goes over the recorder Wi-Fi while mobile data serves everything else. `Ready.network` is null only in
+The proxy's socket to the recorder comes from `network.socketFactory` of the `Ready` state (the network the control
+socket is bound to), so RTSP goes over the recorder Wi-Fi while mobile data serves everything else; Media3 itself only
+connects to the loopback proxy. `Ready.network` is null only in
 debug simulator mode; then `LiveStream.SIMULATOR_URL` = `rtsp://10.0.2.2/ch1/sub/av_stream` with the default socket
 factory (`:recorder:runSimulator` has no RTSP server, so that attempt always fails). Ready without a network outside
 simulator mode starts nothing (never an unbound socket) and shows a connection problem, "Keine Verbindung über das
@@ -80,7 +111,17 @@ Dashcam-WLAN – bitte neu verbinden", with "Zur Verbindung". The traced URL is 
 **Diagnose.** Every start and attempt goes to the manager's notes (`note("rtsp", …)`, last 50, redacted), which the
 Diagnose export carries under `notes.rtsp`: `start: <candidates>`, `<url> tcp|udp: playing`, `<url> tcp: video
 1280x720`, `<url> tcp: ERROR_CODE_IO_UNSPECIFIED (2000), RTSP 461: RtspPlaybackException: SETUP 461`
-(`StreamError.describe()`: Media3 error name and code, RTSP status if any, raw innermost cause).
+(`StreamError.describe()`: Media3 error name and code, RTSP status if any, raw innermost cause). The proxy adds, per
+attempt: `proxy <url>: OPTIONS 200`, `proxy <url>: DESCRIBE 200: kept m=video 0 RTP/AVP 96, a=control:* added to 1,
+dropped m=audio …[, H264 without sprop-parameter-sets][, Content-Base …]`, `proxy <url>: SETUP 200 (Transport: …)`,
+`proxy <url>: PLAY 200`, `proxy <url>: stream connection ended after N bytes`, or `proxy <url>: connect failed: …`.
+**Raw description:** Diagnose → "Diagnose erfassen" while `Ready` on the recorder Wi-Fi also runs OPTIONS and
+DESCRIBE (`Accept: application/sdp`, 5 s timeouts) for the capability URL, then the traced one if that fails, on a
+socket bound to the recorder network; the full exchange (headers and SDP, only `Authorization` masked; `> ` sent,
+`< ` received, `! ` error) goes to `rtsp.describe` of the export and, one note per URL starting with `describe`, to
+`notes.rtsp`. The same capture runs once per live screen by itself when the stream finally fails on the description
+(`StreamError.sdpProblem`: a 3xxx code or an innermost `IllegalArgumentException` / `ParserException`), so the next
+export contains the SDP even without a live capture in Diagnose. Simulator mode skips it (no RTSP server).
 
 **Sound.** Live sound is off, as traced (the original sets preview sound to false): the audio track type is
 disabled in the track selection, so audio is neither decoded nor played. The screen makes no statement about
@@ -204,8 +245,17 @@ Verified on hardware 2026-10-02 (owner's Diagnose export; AE-DC2013-LQ2, fw SX5G
 `FORTHING-A267451`, mobile data off): the session, capability 20481 with
 `rtspServer: [{chanNo 1, url "rtsp://192.168.42.1:554/ch1/sub"}]` (no `auth` field) and `downloadPath
 "http://192.168.42.1:80"`. **Live view did not work** with the then hardcoded `/ch1/sub/av_stream` URL over TCP; the
-cause was not captured (that build logged no RTSP attempts). The candidate list and the RTSP notes are the fix and
-the instrument for the next test.
+cause was not captured (that build logged no RTSP attempts). Second test the same day (build from
+`fix/real-recorder-1`, session `Ready` throughout): **both** URLs reach the RTSP server and get a DESCRIBE answer,
+which Media3 rejects with `ERROR_CODE_IO_UNSPECIFIED (2000): IllegalArgumentException: missing attribute control` –
+see "SDP repair". The SDP text itself was not captured yet (`rtsp.describe` is the instrument).
+
+Since `fix/real-recorder-2` [SIM, fake RTSP server] (`RtspSdpProxyTest`, `RecorderSdpMedia3Test`): the proxied
+DESCRIBE carries `a=control:*`, only the video section and an exact Content-Length; request lines reach the
+recorder's URL (also GET_PARAMETER after PLAY); interleaved data passes byte for byte; an absolute Content-Base points
+to the proxy and an existing control (`a=Control:trackID=0`) is kept as `a=control`; without a video section every
+section stays; the raw DESCRIBE transcript holds headers and SDP and an error line for an unreachable URL;
+`Authorization` is masked; Media3's track building fails on the recorder shape and accepts the rewrite.
 
 Emulator walkthrough (API 36, `emulator-5556`) [SIM], before the review fixes: not connected → "Erst mit dem
 Recorder verbinden / Nicht verbunden / Zur Verbindung"; simulator session Ready → RTSP to 10.0.2.2:554 fails twice
@@ -218,10 +268,12 @@ fixes: see the branch report. **Not exercised:** playback, keep-screen-on, the "
 buffering, screenshots from the surface and `frames()` from a real surface – all need an RTSP stream.
 
 Hardware checklist (owner):
-0. **Next test first:** open Live, wait for video or the error, then Diagnose → `notes.rtsp`: which URL and
-   transport played (`… tcp: playing`), or each attempt's Media3 code, RTSP status (404 = wrong path, 461 = transport
-   refused, 401 = credentials) and cause; the second line of the error state shows the same raw cause. If only UDP
-   plays, repeat with mobile data on (expected to fail, see Transport).
+0. **Next test first:** open Live, wait for video or the error, then Diagnose (while connected) → `rtsp.describe`
+   (the recorder's SDP) and `notes.rtsp`: the proxy's `DESCRIBE 200: kept …` line (what was repaired), `SETUP …` /
+   `PLAY …` statuses (a 4xx on SETUP means the recorder wants another SETUP URL than the aggregate one), `stream
+   connection ended after N bytes` (N > 0: RTP arrived), then which URL played (`… tcp: playing`) or each attempt's
+   Media3 code and cause (a new "missing attribute fmtp" / "missing sprop parameter" means the SDP lacks the H.264
+   parameter sets). If only UDP plays, repeat with mobile data on (expected to fail, see Transport).
 1. RTSP before vs. after the control session: does `ch1/sub` answer without a session (the app never tries)?
 2. Concurrent clients: a second RTSP client (or the vendor app) while this one streams; does the recorder refuse,
    share or drop the first?
