@@ -54,13 +54,13 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
   (4099: Werte und vermutliche Einheiten), Fähigkeiten, ob `sdStatus`/`recStatus` gemeldet werden, echte Fehlercodes.
 
 **A3 SD-Karte und Einstellungen ansehen** (nichts ändern)
-- *Start → SD-Karte*: Werte notieren und mit der Kartengröße vergleichen (Einheit?). Kartenstatus vorhanden?
+- *Startbildschirm → SD-Karte*: Werte notieren und mit der Kartengröße vergleichen (Einheit?). Kartenstatus vorhanden?
 - *Einstellungen* (Dashcam-Teil): stimmen die angezeigten Werte mit dem Menü der Dashcam bzw. der Hersteller-App
   überein? Was steht unter „Weitere Werte (unbestätigt)“?
 - Home-Karte: welcher Aufnahmestatus wird gemeldet, passt er (läuft eine Aufnahme)?
 
 **A4 Live-Ansicht**
-- *Start → Live-Ansicht*, 1 Minute laufen lassen, dann **Vollbild** und zurück.
+- *Startbildschirm → Live-Ansicht*, 1 Minute laufen lassen, dann **Vollbild** und zurück.
 - **Beobachten:** kommt ein Bild? Wie lange bis zum ersten Bild? Verzögerung (Hand vor die Kamera, Sekunden zählen)?
   Bildfehler, Farben, ruckelt es? Mit mobilen Daten an und aus. Fehlermeldung und Code, falls nicht.
 - 10 Minuten am Stück: bleibt der Bildschirm an, bleibt die Verbindung?
@@ -86,7 +86,7 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - Länger als eine Clip-Länge warten und dann einen alten Schleifen-Clip laden, der inzwischen überschrieben sein könnte:
   welche Meldung?
 
-**B2 Kennzeichen in echten Clips** (Build mit Kennzeichen-Funktion)
+**B2 Kennzeichen in echten Clips**
 - 3–5 heruntergeladene Clips mit lesbaren Kennzeichen (Tag, Nacht, Regen, Autobahn): **Clip auf Kennzeichen prüfen**.
 - **Notieren** je Clip: Dauer der Prüfung, sichtbare Kennzeichen, davon richtig erkannt, mit `?`, falsch, verpasst.
   Stimmen die Rahmen an den Sprungmarken? Wie oft wird die Plakette als Buchstabe gelesen?
@@ -94,8 +94,21 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - Stimmt die Zeit einer Sichtung aus einem Clip mit der Wirklichkeit (Dashcam-Zeit = Clip-Anfang?)?
 
 **B3 Kennzeichen live**
-- Live-Ansicht, Taste **Kennzeichen**: sitzen die Rahmen auf den Kennzeichen (normal und Vollbild)? Wie weit hinken sie
-  hinterher? Welche „Bilder/s“ zeigt die App? Wird das Handy spürbar warm?
+- Live-Ansicht, Taste **Kennzeichen**: Welche „Bilder/s“ zeigt die App? Wird das Handy spürbar warm?
+- **Lage der Rahmen**: geparkte Autos, ein Kennzeichen in der Bildmitte und eins am Bildrand; je normal und im
+  **Vollbild**, Handy hochkant und quer. **Beobachten:** liegt der Rahmen auf dem Schild, oder ist er versetzt, zu groß,
+  zu klein? Bei Versatz: Richtung, ungefähr wie viele Schildbreiten, überall gleich oder nur am Rand bzw. nur im
+  Vollbild? Bildschirmfoto des Handys dazu.
+- **Nachlauf**: an einem vorbeifahrenden Auto bzw. bei langsamer Fahrt. **Beobachten:** wie weit hängt der Rahmen hinter
+  dem Schild (Schildbreiten), wie lange bleibt er stehen, wenn das Auto schon aus dem Bild ist (Sekunden)? Erwartet: die
+  App prüft nur alle ≈ 0,3–1 s ein Bild, so lange darf ein Rahmen nachlaufen. Deutlich länger oder Rahmen ohne Auto
+  darunter: notieren.
+- **Schärfen darf die Erkennung nicht erreichen** (nur, wenn **Schärfen** angeboten wird): Erkennung und **Screenshot**
+  lesen das Bild ungeschärft aus dem Videostrom (`TextureView.getBitmap()`), die Schärfung gilt nur für die Anzeige.
+  Prüfen bei stehendem Bild: **Schärfen** aus → **Screenshot**, **Schärfen** an → **Screenshot**, dann mit **Kennzeichen**
+  an eine neue Sichtung im **Verlauf** öffnen (Ausschnitt). Beide Screenshots am PC nebeneinander vergrößert
+  vergleichen: Sie müssen gleich scharf sein (keine zusätzlichen hellen oder dunklen Säume an Kanten im zweiten), der
+  Ausschnitt ebenso. Sieht der zweite geschärft aus, bekommt auch die Kennzeichenerkennung geschärfte Bilder: melden.
 
 **B4 Verbessern und Hochskalieren**
 - Einen 1080p-Frame **Bild verbessern** mit KI-Modell ×4: Dauer gegenüber „Dauer etwa …“, Vergleich mit Zoom, Größe
@@ -111,7 +124,7 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 
 ## C. Cloud – erst nach der Einrichtung in `SETUP.md`
 
-**C1 Online-Konto** (Build mit `google-services.json`)
+**C1 Online-Konto** (erst mit einem Build, der `app/google-services.json` enthält; 1.0.0 Build 1 hat sie nicht)
 - Mit Google anmelden; mit E-Mail registrieren: kommt die Bestätigungs-Mail (deutsch), funktioniert der Link,
   „Ich habe bestätigt“? Passwort-zurücksetzen-Mail.
 - Profilname ändern, auf einem zweiten Handy anmelden: kommt Name/Bild/Design an? Mit bestehendem Konto auf einem Handy
@@ -123,7 +136,7 @@ Reihenfolge = Risiko: zuerst nur lesen, dann Dateien aufs Handy, dann Cloud, zul
 - **Konto wechseln** auf ein zweites Konto. App unter myaccount.google.com/permissions entfernen → nächste Aktion zeigt
   „Erneut verbinden“? **Trennen**.
 
-**C3 Sicherung** (Build mit Sicherung)
+**C3 Sicherung**
 1. Modus „Vorfälle“, einen Vorfall-Clip im WLAN mit Internet herunterladen → Benachrichtigung „Sicherung: …“, Anzeige
    „In Drive gesichert“; in Drive `My Forthing/media/<Jahr-Monat>/<id>.mp4` + `<id>.json`.
 2. Flugmodus mitten im Hochladen, App beenden, online neu starten → geht es weiter, ohne zweite Datei in Drive?
