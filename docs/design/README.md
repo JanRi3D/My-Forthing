@@ -1,6 +1,6 @@
 # Design reference – mapping and deviations
 
-Source: artifact https://claude.ai/artifact/4oYoRuE8yn5wUVtj1Ypdbq, page "Material 3" (`M3*.dc.html`). The "Black design" page is the older variant; only its black theme tokens (`.t-black`) matter. `Web*.dc.html` describe the **future web app** and only inform the Drive format. `AppIconAxolotl.dc.html` is the icon direction.
+Source: artifact https://claude.ai/artifact/4oYoRuE8yn5wUVtj1Ypdbq, page "Material 3" (`M3*.dc.html`). The "Black design" page is the older variant; only its black theme tokens (`.t-black`) matter. `Web*.dc.html` describe the **future web app** and only inform the Drive format. The app icon is the owner-supplied lion SVG (charcoal `#282629`, transparent background, path used verbatim in `res/drawable/ic_launcher_*` and `ic_logo_lion`); it replaces the axolotl of `AppIconAxolotl.dc.html`, which is history only.
 
 Theme tokens per artboard: `.t-blue/.t-purple/.t-green` = Material You previews (dynamic colour in the app), `.t-black` = "Schwarz" theme (surface #050506, on-surface #f4f5f7, primary #f4f5f7, error #ff6961, rec #ff453a, ok #30d158, Geist-like sans; Android uses system sans + optional bundled font).
 
