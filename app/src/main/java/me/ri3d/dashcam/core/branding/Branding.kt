@@ -3,7 +3,7 @@ package me.ri3d.dashcam.core.branding
 import androidx.annotation.StringRes
 import me.ri3d.dashcam.R
 
-/** Renaming the app = this file + launcher icon (res/drawable/ic_launcher_*) + `app_name`. */
+/** Renaming the app = this file + launcher icon (res/drawable/ic_launcher_*) + in-app logo (ic_logo_lion) + `app_name`. */
 object Branding {
     @StringRes
     val appName: Int = R.string.app_name

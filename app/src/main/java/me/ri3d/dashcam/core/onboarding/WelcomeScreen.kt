@@ -22,6 +22,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -43,8 +45,14 @@ fun WelcomeScreen(onCreateAccount: () -> Unit, onSignIn: () -> Unit, onContinueO
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.weight(1f))
-            // The launcher foreground keeps the artwork in its middle 61 %, so it is drawn larger than the 124 dp artboard.
-            Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, Modifier.size(200.dp))
+            // Charcoal as drawn on light surfaces; on dark ones (Material You dark, Schwarz) the text colour.
+            val colors = MaterialTheme.colorScheme
+            Image(
+                painterResource(R.drawable.ic_logo_lion),
+                contentDescription = stringResource(R.string.app_name),
+                modifier = Modifier.size(160.dp),
+                colorFilter = if (colors.surface.luminance() < 0.5f) ColorFilter.tint(colors.onSurface) else null,
+            )
             Text(
                 stringResource(R.string.app_name),
                 modifier = Modifier.semantics { heading() },
