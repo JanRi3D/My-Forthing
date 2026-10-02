@@ -408,6 +408,7 @@
     <string name="account_sign_out_title">Abmelden?</string>
     <string name="account_sign_out_text">Dein Profil bleibt auf diesem Handy. Änderungen werden erst nach der nächsten Anmeldung wieder synchronisiert.</string>
     <string name="settings_account_signed_out">Abgemeldet · Anmelden</string>
+    <string name="account_signed_out_text">Du bist abgemeldet. Nach der Anmeldung werden Profil und Einstellungen wieder synchronisiert.</string>
 
     <string name="account_error_generic">Das hat nicht geklappt. Bitte versuche es noch einmal.</string>
     <string name="account_error_network">Keine Internetverbindung. Versuche es noch einmal, wenn du online bist.</string>
