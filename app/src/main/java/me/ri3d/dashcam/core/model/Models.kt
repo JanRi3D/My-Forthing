@@ -33,4 +33,9 @@ data class AppPreferences(
     val backupOnMobileData: Boolean = false,
     val backupRequireInternetWifi: Boolean = true,
     val backupIncludePlateMetadata: Boolean = false,
+    /**
+     * E-mail of the Google Drive account last connected, synced with the app account (CONTRACTS §9): "" after the user
+     * disconnected, null while this phone never knew one. A fresh install signed in to the account reconnects it silently.
+     */
+    val driveAccount: String? = null,
 )

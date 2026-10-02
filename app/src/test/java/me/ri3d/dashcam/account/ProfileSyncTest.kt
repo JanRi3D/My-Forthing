@@ -128,6 +128,31 @@ class ProfileSyncTest {
     }
 
     @Test
+    fun `fresh install - the account's Drive account arrives with the profile`() = runTest {
+        val env = env(local = null, mapOf("me" to accountProfile.copy(preferences = accountProfile.preferences + ("driveAccount" to "jane@gmail.com"))))
+
+        env.sync.link("me", "jane@example.com", "jane", MergeStrategy.ASK)
+
+        assertThat(env.prefs.preferences.first().driveAccount).isEqualTo("jane@gmail.com")
+    }
+
+    @Test
+    fun `while signed in - a Drive account the account does not know yet is added to it`() = runTest {
+        val linked = guest.copy(displayName = "Janes Auto", linkedUid = "me")
+        val env = env(linked, mapOf("me" to accountProfile.copy(preferences = localPrefs.toSynced())))
+        env.prefs.update { it.copy(driveAccount = "jane@gmail.com") } // connected before this app version synced it
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { env.sync.run("me") }
+
+        assertThat(env.remote.docs.first { it["me"]?.preferences?.containsKey("driveAccount") == true }.getValue("me").preferences)
+            .containsExactly("theme", "MATERIAL_YOU", "exportQuality", "Q1440", "driveAccount", "jane@gmail.com")
+        assertThat(env.remote.saves).hasSize(1)
+
+        // Disconnected on this phone: the account learns it too.
+        env.prefs.update { it.copy(driveAccount = "") }
+        assertThat(env.remote.docs.first { it["me"]?.preferences?.get("driveAccount") == "" }).isNotNull()
+    }
+
+    @Test
     fun `a failed server read links nothing`() = runTest {
         val env = env(guest)
         env.remote.loadError = IllegalStateException("offline")
