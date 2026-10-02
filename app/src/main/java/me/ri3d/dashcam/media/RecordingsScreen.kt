@@ -538,6 +538,7 @@ private fun RecorderRow(
     download: (Collection<String>) -> Unit,
     title: String = recorderClock(entry.item.recorderTime) ?: "–",
     @StringRes downloadLabel: Int = R.string.media_download_named,
+    showBackupState: Boolean = true,
 ) {
     val item = entry.item
     Row(
@@ -564,7 +565,7 @@ private fun RecorderRow(
                 if (item.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
                 if (item.isDerived) MediaTag(stringResource(R.string.media_reconstructed_short))
                 if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
-                BackupStateTag(item)
+                if (showBackupState) BackupStateTag(item)
             }
         }
         TransferControl(entry, ready, download, downloadLabel)
@@ -745,7 +746,7 @@ private fun DriveListing(
                 DriveHeader(lastImport, importing, items.size, onRefresh = drive::refresh)
             } else {
                 Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DriveStatusCard(auth, quota = null)
+                    DriveStatusCard(auth, quota = null, notConnectedText = stringResource(R.string.media_drive_not_connected))
                     Button(onClick = onConnectDrive, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Text(stringResource(if (auth is DriveAuthState.NeedsReconnect) R.string.drive_reconnect else R.string.drive_connect))
                     }
@@ -774,6 +775,7 @@ private fun DriveListing(
                 RecorderRow(
                     RecorderEntry(item, transfers[item.id], drive.thumb(item)), connected, viewModel, selection, onTap, download,
                     title = itemClock(context, item), downloadLabel = R.string.media_drive_download_named,
+                    showBackupState = false, // every row here is in Drive
                 )
             }
         }

@@ -920,6 +920,7 @@
     <!-- drive-restore -->
     <string name="media_tab_drive">Drive</string>
     <string name="media_drive_empty">Noch keine Sicherungen in Google Drive.</string>
+    <string name="media_drive_not_connected">Verbinde Google Drive, um deine gesicherten Aufnahmen hier zu sehen und aufs Handy zu laden.</string>
     <string name="media_drive_loading">Sicherungen werden aus Google Drive gelesen …</string>
     <string name="media_drive_refresh">Aus Google Drive aktualisieren</string>
     <string name="media_drive_refreshing">Wird aus Google Drive aktualisiert</string>

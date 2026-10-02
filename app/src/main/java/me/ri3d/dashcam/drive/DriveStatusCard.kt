@@ -34,6 +34,8 @@ fun DriveStatusCard(
     state: DriveAuthState,
     quota: UiState<DriveQuota>?,
     modifier: Modifier = Modifier,
+    /** Shown while not connected instead of the general text (e.g. the Drive tab: restoring, not backing up). */
+    notConnectedText: String? = null,
 ) {
     Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -53,7 +55,7 @@ fun DriveStatusCard(
                 }
             }
             when (state) {
-                DriveAuthState.NotConnected -> BodyText(stringResource(R.string.drive_not_connected_text))
+                DriveAuthState.NotConnected -> BodyText(notConnectedText ?: stringResource(R.string.drive_not_connected_text))
                 is DriveAuthState.NeedsReconnect -> BodyText(state.reason)
                 is DriveAuthState.Connected -> Quota(quota)
             }
