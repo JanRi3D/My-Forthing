@@ -24,6 +24,7 @@ import me.ri3d.dashcam.dashcam.RecorderConnectionState.NoWifi
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.Ready
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.TcpConnected
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.WrongWifi
+import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.ErrorCodes
 import me.ri3d.dashcam.recorder.RecorderCommand
 import me.ri3d.dashcam.recorder.RecorderDiagnostic
@@ -293,5 +294,34 @@ class RecorderConnectionManagerTest {
         assertThat(manager.mediaUrl("/DCIM/clip.mp4")).isEqualTo("http://192.168.42.1/DCIM/clip.mp4")
         assertThat(manager.mediaUrl("DCIM/clip.jpg")).isEqualTo("http://192.168.42.1/DCIM/clip.jpg")
         assertThat(manager.diagnosticLog()).isNotEmpty()
+    }
+
+    @Test
+    fun `capabilities are queried once per session and asked again in the next one`() = runTest {
+        val manager = managerFor(sim).apply { setSimulator(true) }
+        assertThat(manager.capabilities(CapabilityGroup.BASIC)).isNull() // no session: nothing is sent
+        manager.connect()
+
+        val first = manager.capabilities(CapabilityGroup.BASIC)
+        assertThat(manager.capabilities(CapabilityGroup.BASIC)).isSameInstanceAs(first)
+        assertThat(sim.received.count { it.msgId == 20481 }).isEqualTo(1)
+
+        manager.disconnect()
+        manager.connect()
+        manager.capabilities(CapabilityGroup.BASIC)
+        assertThat(sim.received.count { it.msgId == 20481 }).isEqualTo(2)
+        assertThat(first!!.msgId).isEqualTo(20481)
+    }
+
+    @Test
+    fun `notes keep the last 50 per topic, redacted`() = runTest {
+        val manager = managerFor(sim)
+        repeat(RecorderConnectionManagerImpl.NOTE_SIZE + 5) { manager.note("http", "GET /$it") }
+        manager.note("rtsp", """{"passwd":"Secret123"}""")
+
+        val notes = manager.notes()
+        assertThat(notes.getValue("http").map { it.message }.first()).isEqualTo("GET /5")
+        assertThat(notes.getValue("http")).hasSize(RecorderConnectionManagerImpl.NOTE_SIZE)
+        assertThat(notes.getValue("rtsp").single().message).isEqualTo("""{"passwd":"***"}""")
     }
 }

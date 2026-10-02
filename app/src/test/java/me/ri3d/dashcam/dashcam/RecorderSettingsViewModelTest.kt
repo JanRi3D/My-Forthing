@@ -95,6 +95,20 @@ class RecorderSettingsViewModelTest {
     }
 
     @Test
+    fun `Wi-Fi sends the only mode capability 20483 lists instead of the mode read`() = runTest {
+        sim.replies[20483] = """{"msgId":20483,"rval":0,"param":{"wifi":{"mode":[0]}}}""" // hardware 2026-10-02
+        val viewModel = loadedViewModel() // 4097 reads mode 1
+        assertThat(viewModel.ui.value.wifiModes).containsExactly(0)
+
+        viewModel.changeWifi("New12345")
+        runCurrent()
+
+        assertThat(lastSettingsRequest()).isEqualTo(
+            """{"msgId":8192,"token":123,"param":{"wifi":{"mode":0,"ssid":"FORTHING-OLD","passwd":"New12345","frequency":1}}}""",
+        )
+    }
+
+    @Test
     fun `a Wi-Fi readback with another password is a mismatch without showing either password`() = runTest {
         val viewModel = loadedViewModel() // the readback keeps Old12345
 

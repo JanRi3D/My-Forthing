@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,6 +70,7 @@ import me.ri3d.dashcam.core.ui.ListRow
 import me.ri3d.dashcam.core.ui.SectionHeader
 import me.ri3d.dashcam.core.ui.UiText
 import me.ri3d.dashcam.core.ui.asString
+import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.ChannelSettings
 import me.ri3d.dashcam.recorder.DeviceInfo
 import me.ri3d.dashcam.recorder.OsdInfo
@@ -78,6 +81,7 @@ import me.ri3d.dashcam.recorder.RecorderSettings
 import me.ri3d.dashcam.recorder.RecorderValues
 import me.ri3d.dashcam.recorder.SettingsPatch
 import me.ri3d.dashcam.recorder.WifiParam
+import me.ri3d.dashcam.recorder.parseNetworkCapabilities
 import me.ri3d.dashcam.recorder.parseSettings
 import javax.inject.Inject
 
@@ -165,10 +169,13 @@ fun RecorderSettings.patch(setting: RecorderSetting, value: Int): SettingsPatch?
 }
 
 /**
- * The Wi-Fi dialog changes only the password and resubmits the whole object read back (no chanNo): `ssid`, `mode`
- * and `frequency` exactly as read, never converted.
+ * The Wi-Fi dialog changes only the password and resubmits the whole object read back (no chanNo): `ssid` and
+ * `frequency` exactly as read, never converted. `mode`: the only value capability 20483 lists ([supportedModes]),
+ * else as read – the physical recorder reads back mode 1 while it supports only mode 0 (2026-10-02), and resending
+ * the read value could switch it to an unsupported mode.
  */
-fun wifiToSend(read: WifiParam, password: String): WifiParam = read.copy(passwd = password)
+fun wifiToSend(read: WifiParam, password: String, supportedModes: List<Int>?): WifiParam =
+    read.copy(passwd = password, mode = supportedModes?.singleOrNull() ?: read.mode)
 
 /**
  * Hotspot password rule: 8–16 characters (the original dialog's message; WPA2 allows 63 at most), printable ASCII
@@ -235,6 +242,8 @@ data class RecorderSettingsUi(
     val reset: ChangeStatus? = null,
     /** After a Wi-Fi change or factory reset that may have been applied: ask the user to rejoin the recorder Wi-Fi. */
     val rejoinWifi: Boolean = false,
+    /** `wifi.mode` values of capability 20483, loaded with the settings; null when the query failed. */
+    val wifiModes: List<Int>? = null,
 ) {
     companion object {
         const val WIFI_KEY = "wifi"
@@ -259,7 +268,11 @@ class RecorderSettingsViewModel @Inject constructor(private val manager: Recorde
         viewModelScope.launch {
             _ui.update { it.copy(loading = true) }
             when (val r = manager.request(RecorderCommand.GetAllSettings, ::parseSettings)) {
-                is RecorderResult.Ok -> _ui.update { it.copy(settings = r.value, loading = false, loadError = null) }
+                is RecorderResult.Ok -> {
+                    // Before the settings appear, so the Wi-Fi dialog always knows which mode it will send.
+                    val modes = manager.capabilities(CapabilityGroup.NETWORK)?.let { runCatching { parseNetworkCapabilities(it).wifiModes }.getOrNull() }
+                    _ui.update { it.copy(settings = r.value, loading = false, loadError = null, wifiModes = modes) }
+                }
                 is RecorderResult.Failed -> _ui.update { it.copy(loading = false, loadError = r.error) }
             }
         }
@@ -279,7 +292,7 @@ class RecorderSettingsViewModel @Inject constructor(private val manager: Recorde
     fun changeWifi(password: String) {
         val read = _ui.value.settings?.global?.wifi ?: return
         if (!isValidWifiPassword(password)) return
-        val sent = wifiToSend(read, password)
+        val sent = wifiToSend(read, password, _ui.value.wifiModes)
         viewModelScope.launch {
             val status = sendAndConfirm(RecorderSettingsUi.WIFI_KEY, SettingsPatch(wifi = sent)) { readback ->
                 if (readback.global.wifi?.passwd == sent.passwd) {
@@ -442,7 +455,7 @@ fun DashcamSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSetti
         }, onDismiss = { optionDialog = null })
     }
     if (wifiDialog && settings?.global?.wifi != null) {
-        WifiDialog(settings.global.wifi!!, onSubmit = { password ->
+        WifiDialog(settings.global.wifi!!, ui.wifiModes, onSubmit = { password ->
             wifiDialog = false
             viewModel.changeWifi(password)
         }, onDismiss = { wifiDialog = false })
@@ -579,10 +592,11 @@ private fun OptionDialog(setting: RecorderSetting, current: Int?, onSelect: (Int
 
 /**
  * Changes the hotspot password only, like the vendor dialog; the SSID is shown read-only. The password is typed
- * twice and validated with [isValidWifiPassword]; it is kept out of saved state.
+ * twice and validated with [isValidWifiPassword]; it is kept out of saved state. Shows the mode and band that will
+ * be sent ([wifiToSend]) and a warning: the change is untested on the recorder.
  */
 @Composable
-private fun WifiDialog(current: WifiParam, onSubmit: (password: String) -> Unit, onDismiss: () -> Unit) {
+private fun WifiDialog(current: WifiParam, supportedModes: List<Int>?, onSubmit: (password: String) -> Unit, onDismiss: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
     var visible by remember { mutableStateOf(false) }
@@ -595,7 +609,7 @@ private fun WifiDialog(current: WifiParam, onSubmit: (password: String) -> Unit,
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.dashcam_wifi_dialog_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.dashcam_wifi_ssid_readonly, current.ssid ?: missing))
                 OutlinedTextField(
                     password,
@@ -629,11 +643,18 @@ private fun WifiDialog(current: WifiParam, onSubmit: (password: String) -> Unit,
                     Checkbox(checked = visible, onCheckedChange = null)
                     Text(stringResource(R.string.dashcam_wifi_password_show))
                 }
+                val sent = wifiToSend(current, password, supportedModes)
                 Text(
-                    stringResource(R.string.dashcam_wifi_preserved, current.mode?.toString() ?: missing, current.frequency?.toString() ?: missing),
+                    stringResource(R.string.dashcam_wifi_sent, sent.mode?.toString() ?: missing, sent.frequency?.toString() ?: missing) +
+                        if (sent.mode != current.mode) {
+                            "\n" + stringResource(R.string.dashcam_wifi_mode_from_capability, sent.mode.toString(), current.mode?.toString() ?: missing)
+                        } else {
+                            ""
+                        },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(stringResource(R.string.dashcam_wifi_warning), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = {

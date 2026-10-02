@@ -478,4 +478,15 @@ class RecorderClientTest {
     }
 
     private fun unhex(s: String) = ByteArray(s.length / 2) { s.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+
+    /** Hardware 2026-10-02: unsolicited notifications carry frame sequence 0xFFFFFFFF (read as -1). */
+    @Test
+    fun notificationWithSequenceMinusOne_isDispatched() = runTest {
+        val h = harness()
+        h.client.start()
+        h.sim.inject("""{"msgId":16384,"param":{"type":"recStatus","info":{"chanNo":0,"status":1}}}""", seq = -1)
+        runCurrent()
+        assertThat((h.notes.single() as RecorderNotification.Normal).info).isEqualTo(NormalInfo.RecStatus(0, 1))
+        assertThat(h.state).isInstanceOf(SessionState.Ready::class.java)
+    }
 }

@@ -44,7 +44,7 @@ class SimulatorHttpServer(
         val rangeHeader = exchange.requestHeaders.getFirst("Range")
         val range = rangeHeader?.let(::parseRange)
         exchange.responseHeaders.add("Accept-Ranges", "bytes")
-        exchange.responseHeaders.add("Content-Type", if (path.endsWith(".mp4")) "video/mp4" else "image/jpeg")
+        exchange.responseHeaders.add("Content-Type", contentType(path))
         if (range != null && range.first >= size) {
             exchange.responseHeaders.add("Content-Range", "bytes */$size")
             log("GET $path $rangeHeader -> 416")
@@ -82,6 +82,13 @@ class SimulatorHttpServer(
 
     companion object {
         private const val CHUNK = 16 * 1024
+
+        /** `.thm` (a JPEG by content) goes out as a generic type: the real recorder's header is unverified. */
+        fun contentType(path: String) = when {
+            path.endsWith(".mp4") -> "video/mp4"
+            path.endsWith(".jpg") -> "image/jpeg"
+            else -> "application/octet-stream"
+        }
 
         /** `bytes=<start>-` or `bytes=<start>-<end>` (single range); null for anything else. */
         fun parseRange(header: String): Pair<Long, Long?>? {

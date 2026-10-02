@@ -214,4 +214,32 @@ class ParsersTest {
         assertThat(r).contains("\"msgId\":1")
         assertThat(RecorderReply.parse(json).toString()).doesNotContain("Example123")
     }
+
+    /** Shapes the physical recorder sent on 2026-10-02 (AE-DC2013-LQ2): values from the owner's Diagnose export. */
+    @Test
+    fun hardwareShapes_2026_10_02() {
+        val basic = parseBasicCapabilities(RecorderReply.parse(RecorderSimulator.HW_BASIC_CAPABILITIES)!!)
+        assertThat(basic.rtspServer.single().chanNo).isEqualTo(1)
+        assertThat(basic.rtspServer.single().url).isEqualTo("rtsp://192.168.42.1:554/ch1/sub")
+        assertThat(basic.rtspServer.single().auth).isNull()
+        assertThat(basic.downloadPath).isEqualTo("http://192.168.42.1:80")
+
+        val network = parseNetworkCapabilities(RecorderReply.parse("""{"msgId":20483,"rval":0,"param":{"wifi":{"mode":[0]}}}""")!!)
+        assertThat(network.wifiModes).containsExactly(0)
+
+        val fileNew = parseNormalNotification(
+            RecorderReply.parse(
+                """{"msgId":16384,"param":{"type":"fileNew","info":{"fileType":0,"fileName":"/sd/DCIM/ch1_20261002_091128_0782.mp4",""" +
+                    """"fileThm":"/sd/DCIM/ch1_20261002_091128_0782.thm","fileTime":"2026-10-02 09:11:28"}}}""",
+            )!!,
+        )
+        assertThat(fileNew.info).isEqualTo(
+            NormalInfo.FileNew(null, 0, "/sd/DCIM/ch1_20261002_091128_0782.mp4", "/sd/DCIM/ch1_20261002_091128_0782.thm", "2026-10-02 09:11:28", null),
+        )
+        val storage = parseStorageInfo(
+            RecorderReply.parse("""{"msgId":4099,"rval":0,"param":{"totalSpace":119255,"available":693,"residualLife":"unknow","healthStatus":"unknow"}}""")!!,
+        )
+        assertThat(storage.totalSpace).isEqualTo(119255)
+        assertThat(storage.residualLife).isEqualTo("unknow") // kept raw
+    }
 }

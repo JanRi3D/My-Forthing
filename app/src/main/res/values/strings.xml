@@ -123,6 +123,7 @@
     <string name="dashcam_card_wifi">WLAN</string>
     <string name="dashcam_card_sd">SD-Karte</string>
     <string name="dashcam_card_sd_free">%1$s frei laut Recorder</string>
+    <string name="dashcam_card_sd_free_gb">≈ %1$s GB frei laut Recorder</string>
 
     <string name="dashcam_not_connected_title">Nicht mit der Dashcam verbunden</string>
     <string name="dashcam_not_connected_text">Werte und Einstellungen der Dashcam gibt es nur mit aktiver Verbindung.</string>
@@ -137,7 +138,8 @@
     <string name="dashcam_sd_available">Frei (available)</string>
     <string name="dashcam_sd_residual_life">Restlebensdauer (residualLife)</string>
     <string name="dashcam_sd_health">Zustand (healthStatus)</string>
-    <string name="dashcam_sd_units_note">Rohwerte wie vom Recorder gemeldet; die Einheiten sind nicht bekannt.</string>
+    <string name="dashcam_sd_units_note">Gesamt und Frei werden als MB gedeutet, wenn der Gesamtwert zu einer Karte von 1 GB bis 2 TB passt (1 GB = 1024 MB); sonst und für die übrigen Werte gilt der Rohwert wie vom Recorder gemeldet.</string>
+    <string name="dashcam_storage_as_mb">≈ %1$s GB (Recorder meldet %2$s, als MB gedeutet)</string>
     <string name="dashcam_sd_status_title">Kartenstatus</string>
     <string name="dashcam_sd_status_hint">Letzte Statusmeldung (sdStatus) des Recorders in dieser Sitzung</string>
     <string name="dashcam_sd_status_hint_none">Der Recorder meldet den Kartenstatus von sich aus, etwa beim Einstecken.</string>
@@ -213,7 +215,9 @@
     <string name="dashcam_wifi_password_repeat">Passwort wiederholen</string>
     <string name="dashcam_wifi_password_not_equal">Die Passwörter stimmen nicht überein.</string>
     <string name="dashcam_wifi_password_show">Passwort anzeigen</string>
-    <string name="dashcam_wifi_preserved">WLAN-Name, Modus (%1$s) und Band (%2$s) werden unverändert so gesendet, wie der Recorder sie gemeldet hat.</string>
+    <string name="dashcam_wifi_sent">Gesendet werden der WLAN-Name wie gemeldet, Modus %1$s und Band %2$s.</string>
+    <string name="dashcam_wifi_mode_from_capability">Modus %1$s ist laut Recorder der einzige unterstützte (gelesen: %2$s).</string>
+    <string name="dashcam_wifi_warning">Nur ausprobieren, wenn du an die Reset-Taste der Dashcam kommst – die Hersteller-App sendet den Modus hier vertauscht.</string>
     <string name="dashcam_wifi_password_sent">neues Passwort</string>
     <string name="dashcam_wifi_password_differs">anderes Passwort</string>
     <string name="dashcam_send">Senden</string>
@@ -440,6 +444,7 @@
     <string name="live_buffering">Puffern …</string>
     <string name="live_failed">Livebild nicht verfügbar</string>
     <string name="live_failed_code">Code %1$d</string>
+    <string name="live_udp_hint">Über UDP kommt das Livebild nur an, wenn das Dashcam-WLAN die Hauptverbindung des Handys ist (mobile Daten aus).</string>
     <string name="live_err_network">Recorder liefert kein Livebild (RTSP, Port 554)</string>
     <string name="live_err_format">Livebild des Recorders nicht lesbar (Datenformat)</string>
     <string name="live_err_decoder">Videoformat auf diesem Handy nicht abspielbar</string>
@@ -573,11 +578,12 @@
     <string name="media_transfers_empty">Keine Übertragungen</string>
     <string name="media_transfer_queued">Wartet</string>
     <string name="media_transfer_waiting">Wartet auf die Dashcam-Verbindung, neuer Versuch folgt</string>
+    <string name="media_transfer_retrying">%1$s Neuer Versuch folgt.</string>
     <string name="media_transfer_done">Fertig</string>
     <string name="media_failure_unknown_item">Fehlgeschlagen: Die Datei ist nicht mehr in der Bibliothek.</string>
     <string name="media_failure_not_on_recorder">Fehlgeschlagen: Die Datei ist nicht mehr auf der Dashcam.</string>
     <string name="media_failure_http">Fehlgeschlagen: Die Dashcam hat die Datei nicht geliefert.</string>
-    <string name="media_failure_not_media">Fehlgeschlagen: Die Antwort war keine Aufnahme. Ist das WLAN wirklich das der Dashcam?</string>
+    <string name="media_failure_not_media">Fehlgeschlagen: Statt der Aufnahme kam eine Webseite. Ist das WLAN wirklich das der Dashcam?</string>
     <string name="media_failure_incomplete">Fehlgeschlagen: Die Übertragung blieb unvollständig.</string>
     <string name="media_failure_network">Fehlgeschlagen: Die Verbindung zur Dashcam brach immer wieder ab.</string>
     <string name="media_failure_http_code">HTTP %1$d</string>

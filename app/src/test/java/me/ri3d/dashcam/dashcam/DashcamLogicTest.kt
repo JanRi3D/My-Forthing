@@ -14,6 +14,7 @@ import me.ri3d.dashcam.recorder.RecorderReply
 import me.ri3d.dashcam.recorder.SdCardStatus
 import me.ri3d.dashcam.recorder.WifiParam
 import me.ri3d.dashcam.recorder.parseSettings
+import me.ri3d.dashcam.recorder.parseStorageInfo
 
 /** Pure mappings and settings helpers (no Android). */
 class DashcamLogicTest {
@@ -75,8 +76,19 @@ class DashcamLogicTest {
     @Test
     fun `wifi resubmission changes only the password and keeps ssid, mode and frequency`() {
         val read = WifiParam(mode = 1, ssid = "FORTHING-OLD", passwd = "Old12345", frequency = 1)
-        assertThat(wifiToSend(read, "New12345")).isEqualTo(WifiParam(1, "FORTHING-OLD", "New12345", 1))
-        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345")).isEqualTo(WifiParam(null, "A", "New12345", null))
+        assertThat(wifiToSend(read, "New12345", null)).isEqualTo(WifiParam(1, "FORTHING-OLD", "New12345", 1))
+        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345", null)).isEqualTo(WifiParam(null, "A", "New12345", null))
+    }
+
+    @Test
+    fun `wifi mode is the only one capability 20483 lists, otherwise as read`() {
+        // Hardware 2026-10-02: 4097 reads mode 1, 20483 lists [0].
+        val read = WifiParam(mode = 1, ssid = "FORTHING-A", passwd = "Old12345", frequency = 0)
+        assertThat(wifiToSend(read, "New12345", listOf(0))).isEqualTo(WifiParam(0, "FORTHING-A", "New12345", 0))
+        assertThat(wifiToSend(read, "New12345", listOf(0, 1)).mode).isEqualTo(1)
+        assertThat(wifiToSend(read, "New12345", emptyList()).mode).isEqualTo(1)
+        assertThat(wifiToSend(read, "New12345", null).mode).isEqualTo(1)
+        assertThat(wifiToSend(WifiParam(null, "A", "Old12345", null), "New12345", listOf(0)).mode).isEqualTo(0)
     }
 
     @Test
@@ -110,5 +122,24 @@ class DashcamLogicTest {
         assertThat(looksLikeRecorderSsid("FORTHING-ABC123")).isTrue()
         assertThat(looksLikeRecorderSsid("forthing")).isTrue()
         assertThat(looksLikeRecorderSsid("HomeWifi")).isFalse()
+    }
+
+    @Test
+    fun `storage values read as MB only when totalSpace fits a 1 GB to 2 TB card`() {
+        fun info(total: Long?, available: Long? = 693) =
+            parseStorageInfo(RecorderReply.parse("""{"msgId":4099,"rval":0,"param":{"totalSpace":$total,"available":$available,"residualLife":"unknow"}}""")!!)
+        val hw = info(119255) // hardware 2026-10-02, 128 GB card
+        assertThat(storageInMb(hw)).isTrue()
+        assertThat(storageValue(hw.totalSpace, true)).isEqualTo(UiText.Res(R.string.dashcam_storage_as_mb, listOf("116", "119255")))
+        assertThat(storageValue(hw.available, true)).isEqualTo(UiText.Res(R.string.dashcam_storage_as_mb, listOf("0,7", "693")))
+        assertThat(gigabytes(5530)).isEqualTo("5,4")
+        assertThat(storageInMb(info(1_000))).isTrue()
+        assertThat(storageInMb(info(2_000_000))).isTrue()
+        assertThat(storageInMb(info(999))).isFalse()
+        assertThat(storageInMb(info(2_000_001))).isFalse() // e.g. KiB: raw only
+        assertThat(storageInMb(info(null))).isFalse()
+        assertThat(storageInMb(null)).isFalse()
+        assertThat(storageValue(119255, false)).isEqualTo(UiText.Res(R.string.dashcam_value_raw, listOf("119255")))
+        assertThat(rawValue(hw.residualLife)).isEqualTo(UiText.Res(R.string.dashcam_value_raw, listOf("unknow"))) // stays raw
     }
 }

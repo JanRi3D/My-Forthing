@@ -408,7 +408,10 @@ fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltVi
                     CardFact(stringResource(R.string.dashcam_card_wifi), if (simulator) stringResource(R.string.dashcam_simulator_short) else ssid ?: stringResource(R.string.dashcam_ssid_unknown))
                     CardFact(
                         stringResource(R.string.dashcam_card_sd),
-                        storage?.available?.let { stringResource(R.string.dashcam_card_sd_free, it.toString()) }
+                        storage?.available?.let {
+                            if (storageInMb(storage)) stringResource(R.string.dashcam_card_sd_free_gb, gigabytes(it))
+                            else stringResource(R.string.dashcam_card_sd_free, it.toString())
+                        }
                             ?: stringResource(R.string.dashcam_value_missing),
                     )
                 }

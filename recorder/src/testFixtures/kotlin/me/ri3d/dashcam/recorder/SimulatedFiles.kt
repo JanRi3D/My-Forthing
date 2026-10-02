@@ -27,7 +27,8 @@ import javax.imageio.ImageIO
  * Simulated paging (the real behaviour needs a recorder): newest first per type, `lastFileName` is exclusive
  * (the page starts after that entry), an unknown cursor yields an empty page. `totalFileSize` is reported in KiB
  * (the real unit is unknown). Videos are the committed 3 s clip `sim/clip.mp4` padded with an MP4 `free` box to
- * [Entry.size]; JPEGs (thumbnails and photos) are drawn at runtime.
+ * [Entry.size]; JPEGs (thumbnails and photos) are drawn at runtime. Thumbnails are `<name>.thm` like on the physical
+ * recorder (2026-10-02: `/sd/DCIM/ch1_20261002_091128_0782.thm` next to the `.mp4`).
  */
 class SimulatedFiles(entries: List<Entry> = defaults()) {
     data class Entry(val type: Int, val fileName: String, val fileThm: String, val fileTime: String, val size: Long)
@@ -95,7 +96,7 @@ class SimulatedFiles(entries: List<Entry> = defaults()) {
             (0 until count).map { i ->
                 val time = newest.minusSeconds(i * stepSeconds)
                 val base = "/sim/$dir/$prefix${NAME_TIME.format(time)}"
-                Entry(type, base + ext, base + "_thm.jpg", FILE_TIME.format(time), size)
+                Entry(type, base + ext, "$base.thm", FILE_TIME.format(time), size) // `.thm` (a JPEG) as on the real recorder
             }
 
         /** The real clip followed by a `free` box: still a valid MP4 of [size] bytes. */

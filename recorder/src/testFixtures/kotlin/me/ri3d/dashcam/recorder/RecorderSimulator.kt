@@ -59,8 +59,8 @@ class RecorderSimulator(
     /** msgIds that are never answered, e.g. 3 for heartbeat loss or 1 for a silent session start. */
     val silentMsgIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
-    /** msgId → reply body (plain JSON); default `{"rval":0,"msgId":<id>}`. */
-    val replies = ConcurrentHashMap<Int, String>()
+    /** msgId → reply body (plain JSON); default `{"rval":0,"msgId":<id>}`, 20481 as the physical recorder answers it. */
+    val replies = ConcurrentHashMap(mapOf(20481 to HW_BASIC_CAPABILITIES))
 
     /** msgId → reply computed from the request (e.g. 4100 paging by cursor, see [SimulatedFiles]); wins over [replies]. */
     val handlers = ConcurrentHashMap<Int, (RecorderReply) -> String>()
@@ -173,6 +173,14 @@ class RecorderSimulator(
     }
 
     companion object {
+        /**
+         * The 20481 fields the physical recorder (AE-DC2013-LQ2, fw SX5G-3776510A_A) reported on 2026-10-02 that the app
+         * uses: its own RTSP URL (not the traced `/ch1/sub/av_stream`) and the HTTP base. Other fields omitted.
+         */
+        const val HW_BASIC_CAPABILITIES =
+            """{"msgId":20481,"rval":0,"param":{"rtspServer":[{"chanNo":1,"url":"rtsp://192.168.42.1:554/ch1/sub"}],""" +
+                """"downloadPath":"http://192.168.42.1:80"}}"""
+
         fun generateKeyPair(): KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(1024) }.generateKeyPair()
     }
 }

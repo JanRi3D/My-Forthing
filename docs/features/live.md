@@ -5,7 +5,7 @@ Package `me.ri3d.dashcam.live`. Builds on the connection manager (CONTRACTS §7)
 
 | File | Contents |
 | --- | --- |
-| `LivePlayer.kt` | `LiveStream` (URL constants), `LivePlayer` seam + `PlayerEvent` + `StreamError`, `ExoLivePlayer` (Media3), `LiveFrameSource` (Phase 4 hook), Hilt `LiveModule` |
+| `LivePlayer.kt` | `LiveStream` (URL constants), `rtspCandidates()`, `rtspStatus()`, `LivePlayer` seam + `PlayerEvent` + `StreamError`, `ExoLivePlayer` (Media3), `LiveFrameSource` (Phase 4 hook), Hilt `LiveModule` |
 | `LiveViewModel.kt` | `LiveViewModel` (stream lifecycle, retry, commands, late replies, screenshot), `StreamState`, `StreamError.reason`, `CommandUi`, `commandMessage()`, `replyText()` |
 | `Screenshot.kt` | `saveScreenshot()` – the screenshot folder contract and the gallery copy |
 | `LiveScreen.kt` | `liveGraph()`, `LiveScreen()` (slots), full screen, state views |
@@ -16,14 +16,20 @@ Package `me.ri3d.dashcam.live`. Builds on the connection manager (CONTRACTS §7)
 RecorderConnectionManager.state is Ready  &&  screen started (ON_START … ON_STOP)
         │ yes                                          │ no → player.stop(), StreamState.Off
         ▼
-ExoPlayer ── RtspMediaSource(forceUseRtpTcp, socketFactory = Ready.network.socketFactory)
-        │      rtsp://192.168.42.1/ch1/sub/av_stream  (port 554, no credentials, 8 s RTSP timeout)
+capability 20481 (once per session, 3 s) → candidates: 1. rtspServer URL of the first channel
+        │                                                (hardware: rtsp://192.168.42.1:554/ch1/sub)
+        │                                             2. rtsp://192.168.42.1/ch1/sub/av_stream (traced)
+        ▼
+ExoPlayer ── RtspMediaSource(forceUseRtpTcp = true, socketFactory = Ready.network.socketFactory)
+        │      each candidate over TCP; RTSP 461 → the same URL with forceUseRtpTcp = false (UDP), then the next
+        │      (no credentials, 8 s RTSP timeout per attempt)
         ▼
 MediaCodec video renderer (audio track type disabled) ── TextureView (AndroidView, letterboxed, keepScreenOn)
         │                                                     │
         │ PlayerEvent: Buffering / Playing / Size / Failed    └─ getBitmap(w, h) → screenshot, LiveFrameSource
         ▼
-LiveViewModel: Loading → Playing ⇄ Buffering; Failed → retry after 1.5 s → StreamState.Failed + "Erneut versuchen"
+LiveViewModel: Loading → Playing ⇄ Buffering; all candidates failed → retry after 1.5 s → StreamState.Failed
+               + "Erneut versuchen"; every attempt → manager.note("rtsp", …) → Diagnose export "notes.rtsp"
 ```
 
 ## Decisions
@@ -36,10 +42,20 @@ from the background starts again only after the manager's ON_START reconnect rea
 or buffers, the surface keeps the screen on (`TextureView.keepScreenOn`): otherwise the display timeout would stop
 the activity and, through the manager's ON_STOP, the session.
 
-**Retry.** Each start gets exactly one automatic retry on a stream error, 1.5 s later (`RETRY_DELAY_MS`; the
-pending retry is cancelled by any stop or new start), then `StreamState.Failed` with "Livebild nicht verfügbar", a
-German reason, the numeric code as a second line ("Code 2000"; local reasons without a Media3 code show none, the
-`errorCodeName` stays in the warning log) and "Erneut versuchen" (a fresh start with its own retry). Having played resets the retry, so a later drop is retried once again. Reasons by
+**URL candidates (hardware 2026-10-02).** The physical recorder reports its own URL in capability 20481:
+`rtspServer: [{chanNo 1, url "rtsp://192.168.42.1:554/ch1/sub"}]`, not the vendor app's hardcoded
+`rtsp://192.168.42.1/ch1/sub/av_stream`, and live view did not work with the hardcoded URL. Each start therefore asks
+the manager for 20481 (`capabilities(BASIC)`, cached per session, 3 s timeout) and tries, in order: the URL of the
+first channel (lowest `chanNo`), used only when it is `rtsp://` on 192.168.42.1 without user info; then
+`LiveStream.URL`. `rtsp://192.168.42.1:554/ch1/main` is deliberately never tried (unknown). The URL that played last
+moves to the front of the next start (`rtspCandidates(basic, preferred)`). A failed candidate is followed at once by
+the next one; only when all have failed does the error handling below apply.
+
+**Retry.** Each start gets exactly one automatic retry of the whole candidate list after a stream error, 1.5 s later
+(`RETRY_DELAY_MS`; the pending retry is cancelled by any stop or new start), then `StreamState.Failed` with
+"Livebild nicht verfügbar", a German reason, a second line with the numeric code and the raw innermost cause
+("Code 2000 · RtspPlaybackException: SETUP 461"; local reasons without a Media3 code show none) and "Erneut
+versuchen" (a fresh start with its own retry). Having played resets the retry, so a later drop is retried once again. Reasons by
 Media3 `PlaybackException.errorCode` group: 2xxx (I/O, network) "Recorder liefert kein Livebild (RTSP, Port 554)",
 3xxx (parsing) "Livebild des Recorders nicht lesbar (Datenformat)", 4xxx (decoder) "Videoformat auf diesem Handy
 nicht abspielbar", the end of the stream (`STATE_ENDED` → `STREAM_ENDED`; the original app stops on stream closure
@@ -47,13 +63,24 @@ and has no retry loop of its own) "Der Recorder hat das Livebild beendet", anyth
 Abspielen". Media3's RTSP client gives up after its default 8 s timeout per attempt.
 
 **Transport.** `RtspMediaSource.Factory().setForceUseRtpTcp(true)` – TCP interleaved, as traced; RTP shares the
-RTSP socket. No user/password (none in the traced setup; not a claim about the recorder's access checks).
+RTSP socket. If the server answers SETUP with **461 Unsupported Transport** (Media3: `RtspPlaybackException`
+"SETUP 461" inside a source error; `rtspStatus()` reads it), the same URL is tried once more with
+`setForceUseRtpTcp(false)`: Media3 then asks for RTP over UDP first (and falls back to TCP itself on a UDP 461).
+**UDP only works while the recorder Wi-Fi is the phone's default network (mobile data off):** the socket factory
+binds only the RTSP control socket, Media3's RTP/RTCP datagram sockets are not bound to the recorder network. A
+failure of a UDP attempt adds that hint to the error state ("Über UDP kommt das Livebild nur an, wenn …").
+No user/password (none in the traced setup; not a claim about the recorder's access checks).
 `setSocketFactory(network.socketFactory)` with the network of the `Ready` state (the one the control socket is bound
 to), so RTSP goes over the recorder Wi-Fi while mobile data serves everything else. `Ready.network` is null only in
 debug simulator mode; then `LiveStream.SIMULATOR_URL` = `rtsp://10.0.2.2/ch1/sub/av_stream` with the default socket
 factory (`:recorder:runSimulator` has no RTSP server, so that attempt always fails). Ready without a network outside
 simulator mode starts nothing (never an unbound socket) and shows a connection problem, "Keine Verbindung über das
-Dashcam-WLAN – bitte neu verbinden", with "Zur Verbindung". The URL is defined once (`LiveStream.URL`).
+Dashcam-WLAN – bitte neu verbinden", with "Zur Verbindung". The traced URL is defined once (`LiveStream.URL`).
+
+**Diagnose.** Every start and attempt goes to the manager's notes (`note("rtsp", …)`, last 50, redacted), which the
+Diagnose export carries under `notes.rtsp`: `start: <candidates>`, `<url> tcp|udp: playing`, `<url> tcp: video
+1280x720`, `<url> tcp: ERROR_CODE_IO_UNSPECIFIED (2000), RTSP 461: RtspPlaybackException: SETUP 461`
+(`StreamError.describe()`: Media3 error name and code, RTSP status if any, raw innermost cause).
 
 **Sound.** Live sound is off, as traced (the original sets preview sound to false): the audio track type is
 disabled in the track selection, so audio is neither decoded nor played. The screen makes no statement about
@@ -167,7 +194,18 @@ reasons by error code group; exact 12292/12293 bodies; reply text with path/time
 10 → 7 → end, timeout → "Ergebnis unbekannt", immediate reply ends it, never a 12294; a late 12293 resolves the
 unknown outcome; unmatched burst replies counted (path and rval 303 meaning) and reset; rval 303/311 with app
 meaning and raw code; screenshot files, JSON and EXIF; `NoFrame` / saved events; frames only while playing and
-wanted; `targetFps` outside 1..30 rejected.
+wanted; `targetFps` outside 1..30 rejected. Since `fix/real-recorder-1` (`RecorderSimulator` answers 20481 in the
+hardware shape): the recorder's URL first, the traced one at once after it, one retry of both, 20481 queried once
+per session; the URL that played first after a drop; a 461 retries the same URL over UDP and a UDP failure carries
+the hint; candidate rules (first channel, recorder host only, no credentials, no duplicates, preferred first);
+`rtspStatus()`; the notes for Diagnose.
+
+Verified on hardware 2026-10-02 (owner's Diagnose export; AE-DC2013-LQ2, fw SX5G-3776510A_A, phone API 37,
+`FORTHING-A267451`, mobile data off): the session, capability 20481 with
+`rtspServer: [{chanNo 1, url "rtsp://192.168.42.1:554/ch1/sub"}]` (no `auth` field) and `downloadPath
+"http://192.168.42.1:80"`. **Live view did not work** with the then hardcoded `/ch1/sub/av_stream` URL over TCP; the
+cause was not captured (that build logged no RTSP attempts). The candidate list and the RTSP notes are the fix and
+the instrument for the next test.
 
 Emulator walkthrough (API 36, `emulator-5556`) [SIM], before the review fixes: not connected → "Erst mit dem
 Recorder verbinden / Nicht verbunden / Zur Verbindung"; simulator session Ready → RTSP to 10.0.2.2:554 fails twice
@@ -180,13 +218,17 @@ fixes: see the branch report. **Not exercised:** playback, keep-screen-on, the "
 buffering, screenshots from the surface and `frames()` from a real surface – all need an RTSP stream.
 
 Hardware checklist (owner):
+0. **Next test first:** open Live, wait for video or the error, then Diagnose → `notes.rtsp`: which URL and
+   transport played (`… tcp: playing`), or each attempt's Media3 code, RTSP status (404 = wrong path, 461 = transport
+   refused, 401 = credentials) and cause; the second line of the error state shows the same raw cause. If only UDP
+   plays, repeat with mobile data on (expected to fail, see Transport).
 1. RTSP before vs. after the control session: does `ch1/sub` answer without a session (the app never tries)?
 2. Concurrent clients: a second RTSP client (or the vendor app) while this one streams; does the recorder refuse,
    share or drop the first?
 3. Stream errors: which Media3 error codes appear when the hotspot drops, the recorder restarts, or the session
    ends while streaming; does the recorder close the stream (`STREAM_ENDED`) on its own after some time; is the 8 s
    RTSP timeout and the 1.5 s retry delay right for the recorder?
-4. Codec and resolution of `ch1/sub` (and frame rate, audio codec): log `PlayerEvent.Size`; check that hardware
+4. Codec and resolution of `ch1/sub` (and frame rate, audio codec): `notes.rtsp` has the size; check that hardware
    decoding renders correctly (else software-only selector); measure latency with the 500 ms start buffer.
 5. Socket binding: stream works with mobile data on (sockets via `network.socketFactory`).
 6. Photo / burst / record replies: `filePath`/`thmPath`/`fileTime` values and their time zone, how many 12292

@@ -24,9 +24,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.dashcam.RecorderConnectionManager
+import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import me.ri3d.dashcam.dashcam.errorMeaning
 import me.ri3d.dashcam.dashcam.outcomeUnknown
+import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.CaptureResult
 import me.ri3d.dashcam.recorder.RecorderClient
 import me.ri3d.dashcam.recorder.RecorderCommand
@@ -35,6 +37,7 @@ import me.ri3d.dashcam.recorder.RecorderNotification
 import me.ri3d.dashcam.recorder.RecorderReply
 import me.ri3d.dashcam.recorder.RecorderResult
 import me.ri3d.dashcam.recorder.RecorderValues
+import me.ri3d.dashcam.recorder.parseBasicCapabilities
 import me.ri3d.dashcam.recorder.parseCaptureResult
 import java.io.IOException
 import javax.inject.Inject
@@ -99,7 +102,8 @@ sealed interface LiveEvent {
 
 /**
  * Plays the recorder's RTSP preview while the connection is Ready and the screen is started (the original app
- * opens the preview after the control session), one delayed automatic retry per start, then [StreamState.Failed].
+ * opens the preview after the control session): each start tries every RTSP candidate (TCP, then UDP after a 461),
+ * then one delayed automatic retry of the whole list, then [StreamState.Failed]. Every attempt is noted for Diagnose.
  * Photo/burst/record commands go through the connection manager; replies are shown as reported.
  */
 @HiltViewModel
@@ -127,7 +131,21 @@ class LiveViewModel @Inject constructor(
     private var retried = false
     private var played = false
     private var retryJob: Job? = null
+    private var startJob: Job? = null
     private var pendingSize: IntSize? = null
+
+    /** One RTSP try: TCP interleaved ([tcp]) or Media3's UDP-first transport. */
+    private data class Attempt(val url: String, val tcp: Boolean) {
+        override fun toString() = url + if (tcp) " tcp" else " udp"
+    }
+
+    /** Tries left in this start, after [attempt]. */
+    private val attempts = ArrayDeque<Attempt>()
+    private var attempt: Attempt? = null
+    private var sockets: SocketFactory = SocketFactory.getDefault()
+
+    /** The URL that played last: tried first on the next start. */
+    private var worked: String? = null
     private var photoAction = LiveAction.PHOTO
 
     init {
@@ -158,23 +176,42 @@ class LiveViewModel @Inject constructor(
         }
     }
 
+    /** Every candidate URL ([rtspCandidates]) over TCP; a 461 adds the same URL over UDP right after it. */
     private fun start() {
         retryJob?.cancel()
+        startJob?.cancel()
         val network = (manager.state.value as? RecorderConnectionState.Ready)?.network
-        val (url, sockets) = when {
-            network != null -> LiveStream.URL to network.socketFactory
-            // Ready without a network exists only in simulator mode; otherwise never an unbound (mobile data) socket.
-            manager.simulator.value -> LiveStream.SIMULATOR_URL to SocketFactory.getDefault()
-            else -> return run { _stream.value = StreamState.Failed(StreamError.NOT_BOUND) }
-        }
+        // Ready without a network exists only in simulator mode; otherwise never an unbound (mobile data) socket.
+        if (network == null && !manager.simulator.value) return run { _stream.value = StreamState.Failed(StreamError.NOT_BOUND) }
         played = false
         pendingSize = null
         _stream.value = StreamState.Loading
-        player.play(url, sockets)
+        startJob = viewModelScope.launch {
+            val urls = if (network == null) {
+                listOf(LiveStream.SIMULATOR_URL)
+            } else {
+                val basic = manager.capabilities(CapabilityGroup.BASIC)?.let { runCatching { parseBasicCapabilities(it) }.getOrNull() }
+                rtspCandidates(basic, worked)
+            }
+            note("start: " + urls.joinToString())
+            sockets = network?.socketFactory ?: SocketFactory.getDefault()
+            attempts.clear()
+            urls.mapTo(attempts) { Attempt(it, tcp = true) }
+            next()
+        }
     }
+
+    private fun next() {
+        val next = attempts.removeFirst()
+        attempt = next
+        player.play(next.url, sockets, next.tcp)
+    }
+
+    private fun note(message: String) = manager.note(RecorderConnectionManagerImpl.RTSP_NOTES, message)
 
     private fun stopStream() {
         retryJob?.cancel()
+        startJob?.cancel()
         player.stop()
         releaseFrames()
         retried = false
@@ -186,6 +223,11 @@ class LiveViewModel @Inject constructor(
         when (event) {
             PlayerEvent.Buffering -> _stream.value = if (played) StreamState.Buffering else StreamState.Loading
             PlayerEvent.Playing -> {
+                if (!played) attempt?.let {
+                    note("$it: playing")
+                    worked = it.url
+                }
+                attempts.clear() // a later drop starts over (retry), with the URL that worked first
                 played = true
                 retried = false
                 _stream.value = StreamState.Playing
@@ -193,13 +235,22 @@ class LiveViewModel @Inject constructor(
                 frameSource.size.value = pendingSize
             }
             is PlayerEvent.Size -> {
+                note("$attempt: video ${event.width}x${event.height}")
                 pendingSize = IntSize(event.width, event.height)
                 if (frameSource.player.value === player) frameSource.size.value = pendingSize
             }
             is PlayerEvent.Failed -> {
                 releaseFrames()
-                if (retried) {
-                    _stream.value = StreamState.Failed(event.error)
+                val failed = attempt
+                val error = if (failed?.tcp == false) event.error.copy(udp = true) else event.error
+                note("$failed: ${error.describe()}")
+                // TCP interleaved refused: the same URL with Media3's UDP transport before the next URL.
+                if (failed?.tcp == true && error.rtspStatus == LiveStream.UNSUPPORTED_TRANSPORT) attempts.addFirst(failed.copy(tcp = false))
+                if (attempts.isNotEmpty()) {
+                    _stream.value = StreamState.Loading
+                    next()
+                } else if (retried) {
+                    _stream.value = StreamState.Failed(error)
                 } else {
                     retried = true
                     _stream.value = StreamState.Loading

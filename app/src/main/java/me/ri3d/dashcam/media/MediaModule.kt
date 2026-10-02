@@ -13,6 +13,7 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import me.ri3d.dashcam.dashcam.RecorderConnectionManager
+import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import java.io.IOException
 import javax.inject.Singleton
@@ -44,10 +45,15 @@ class RecorderHttp(
     fun url(recorderPath: String): String =
         if (manager.simulator.value) simulatorBaseUrl.trimEnd('/') + "/" + recorderPath.trimStart('/') else manager.mediaUrl(recorderPath)
 
+    /** A line in the Diagnose export next to the HTTP request log. */
+    fun note(message: String) = manager.note(RecorderConnectionManagerImpl.HTTP_NOTES, message)
+
     /**
      * Thumbnails from the recorder. Every request asks [client] at call time, so a new or lost session applies at
      * once and without a Ready session the placeholder stays. Coil's own connectivity check is off: the recorder
-     * Wi-Fi has no internet. No service-loaded fetchers: nothing may load recorder URLs unbound.
+     * Wi-Fi has no internet. No service-loaded fetchers: nothing may load recorder URLs unbound. Coil decodes by
+     * content, so the recorder's `.thm` thumbnails load whatever their extension or Content-Type (nothing filters on
+     * either); rows use the local thumbnail instead once the file is on the phone.
      */
     val imageLoader: ImageLoader by lazy {
         ImageLoader.Builder(context)
