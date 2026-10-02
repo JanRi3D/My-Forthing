@@ -11,7 +11,9 @@ lint unchanged (0 errors, 24 warnings). On `fix/real-recorder-2` (fixes after th
 1.0.1 (Build 2)**; `./gradlew :recorder:test :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`): **467 unit
 tests, 0 failures, 0 skipped** (`:app` 393, `:recorder` 74); lint 0 errors, 24 warnings. On `feature/cache` (cache
 for thumbnails, listings and recorder values, **release 1.0.2 (Build 3)**; same command): **486 unit tests, 0 failures,
-0 skipped** (`:app` 412, `:recorder` 74); lint 0 errors, 24 warnings.
+0 skipped** (`:app` 412, `:recorder` 74); lint 0 errors, 24 warnings. On `fix/real-recorder-3` (fixes after the third
+hardware test, **release 1.0.3 (Build 4)**; same command): **496 unit tests, 0 failures, 0 skipped** (`:app` 419,
+`:recorder` 77); lint 0 errors, 24 warnings.
 
 Labels: **[SIM]** = against `RecorderSimulator` or `:recorder:runSimulator`; **emulator** = AVD Pixel_10_Pro_XL,
 API 36, x86_64 (performance numbers indicative only). The instrumented tests in `app/src/androidTest` (plates 5,
@@ -20,7 +22,9 @@ enhance 21) were run on the emulator by the branch that owns them (see the featu
 `connectedDebugAndroidTest` would reinstall the app on the shared emulator. **First contact with the physical
 recorder: 2026-10-02** (owner's Diagnose export, release 1.0.0 on a phone with API 37; see "Verified on hardware"
 below): the control session works end to end; live view and downloads did not. Second test the same day (build from
-`fix/real-recorder-1`): file listing works; live view fails in Media3's SDP parsing; downloads stall. The owner checklist is
+`fix/real-recorder-1`): file listing works; live view fails in Media3's SDP parsing; downloads stall. Third test (1.0.1,
+mobile data on): downloads work (≈ 1.1 MB/s); live view failed with ECONNREFUSED on the app's own loopback proxy (fixed
+in 1.0.3, which also repairs the recorder's SDP as captured). The owner checklist is
 [`HARDWARE_CHECKLIST.md`](HARDWARE_CHECKLIST.md).
 
 ## Branches
@@ -37,49 +41,52 @@ below): the control session works end to end; live view and downloads did not. S
 | `feature/lion-icon` | merged (`8932583`): the owner's lion replaces the axolotl as launcher icon (light `#F4F5F7` background, themed-icon layer) and Welcome logo; rebuilt APKs |
 | `fix/profile-shortcut` | merged (`fa3bced`): the Home profile picture opens Konto (guest, signed-out and signed-in state) instead of Einstellungen; Welcome logo no longer announced twice; rebuilt APKs |
 | `fix/real-recorder-1` | merged (`bb7ca54`): fixes from the first hardware test – live view tries the recorder's own RTSP URL (20481) then the traced one, UDP after a 461; lenient recorder HTTP (any Content-Type but HTML, Content-Length optional) with the failure reason in Übertragungen; RTSP attempts and recorder HTTP requests in the Diagnose export (`notes`); Wi-Fi password change sends the only mode 20483 lists; SD values read as MB when they fit a card; rebuilt APKs |
-| `feature/cache` | this branch: persistent thumbnail disk cache (64 MB LRU, keys path + recorder time, header-independent, offline), recorder tabs from the library at once with "Stand: …" (also offline), listings page by page to the end without moving the list, `fileNew` inserted / `fileDel` removed without re-listing, lowest-priority thumbnail prefetch (paused by downloads and scrolling, 300 per session), last 4098/4097/4099/capabilities per recorder shown as "zuletzt gelesen" (Home card, Verbindung, SD-Karte, Einstellungen), DB 4; release 1.0.2 (Build 3) |
+| `feature/cache` | merged (`4ffb58a`): persistent thumbnail disk cache (64 MB LRU, keys path + recorder time, header-independent, offline), recorder tabs from the library at once with "Stand: …" (also offline), listings page by page to the end without moving the list, `fileNew` inserted / `fileDel` removed without re-listing, lowest-priority thumbnail prefetch (paused by downloads and scrolling, 300 per session), last 4098/4097/4099/capabilities per recorder shown as "zuletzt gelesen" (Home card, Verbindung, SD-Karte, Einstellungen), DB 4; release 1.0.2 (Build 3) |
 | `fix/real-recorder-2` | merged (`34a5f71`): fixes from the second hardware test – loopback RTSP proxy that repairs the recorder's SDP for Media3 (`a=control:*`, video section only); raw RTSP DESCRIBE in Diagnose (`rtsp.describe`); recorder HTTP one request at a time (90 s read timeout), one download at a time, thumbnails paused during downloads, stalled downloads resume within the run (5/15/45 s) with speed display; `.thm` decoded by content; simulator pages of 20; release 1.0.1 (Build 2) |
+| `fix/real-recorder-3` | this branch: fixes from the third hardware test – the RTSP proxy listens on `127.0.0.1` (it was on `::1`, the ECONNREFUSED), notes `listening` / `accepted` / `TEARDOWN forwarded`, lets Media3's TEARDOWN through on stop; the SDP rewrite handles the recorder's exact SDP (session lines, start codes stripped from the parameter sets, the cut SPS repaired – Media3 would otherwise crash the app); `SimulatorRtspServer` in `:recorder:runSimulator` (port 7554) streams `sim/clip.mp4` in the recorder's RTSP shape, live view plays it on the emulator; release 1.0.3 (Build 4) |
 
-## Release 1.0.2 (Build 3)
+## Release 1.0.3 (Build 4)
 
-In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`, built on `feature/cache` (versionCode 3, so it
-installs over 1.0.0 and 1.0.1 without uninstalling; same signing key; the database moves to version 4 on first
-start); the previous 1.0.1 (Build 2) APKs moved to `dist/1.0.1-2/` and the 1.0.0 ones are in `dist/1.0.0-1/`, each with
-their checksums. Build, verification and signing in [`RELEASE.md`](RELEASE.md).
+In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`, built on `fix/real-recorder-3` (`./gradlew clean
+:app:assembleRelease :app:assembleDebug`; versionCode 4, so it installs over 1.0.0–1.0.2 without uninstalling; same
+signing key; database still version 4); the 1.0.2 (Build 3) APKs moved to `dist/1.0.2-3/`, the older ones are in
+`dist/1.0.1-2/` and `dist/1.0.0-1/`, each with their checksums. Build, verification and signing in
+[`RELEASE.md`](RELEASE.md). The release APKs have the same byte sizes as 1.0.2 (zip alignment padding) but other
+contents and hashes; the fix strings are in their dex.
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.2-3-arm64-v8a.apk` | 36,464,142 | `2044b62273bef23052ef6becc4d797a53150ceeb4b7e1898084f26820ec46121` |
-| `MyForthing-1.0.2-3-armeabi-v7a.apk` | 30,338,046 | `05ca15cc45fd6dcbc29b5997f56c6bd15fbdca4039f5f6c2e142a5d51541af8a` |
-| `MyForthing-1.0.2-3-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,489,795 | `8b156f1dac8c5f6852c03e85c31980bd8f5a8a2354f31b83ca4db9fc87e4cd4a` |
+| `MyForthing-1.0.3-4-arm64-v8a.apk` | 36,464,142 | `17c0c034cdd324f14d47f8fd6d29e254f8fe19f0a847e30119b4e8c71342e9e0` |
+| `MyForthing-1.0.3-4-armeabi-v7a.apk` | 30,338,046 | `4c57b33bff0a943b9cd6dcec0b7c439992e3e5ce251176f7732eeafe4ab09bf2` |
+| `MyForthing-1.0.3-4-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,506,179 | `7977255be441a2dfd99526f4c0ed2797f5ebcdeeed7d41f3b17dfd78a047804f` |
 
-- Release APKs: `me.ri3d.dashcam`, versionCode 3, versionName 1.0.2, label "My Forthing", not debuggable, one ABI each,
+- Release APKs: `me.ri3d.dashcam`, versionCode 4, versionName 1.0.3, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc` (`apksigner verify`,
   `aapt2 dump badging`).
 - Contains every feature, including "Sicherung" and the plate screens (`FeatureFlags` all `true`).
 - Built **without** `app/google-services.json`: the online account shows "Konto-Dienst ist in dieser Installation nicht
-  eingerichtet."; everything else works without it. Accounts need a new build once the file exists (versionCode 4).
+  eingerichtet."; everything else works without it. Accounts need a new build once the file exists (versionCode 5).
 - Google Drive needs no file in the app: it works with this APK as soon as the Google Cloud project has an Android
   OAuth client for `me.ri3d.dashcam` with the release SHA-1 (`SETUP.md` §3); until then "Google-Cloud-Konfiguration fehlt
   (Statuscode 10)".
 
 ## Features
 
-Unit test counts are `@Test` methods per package on `feature/cache` (all run above). Instrumented and emulator results are as
+Unit test counts are `@Test` methods per package on `fix/real-recorder-3` (all run above). Instrumented and emulator results are as
 reported by the owning branch in `docs/features/*.md`.
 
 | Feature | Unit tests | Emulator / instrumented | Simulator-only [SIM] | Hardware-unverified | Blocked on owner input |
 | --- | --- | --- | --- | --- | --- |
 | **Foundation** (`core/`: theme, navigation, guest profile + onboarding, settings, Darstellung, log redaction; `AppLocale.kt`: UI pinned to German) | 23 | emulator walkthrough; on an en-US emulator Media3 controls ("Player-Steuerelemente anzeigen", "Geschwindigkeit"), Material 3 sheet ("Ziehpunkt"), dates ("2. Oktober 2026 um 05:24") and sizes ("6,3 MB") are German, also on the first start | – | the pin on Android 8–12 (no per-app language; covered by a Robolectric test only) | – |
-| **Recorder protocol** (`:recorder`: framing, session crypto, commands, notifications, error codes, SDK-defect regressions, simulator) | 74 [SIM] | – (pure JVM) | everything: fixtures from the protocol report, fragmentation, heartbeat loss, auto-ack, Wi-Fi mode / OSD / G-sensor / capability-flag regressions; hardware reply shapes | heartbeat-loss timing, error codes (handshake, AES traffic, replies and notifications: **verified on hardware 2026-10-02**) | recorder sessions |
+| **Recorder protocol** (`:recorder`: framing, session crypto, commands, notifications, error codes, SDK-defect regressions, simulator incl. RTSP) | 77 [SIM] | – (pure JVM) | everything: fixtures from the protocol report, fragmentation, heartbeat loss, auto-ack, Wi-Fi mode / OSD / G-sensor / capability-flag regressions; hardware reply shapes | heartbeat-loss timing, error codes (handshake, AES traffic, replies and notifications: **verified on hardware 2026-10-02**) | recorder sessions |
 | **Dashcam connection** (`dashcam/`: Wi-Fi binding, states, Verbindung, Home card, SD-Karte, recorder settings with readback, Diagnose, last read values "zuletzt gelesen") | 51 [SIM] | walkthrough against `:recorder:runSimulator` [SIM]; real Wi-Fi path up to -101 | settings readback, format, reset | hotspot binding with mobile data **on**, 4099 units (MB assumed), every 8192 change (`chanNo` 0 vs 1), Wi-Fi password (mode 0 from 20483), format, factory reset, recStatus meaning (`features/dashcam.md` 1–14); binding with mobile data off, session, 4097/4098/4099 values, notifications, capabilities: **verified on hardware 2026-10-02** | recorder sessions |
-| **Live view** (`live/`: RTSP via Media3 through a loopback SDP-repair proxy, full screen, screenshot, Foto / 5er-Serie / Aufnahme) | 28 (Robolectric, fake player; fake RTSP server; Media3's own track building) | states, retries, commands [SIM] | commands; proxy against a fake RTSP server; **RTSP playback never exercised** (the simulator has no RTSP server) | stream (**failed on hardware 2026-10-02**: Media3 rejects the recorder's SDP, "missing attribute control"; fix: the proxy adds `a=control:*` and keeps only the video section; raw SDP in Diagnose), codec, latency, screenshot from a real frame, keep-screen-on, command replies (`features/live.md` 0–9) | recorder sessions |
+| **Live view** (`live/`: RTSP via Media3 through a loopback SDP-repair proxy, full screen, screenshot, Foto / 5er-Serie / Aufnahme) | 35 (Robolectric, fake player; fake RTSP server; Media3's own SDP parser and track building on the recorder's exact SDP) | **playback of the simulated recorder stream on the emulator** through the proxy (picture, "Live" badge, 320x176, screenshot, plate frames, full screen, TEARDOWN, three opens in a row) [SIM] | the recorder's RTSP shape (`SimulatorRtspServer`: its SDP defects, aggregate SETUP, TCP interleaved RTP); commands | stream (**failed on hardware 2026-10-02**: second test "missing attribute control", third test ECONNREFUSED on the app's `::1` proxy – both fixed; the captured SDP is repaired and parsed by Media3 in tests, but no recorder RTP has reached a decoder yet), codec 880x496 Main as the SDP says, latency, screenshot from a real frame, keep-screen-on, command replies (`features/live.md` 0–9) | recorder sessions |
 | **Media** (`media/`: cursor paging, download queue with resume, Handy library, clip player, share, three-copy deletion, Speicher, thumbnail cache + prefetch, cached listings) | 63 [SIM] (MockWebServer, WorkManager, migrations 2→3, 3→4) | simulator HTTP incl. force-stop + Range resume [SIM]; cache: all tabs offline with lists and thumbnails after a simulator session [SIM] | listing, paging, downloads, 4101 deletion | downloads (**stalled on hardware 2026-10-02** after 3.2 MB of 132 MB next to thumbnails and a second download; fix: one request and one download at a time, 90 s reads, in-run resume after 5/15/45 s), HTTP Range support, `.thm` content, type 2 content, time zone, 4101 (`features/media.md` 0–9); listing with pages of 20, `totalFileNum` without `totalFileSize`, `/sd/DCIM` + `/sd/EVENT` (`…G.mp4`) paths, `.thm` as `application/binary`, `fileNew`/`fileDel`, recorder clock offset: **verified on hardware 2026-10-02** | recorder sessions |
 | **Accounts** (`account/`: Google + e-mail sign-in, verification/reset mails, profile sync, guest → account linking) | 51 (fakes, no Firebase) | not-configured path only | – | real sign-in, mails, sync between phones | **Firebase project + `app/google-services.json`** (`SETUP.md` §2) |
 | **Drive auth** (`drive/`: authorisation, encrypted account record, REST v3 client, format v1) | 42 | account picker opens, cancel | – | real connect, quota, revoke | **Google Cloud: Drive API, consent screen, Android OAuth clients** (`SETUP.md` §3) |
 | **Drive backup** (`backup/`: rules, single-slot upload queue, MD5 verification, sidecars, pause/reconnect, Drive-Kopie löschen, Drive-Status prüfen) | 36 | Drive **not** connected; states seeded in the debug DB; two incident downloads [SIM] | connected states only in unit tests | every upload path (`features/backup.md` 1–8, checklist C3) | Cloud setup as above |
 | **Plates core** (`plates/`: ML Kit OCR, plate rules, history DB, live throttle, clip scanner, sidecar export) | 34 | instrumented: `PlateEvaluationTest` (synthetic 44 plates + 16 negatives), `PlateBenchmark` (2), `ClipPlateScannerTest` (2) | – | accuracy on real footage, phone speed, CPU/thermal | **real dashcam recordings**; decision on ML Kit usage metrics |
-| **Plates UI** (`plates/ui`: live overlay, clip check, search, detail, settings, honesty rules) | 25 | clip check on the simulator fixture, screens with a seeded history [SIM] | clip check (fixture without plates); **live overlay never exercised** (no RTSP) | live overlay alignment and lag, sharpening kept out of plate frames (checklist B3), real clip checks, automatic check after real downloads | real recordings |
+| **Plates UI** (`plates/ui`: live overlay, clip check, search, detail, settings, honesty rules) | 25 | clip check on the simulator fixture, screens with a seeded history [SIM] | clip check (fixture without plates); live frames collected from the simulated stream on the emulator (4.2 frames/s, no plates in the clip) | live overlay alignment and lag, sharpening kept out of plate frames (checklist B3), real clip checks, automatic check after real downloads | real recordings |
 | **Enhance core** (`enhance/`: QuickSRNet ×4 + classical fallback, GPU clip upscaler, live-sharpen probe, honesty sidecars) | 20 | instrumented: `EnhanceInstrumentedTest` (17), `EnhanceBenchmark` (4, opt-in) | – | phone speed, every clip encode incl. 1080p (the emulator's only H.264 encoder stops at 8192 macroblocks), live sharpening on a real GPU, battery/thermal | real recordings for the model choice |
 | **Enhance UI** (`enhance/ui`: Bild verbessern, Clip hochskalieren, Schärfen, settings + licences) | 39 (Robolectric) | frame enhance + save; **every** upscale target incl. 1080p (1964 × 1080 for the fixture) disabled, because the emulator's AVC encoder rejects that size – nothing about 1080p working on the emulator can be inferred [SIM] | – | any real upscale (1080p, 1440p, 2160p), its notification, pinch zoom, live sharpening (needs RTSP) | – |
 | **Release** (signing, versioning, per-ABI APKs, docs) | – | `apksigner` / `aapt2` verified; universal debug APK for the emulator | – | install and update on a real phone (Android 8–16) | keystore backup by the owner (`RELEASE.md` §5) |
@@ -111,6 +118,16 @@ Second test the same day (build from `fix/real-recorder-1`, session `Ready` thro
   (single-connection server, card writes) is a hypothesis until the next test. Differences handled: Wi-Fi `mode` 1 read vs.
 20483 `[0]` (the password change now sends 0); 4099 values read as MB. Open: 4097 `chanNo 0` while 8192 sends
 `chanNo 1` (checklist E).
+
+Third test the same day (app 1.0.1, **mobile data on**, Wi-Fi bound, session Ready):
+- **Verified:** downloads – 28,563,628 bytes in 26 s (≈ 1.1 MB/s), no stall, with mobile data on (the bound network
+  carries HTTP); RTSP on port 554 with mobile data on: OPTIONS 200 (`Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY,
+  PAUSE`), DESCRIBE 200 with a 174-byte SDP (`v=0`, `m=video 0 RTP/AVP 96`, `a=rtpmap:96 H264/90000`, `a=fmtp:96
+  profile-level-id=4DE028;packetization-mode=1;sprop-parameter-sets=<start-coded SPS>,<start-coded PPS>`; no
+  `o=`/`s=`/`t=`/`c=`, no `a=control`; SPS: Main, 880x496, cut after `bitstream_restriction_flag`).
+- **Live view:** every attempt `ERROR_CODE_IO_UNSPECIFIED (2000): ErrnoException: connect failed: ECONNREFUSED`, no
+  proxy note: the proxy listened on `::1` (Android's `getLoopbackAddress()`), Media3 dialled `127.0.0.1`. Fixed on
+  `fix/real-recorder-3` with the SDP repairs (`features/live.md`, "SDP repair"); the stream itself is still unverified.
 
 ## Open decisions and inputs for the owner
 
