@@ -4,7 +4,7 @@ Status: 2026-10-01, plan v1. Owner: project manager (Claude session). All code i
 
 ## Product
 
-Android companion app for the Forthing 4 U-Tour dashcam (Hikvision-SDK recorder at 192.168.42.1). App name **My Forthing**, package / applicationId `me.ri3d.dashcam` (app renamed by the owner on 2026-10-01 from the working name "Axolotl Cam", package id changed by the owner on 2026-10-02 before any APK was handed out; the repository folder keeps `Axolotl Cam`, internal Kotlin names keep the legacy `Axo` prefix, the launcher icon is unchanged). German UI, guest-first, optional Firebase account, independent Google Drive backup, on-device plate recognition and enhancement.
+Android companion app for the Forthing 4 U-Tour dashcam (Hikvision-SDK recorder at 192.168.42.1). App name **My Forthing**, package / applicationId `me.ri3d.dashcam` (app renamed by the owner on 2026-10-01 from the working name "Axolotl Cam", package id changed by the owner on 2026-10-02 before any APK was handed out; the repository folder is `My Forthing`, internal Kotlin names keep the legacy `Axo` prefix, the launcher icon is unchanged). German UI, guest-first, optional Firebase account, independent Google Drive backup, on-device plate recognition and enhancement.
 
 Technical reference: `docs/protocol/Forthing-U-Tour-protocol-report.md` (vendor app 3.2.15 analysis). Evidence labels in that report are binding: *App path* / *SDK-only* / *Offline test* / *Needs recorder verification*. Nothing offline can prove the physical recorder accepts commands; see "Hardware verification" below.
 

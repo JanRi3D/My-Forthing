@@ -34,7 +34,7 @@ export ANDROID_HOME="C:\Users\<you>\AppData\Local\Android\Sdk"
 ```properties
 sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
 dashcam.rsaKey=<single-line Base64 PKCS#8 private key>
-release.storeFile=C\:/Users/Jan/Desktop/My Forthing/release.jks
+release.storeFile=release.jks   # relative to the repository root (an absolute path needs the escaped C\:/... form)
 release.storePassword=<keystore password>
 release.keyAlias=myforthing
 release.keyPassword=<key password>
