@@ -2,14 +2,16 @@
 
 Owner request: after clearing the app data or on a new phone, reconnect the Google Drive account used before and show
 every backed-up video and photo in the app again. Packages `backup/` (import, Drive-account hint, Drive tab state),
-`media/` (Drive tab, Drive downloads), `drive/` (REST additions, silent reconnect, image auth), `account/` (synced key).
-Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `docs/DRIVE_FORMAT.md` is unchanged.
+`media/` (Drive tab, Drive downloads, merge in the library), `drive/` (REST additions, silent reconnect, image auth),
+`account/` (synced key). Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive;
+`docs/DRIVE_FORMAT.md` is unchanged.
 
 | File | Contents |
 | --- | --- |
-| `backup/DriveRestore.kt` | `DriveRestore`: `importFromDrive()` (single flight), `importOnce(email)`, Drive thumbnails (`thumbnail(item)`), Drive-account hint (`followDriveAccount`) and silent reconnect (`reconnectFromHint`); `ImportReport`; `driveRow` (sidecar → row) |
+| `backup/DriveRestore.kt` | `DriveRestore`: `importFromDrive()` (single flight), `importOnce(email)`, the merge of "unmerged twins", Drive thumbnails (`thumbnail(item)`), Drive-account hint (`followDriveAccount`) and silent reconnect (`reconnectFromHint`); `ImportReport`; `driveRow` (sidecar → row) |
 | `backup/DriveLibrary.kt` | `DriveLibraryViewModel` (Drive tab and clip screen), `DriveMedia` (photo / thumbnail from Drive), `DriveDownloadAction` ("Vom Drive laden" / "Auf dem Handy speichern") |
-| `media/DriveDownloads.kt` | `DriveDownloadQueue` + `DriveDownloadWorker`: the Drive copy to the phone, MD5-checked, WorkManager |
+| `media/DriveDownloads.kt` | `DriveDownloadQueue` + `DriveDownloadWorker`: the Drive copy to the phone, MD5-checked, WorkManager, backup network conditions |
+| `media/MediaRepository.kt` | `importDriveCopy`, `unmergedTwins`, `mergeIntoDriveCopy` (moves children and plate sightings), `currentId` |
 | `drive/DriveRestApi.kt`, `drive/DriveApi.kt` | `readJson(id)`, `download(id, target, onProgress)` (Range resume of `<target>.part`), `DriveFile.thumbnailLink`, `contentUrl(id)` |
 | `drive/GoogleDriveAuth.kt`, `drive/DriveAuth.kt` | `reconnectSilently(accountEmail)` |
 | `drive/DriveModule.kt` | `DriveAuthInterceptor`, `driveImageClient` |
@@ -21,13 +23,18 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
    `ProfileSync` sends it to `users/{uid}.preferences.driveAccount` while signed in (it is only sent once this phone knew
    a value, so a guest who never connected Drive does not overwrite the account's value) and applies it from the account
    at sign-in. Values from the account that are neither `""` nor shaped like an e-mail address are ignored.
+   **Last writer wins:** phones of one app account connected to different Drive accounts each write their own e-mail when
+   their Drive state changes (connect, switch, disconnect, process start); a fresh install reconnects the account written
+   last.
 2. **Silent reconnect.** When nothing is stored on this phone and the hint is a non-empty e-mail (after sign-in on a
    fresh install, or at process start), `DriveAuth.reconnectSilently(email)` asks Google without UI: granted → connected
    exactly as "Verbinden" (e-mail read from `about.user`, scope check, record stored); Google needs the user →
-   `NeedsReconnect(reason, email)` in memory only, so Settings → Google Drive, the Backup screen and the Drive tab show the
-   existing one-tap "Erneut verbinden", which asks Google for that account; any error → stays "Nicht verbunden" (logged
-   with the exception class only). Once per hint value per process; never after the user disconnected on this phone
-   (`BackupStore.driveDisconnected`, kept until the next connect). Google UI is never launched by this.
+   `NeedsReconnect(reason, email)` in memory only, so Settings → Google Drive shows "Erneut verbinden", which asks Google
+   for that account (the Backup screen and the Drive tab lead there with their own "Erneut verbinden"); any error →
+   stays "Nicht verbunden" (logged with the exception class only). Once per hint value per process; never after the user
+   disconnected on this phone (`BackupStore.driveDisconnected`, kept until the next connect). Google UI is never
+   launched by this. "Trennen" on such a pending reconnect only forgets it locally (no `revokeAccess`, which would end
+   another phone's grant of that Google account) and writes `""` as usual.
 3. **Import** (`DriveRestore.importFromDrive`): `DriveFormatReader.scan` → complete entries (media + sidecar, oldest
    media file per id) → ids whose row has no `driveFileId` yet → sidecars fetched 4 at a time → rows:
    - new row: id = `mf.id` (must be a UUID), kind/category/recorderType/originalFileName/recorderTime from the sidecar,
@@ -35,63 +42,83 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
      `parentPositionMs` from `parent`, `driveFileId` = media file, `driveMd5` = its `md5Checksum`, `DONE`, `createdAt` =
      the media file's `createdTime`; no recorder or phone copy;
    - a row with that id but no Drive copy takes over the Drive fields and keeps everything else;
-   - a row of the **same recorder file** (type + name + raw time) under another id without Drive copy (the recorder was
-     listed or a clip downloaded before Drive was connected) is replaced by the Drive-id row, carrying over its recorder
-     and phone copies – only when no derived item and no plate sighting refers to it, no recorder download or upload of
-     it runs, and its phone copy (if any) has the Drive file's MD5. Otherwise both rows stay. The Drive id wins, so the
-     backup never uploads that recording a second time;
    - an unusable sidecar (not parsable, other id, `backup.complete` false, unknown kind, MD5 differing from the media
-     file) is skipped and counted (`ImportReport.unreadable`).
+     file) is skipped and counted (`ImportReport.unreadable`); it is read again by every later import.
+   Then the **"unmerged twins" pass** (one join query over the library): every row without Drive copy that is the same
+   recorder file (type + name + raw time) as a Drive row – the recorder was listed or a clip downloaded before Drive was
+   connected, or an earlier merge was refused – is merged into the Drive row in one transaction: the Drive row takes its
+   recorder copy and, when it has none, its phone copy; derived items (`parentId`) and plate sightings move to the Drive
+   id; the row's backup bookkeeping goes; a screen still holding the old id in this process saves under the Drive id
+   (`MediaRepository.currentId`, used by `registerDerived`). Conditions: its phone copy, if any, has the Drive copy's
+   MD5 (otherwise it is another recording or a damaged copy and stays on its own), not both rows have a phone copy, and
+   nothing works on it right now. **In use** = uploading, a recorder download pending, a plate check running or queued,
+   an upscale pending, or (with a phone copy) a Drive download of the Drive row pending; such a row is excluded from the
+   automatic backup and merged by the next import ("Aktualisieren"). The merge re-checks under the library lock that the
+   recording, phone copy, backup state and parent are unchanged and takes the row's current recorder fields (a
+   re-listing in between does not refuse it). A queued (not yet uploading) row is merged: its upload work finds no row
+   and skips.
    A sidecar that cannot be fetched (offline, 5xx after retries) ends the import; rows written so far stay, the next run
-   finishes it. Idempotent: a second run reads no sidecar and changes nothing. The end time is kept as
-   `BackupStore.lastImport` ("Stand"), dropped by an account switch.
+   finishes it. A second run changes nothing (it reads only the sidecars of entries it could not use before). The end
+   time is kept as `BackupStore.lastImport` ("Stand"), dropped by an account switch.
 4. **When it runs** (one at a time; a second call gets the running one's result; never while not connected / reconnect
    needed – `DriveError.NotConnected` / `NeedsReconnect`):
-   - automatically in `BackupQueue`'s observer the first time an account is connected (`lastImport` empty: fresh
-     install, account switch, first start with this version), once per account and process, **before** the automatic
-     rules queue anything – so a recording downloaded before Drive was connected takes its Drive id instead of being
-     uploaded again;
+   - automatically in `BackupQueue`'s observer while the connected account has no import time (fresh install, account
+     switch, first start with this version). **The automatic rules queue nothing before that import succeeded**; a
+     failed one is tried again at a later observer pass (at most once a minute), and the observer re-runs as soon as any
+     import succeeds (the import time is one of its inputs). "Jetzt prüfen" follows the same gate;
    - "Drive-Status prüfen" (Backup screen) after the existing vanish handling; the snackbar adds "n Sicherungen aus Drive
-     in die App übernommen";
+     in die App übernommen", or why taking them over failed (the vanish count still stands);
    - the refresh icon of the Drive tab, and once per process when the Drive tab is first shown (fresh thumbnail links).
    Errors are German (`driveMessage()`) where the user started it (Drive tab snackbar, Drive check); automatic runs only
    log the exception class.
-5. **Drive tab** (Aufnahmen → "Drive", after "Handy"): every row with `driveFileId`, newest first, day groups, the
-   recorder row component with its chips ("Vorfall", "auf dem Handy", "In Drive gesichert"). Header "Stand: <last import>"
-   (· "wird aktualisiert…" while it runs), the count and a refresh icon (spinner while importing). Not connected / reconnect
-   needed: the Drive status card with "Mit Google Drive verbinden" / "Erneut verbinden" (→ Google Drive screen) above the
-   rows already known. Tapping a row opens the clip screen; long press selects, the selection offers "Vom Drive laden".
+5. **Drive tab** (Aufnahmen → "Drive", the last of five tabs in a scrollable tab row): every row with `driveFileId`,
+   newest first, day groups, the recorder row component with its chips ("Vorfall", "rekonstruiert", "auf dem Handy";
+   not "In Drive gesichert", every row here is). Header "Stand: <last import>" (· "wird aktualisiert…" while it runs),
+   the count and a refresh icon (spinner while importing). Not connected / reconnect needed: the Drive status card ("Verbinde
+   Google Drive, um deine gesicherten Aufnahmen hier zu sehen und aufs Handy zu laden.") with "Mit Google Drive verbinden" /
+   "Erneut verbinden", which open the Google Drive screen like the Backup screen's card, above the rows already known.
+   Tapping a row opens the clip screen; long press selects, the selection offers "Vom Drive laden".
 6. **Thumbnails**: the local thumbnail when there is one, else Drive's `thumbnailLink`, loaded by the app's media Coil
    loader (same disk cache as the recorder thumbnails, `cacheDir/recorder_thumbs`, "Speicher → Cache") under the stable
    key `drive-thumb:<fileId>`, because the link expires. The loader's call factory sends requests for Google's hosts to
    `driveImageClient` (the `@DriveHttp` internet client with `DriveAuthInterceptor`), everything else to the recorder
    client as before. The interceptor adds `Authorization: Bearer` only to HTTPS requests for `googleusercontent.com` /
    `googleapis.com` and their subdomains; a 401 invalidates the token. Links live in memory: after a restart cached
-   thumbnails show at once, missing ones after the tab's first import of the process.
+   thumbnails show at once, missing ones after the tab's first import of the process. An account switch drops the links
+   and the previous account's cached thumbnails (disk and memory) and photos (memory).
 7. **Clip screen** for an item without phone copy but with Drive copy: photos (`ORIGINAL_PHOTO`, `SCREENSHOT`,
    `ENHANCED_FRAME`) are shown from Drive (`files/<id>?alt=media` through the same loader, memory cache only) with "Auf dem
-   Handy speichern"; videos show Drive's thumbnail and "Vom Drive laden" (they play once on the phone). A recorder copy
-   still offers "Herunterladen". "Drive-Kopie löschen" and the three independent copies are unchanged.
-8. **"Vom Drive laden"** (`DriveDownloadQueue`): WorkManager unique work `drive-download-<id>` (KEEP, any connected
-   network, linear backoff 30 s), survives process death, one transfer at a time (process-wide slot; waiting works read
-   "Wartet"), independent of the recorder's download slot. `DriveApi.download` writes
-   `media/<id>/<name>.drive.part` (Range resume; a non-continuing answer or 416 starts over), then
-   `media/<id>/<name>.drive`; its MD5 must equal `driveMd5`, else it is deleted ("Prüfsumme", German error); then the
-   atomic rename to `MediaDownloader.targetFile` (where a recorder download would put it) and
-   `MediaRepository.markDownloaded`. Progress, failures ("nicht mehr in Google Drive", "Google Drive hat die Datei nicht
-   geliefert", "nicht verbunden", "Prüfsumme") and cancel appear in the row, the clip screen and the "Übertragungen" sheet
-   ("… · aus Drive"), with the transfers notification "Aus Drive: <name>". Offline waits are retried without limit; every
-   other failure ends the work (retry from the sheet). Speicher counts and frees interrupted `.drive` / `.drive.part` files
-   (never those of a running transfer).
+   Handy speichern"; videos show Drive's thumbnail and "Vom Drive laden" (they play once on the phone). Without a Drive
+   connection the button is off and a note says why. A recorder copy still offers "Herunterladen". "Drive-Kopie löschen"
+   and the three independent copies are unchanged.
+8. **"Vom Drive laden"** (`DriveDownloadQueue`): WorkManager unique work `drive-download-<id>` (KEEP, linear backoff
+   30 s) under the **backup's network conditions** (`BackupRules.constraints`: by default Wi-Fi with internet; mobile data
+   only when allowed under Einstellungen → Sicherung). Changed conditions are re-applied to waiting and running downloads
+   (REPLACE; a running one resumes its part). The worker checks the default network before and after waiting for the slot
+   (`BackupRules.defaultNetworkFits`) and waits when it does not fit; such a download shows "Wartet auf ein Netz, das die
+   Bedingungen unter Einstellungen → Sicherung erfüllt". It survives process death, one transfer at a time (process-wide
+   slot), independent of the recorder's download slot; a Drive download and a recorder download of the same item are
+   never queued together. `DriveApi.download` writes `media/<id>/<name>.drive.part` (Range resume; a non-continuing range
+   starts over; a 416 whose `bytes */<size>` equals the part finishes it), then `media/<id>/<name>.drive`; its MD5 must
+   equal `driveMd5`, else it is deleted ("Prüfsumme", German error); then the atomic rename to
+   `MediaDownloader.targetFile` (where a recorder download would put it) and `MediaRepository.markDownloaded`. Progress,
+   failures ("nicht mehr in Google Drive", "Google Drive hat die Datei nicht geliefert", "nicht verbunden",
+   "Prüfsumme") and cancel appear in the row, the clip screen and the "Übertragungen" sheet ("… · aus Drive"), with the
+   transfers notification "Aus Drive: <name>". Offline waits are retried without limit; every other failure ends the work
+   (retry from the sheet). Speicher counts and frees interrupted `.drive` / `.drive.part` files (never those of a running
+   transfer).
 
 ## Decisions and deviations from the brief
 
 - Automatic import trigger: "the account has never been imported" (`lastImport` empty) instead of "adoptAccount changed
   or no account recorded yet". It covers both and also the first start after updating to this version (the owner's phone,
-  connected since 1.0.4) and an automatic import that failed (retried at the next process start). A reconnect of the same
-  account does not import again by itself (nothing was lost: disconnect keeps the rows); "Aktualisieren" does.
-- The automatic import runs inside `BackupQueue`'s observer and the rules wait for it (see 4.). Without that the rules
-  would queue a downloaded clip in the same pass as the connect, before the import could merge it.
+  connected since 1.0.4). A reconnect of the same account does not import again by itself (nothing was lost: disconnect
+  keeps the rows); "Aktualisieren" does (PM decision).
+- The automatic rules wait for the first successful import of the connected account (see 4.).
+- Merges move references instead of being refused (review M3). Deviations from the review: a **queued** upload does not
+  refuse the merge (its work finds no row and skips, which is what prevents the second copy); a frame being **enhanced**
+  ("Bild verbessern" open) does not refuse it either – there is no app-wide signal for it, and its save resolves the
+  merged id (`currentId`, in memory, same process).
 - The Drive tab shows the status card **above** the rows already known instead of replacing them (NeedsReconnect after a
   revoke keeps phone copies viewable). It also imports once per process when first shown.
 - `NeedsReconnect` from a silent attempt is not persisted (no record without the user's consent on this phone); the next
@@ -103,21 +130,36 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
 - `ProfileSync` now adds synced keys the account does not have yet (otherwise a key new in this version, like
   `driveAccount`, would only reach the account with the next change of another synced value).
 - Drive downloads have their own part name (`.drive.part`), so a recorder download of the same item never appends to it.
-- The tab row has five segments now; the segments drop Material's check mark (the filled segment still shows the
-  selection) so the labels keep their room. Not seen on a phone yet; on narrow phones a label may still be shortened
-  with "…".
+- Aufnahmen uses a scrollable tab row (five tabs; segmented buttons cut the labels at 360–393 dp); the Home tile names
+  the same tabs from the tab label strings.
+
+## What "never uploaded twice" really covers
+
+The backup never uploads a recording a second time **under another id** when the Drive copy is known to the library
+before the upload starts: the first import of an account runs before any automatic queueing, and every import merges
+the rows of recordings already in Drive. Remaining cases, where a recording can end up twice in Drive:
+- an upload of the other row was already **running** when the import found the Drive copy (it finishes; the row is
+  excluded from further automatic backups);
+- a manual **"Sichern"** of such a row before the merge (manual backups do not wait for the import);
+- the phone copy and the Drive copy have different content (another recording with the same name and time, or a damaged
+  copy): both are kept on purpose;
+- recordings already backed up twice under different ids (reinstalls before this feature) stay twice.
 
 ## Limitations
 
 - **Plates are not restored**: sidecar `plates` (only present with "Kennzeichen-Daten mitsichern") are ignored; the
   plate history stays on the phone it was recognised on.
-- A recording whose recorder download or Drive upload runs at the moment of the import is not merged; it shows twice and
-  may be backed up a second time under its other id.
-- Rows of the same recording backed up twice under different ids (earlier reinstalls without this feature) both appear.
+- **Backup settings are not restored**: they are local preferences, so after a reinstall the mode is "Nur manuell" until
+  the user picks another one.
+- **Upgrade gap of the disconnect flag**: `driveDisconnected` exists since this version. A phone where Drive was
+  disconnected under 1.0.4 or earlier does not have it; once another phone of the same app account writes its Drive
+  e-mail as hint, that phone reconnects silently at its next start (no migration).
+- The hint is last-writer-wins between phones with different Drive accounts (see 1.).
 - The recorder copy of a Drive-only row is re-attached by the next listing of that type (type + name + raw time); until
   then the row has no recorder copy.
 - `ponytail:` thumbnail links are kept in memory only (they expire within hours); a Drive download waiting for the slot
-  holds a WorkManager slot (fine for a few).
+  holds a WorkManager slot (fine for a few); phone copies that differ from their Drive copy are hashed again after a
+  restart; the merged-id alias lives in memory.
 - `downloadedAt` of a Drive download is the time of that download (the sidecar's value is replaced, as for a recorder
   download).
 - Guests (no app account) connect Drive manually after a reinstall; the import then runs as above.
@@ -128,13 +170,14 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
 1. On the phone with 1.0.4 and Drive connected: install this build over it, start it once signed in → in the Firebase
    console `users/<uid>.preferences.driveAccount` holds the Drive account's e-mail; Aufnahmen → Drive lists the backups.
 2. Settings → Apps → My Forthing → Speicher → "Daten löschen" (or install on a second phone), start, sign in with the same
-   app account → without any tap Settings → Google Drive shows the account as connected (or "Erneut verbinden" with that
-   account; one tap, Google's sheet preselects it).
+   app account → without any tap Settings → Google Drive shows the account as connected (or "Erneut verbinden": one tap
+   there, Google's sheet preselects the account).
 3. Aufnahmen → Drive: every backed-up video and photo with thumbnails, "Stand: …", refresh icon works; airplane mode +
    refresh → snackbar "Keine Internetverbindung …".
 4. Open a photo → shown from Drive; "Auf dem Handy speichern" → it appears in "Handy" and plays/shows offline.
-5. Open a video → thumbnail + "Vom Drive laden" → progress in the row, the clip screen and "Übertragungen"; airplane mode
-   halfway, then back online → continues (no restart from 0); the video plays afterwards.
+5. Open a video → thumbnail + "Vom Drive laden" on Wi-Fi → progress in the row, the clip screen and "Übertragungen";
+   airplane mode halfway, then back online → continues (no restart from 0); the video plays afterwards. On mobile data
+   only (Wi-Fi off) it waits ("Wartet auf ein Netz, …") until mobile data is allowed under Einstellungen → Sicherung.
 6. Connect the recorder, list the incidents → the restored clips show their recorder copy again (one row each, no
    duplicates); with mode "Vorfälle" nothing that is already in Drive is uploaded again (Backup screen queue stays empty).
 7. Settings → Google Drive → Trennen → `driveAccount` becomes `""` in Firestore; clear data again and sign in → Drive
@@ -143,23 +186,29 @@ Contracts: `docs/CONTRACTS.md` §9 and §10. Nothing new is written to Drive; `d
 
 ## Verification status
 
-- Unit tests (JVM / Robolectric): `DriveRestoreTest` 14 (new rows with every field, derived parent, plates not restored,
+- Unit tests (JVM / Robolectric): `DriveRestoreTest` 16 (new rows with every field, derived parent, plates not restored,
   thumbnail key; same-id adoption; recorder-only merge and re-listing under the Drive id; phone copy merges only with the
-  same MD5; rows with plates or children, or with a pending recorder download, are not merged; incomplete / orphaned entries ignored, oldest duplicate wins;
-  unusable sidecars counted; idempotent second run without sidecar reads; nothing while not connected / reconnect needed;
-  failing sidecar read and finishing run; automatic import once per account, again after a switch, no write for the old
-  account; Drive-account hint incl. disconnect; silent reconnect once per value, never after a disconnect here),
-  `BackupQueueTest` +1 (first connect: import before the rules, the downloaded clip takes the Drive id, no upload),
-  `DriveDownloadsTest` 4 (target location + markDownloaded, MD5 mismatch discarded, WorkManager run reported as Drive
-  transfer, 404 → "nicht mehr in Google Drive"), `DriveRestApiTest` +5 (readJson, Range resume after an interrupted body,
-  416 restart, 401 → refresh → retry, 404), `DriveAuthInterceptorTest` 3 (Google hosts over HTTPS only, look-alike
-  hosts and cleartext without token, 401 invalidates), `GoogleDriveAuthTest` +4 (granted → connected + stored, needs UI →
-  NeedsReconnect without UI and the one-tap reconnect for that account, errors → not connected, a stored connection is
-  never replaced), `SyncedPreferencesTest` +2 (round trip with `""` and an e-mail, invalid values ignored),
-  `ProfileSyncTest` +2 (fresh install receives the hint, a missing key is added to the account and `""` follows).
-- Emulator: **not run**. The shared `emulator-5554` (AVD `Pixel_10_Pro_XL`) was in use by another session with the app in
-  the foreground, and the AVD refuses a second instance unless the first runs `-read-only`; it was left alone. The Drive
-  tab (not-connected card, five-tab row) is therefore only compiled and lint-checked, not seen.
+  same MD5; plate sightings and derived items move to the Drive id; rows in use (pending recorder download, running
+  upload, queued plate check) are excluded and merged by the next import; a merge takes the current recorder fields but
+  refuses a changed phone copy; incomplete / orphaned entries ignored, oldest duplicate wins; unusable sidecars counted;
+  idempotent second run; nothing while not connected / reconnect needed; failing sidecar read and finishing run;
+  automatic import until it succeeded, at most once a minute, again after a switch, no write for the old account; an
+  account switch forgets thumbnail links and cached thumbnails; Drive-account hint incl. disconnect; silent reconnect
+  once per value, never after a disconnect here), `BackupQueueTest` +3 (first connect: import before the rules, the
+  downloaded clip takes the Drive id, no upload; no automatic queueing before a successful import; the Drive check keeps
+  its count when the import fails), `DriveDownloadsTest` 6 (target location + markDownloaded, MD5 mismatch discarded,
+  WorkManager run reported as Drive transfer, 404 → "nicht mehr in Google Drive", backup network conditions incl. a
+  network that does not fit and the REPLACE on a changed preference, never together with a recorder download),
+  `DriveRestApiTest` +6 (readJson, Range resume after an interrupted body, 416 restart, a complete part finished on 416,
+  401 → refresh → retry, 404), `DriveAuthInterceptorTest` 3, `GoogleDriveAuthTest` +5 (granted → connected + stored,
+  needs UI → NeedsReconnect without UI and the one-tap reconnect for that account, errors → not connected, a stored
+  connection is never replaced, "Trennen" on a pending silent reconnect revokes nothing), `SyncedPreferencesTest` +2,
+  `ProfileSyncTest` +2.
+- Emulator (`emulator-5554`, AVD `Pixel_10_Pro_XL`, API 36, debug build): the reviewer's smoke run showed the Drive tab's
+  not-connected card with German texts and no crash, and found the five segmented buttons cut at narrow widths. After the
+  switch to the scrollable tab row: at 360 dp (`wm density 597` on the 1344 px wide AVD) "Schleife", "Vorfälle", "Fotos",
+  "Handy" are whole and "Drive" scrolls into view; the Drive tab shows the card with the new text and "Mit Google Drive
+  verbinden"; the Home tile reads "Schleife, Vorfälle, Fotos, Drive".
 - **Hardware-unverified**: everything against real Google Drive and a real Google account (silent authorisation after a
   reinstall, `thumbnailLink` with the Bearer header, `alt=media` Range answers, photo display, download speed), real
   Firebase sync of `driveAccount`.
