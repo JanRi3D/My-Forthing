@@ -115,6 +115,7 @@ fun BackupScreen(onBack: () -> Unit, onDrive: () -> Unit, viewModel: BackupViewM
     val queue by viewModel.queue.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val storageFull by viewModel.storageFull.collectAsStateWithLifecycle()
+    val lastImport by viewModel.lastImport.collectAsStateWithLifecycle()
     val quota by viewModel.quota.collectAsStateWithLifecycle()
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -141,6 +142,8 @@ fun BackupScreen(onBack: () -> Unit, onDrive: () -> Unit, viewModel: BackupViewM
                 }
             }
             PauseNote(auth, storageFull, queue.items.any { it.backupState in BackupRules.PENDING }, quota, viewModel::resume)
+            // The automatic rules wait for the first import of the connected account (drive-restore).
+            if (auth is DriveAuthState.Connected && lastImport == null) Note(stringResource(R.string.backup_waiting_first_import))
 
             SectionHeader(stringResource(R.string.backup_section_mode))
             ListGroup(
@@ -206,9 +209,13 @@ fun BackupScreen(onBack: () -> Unit, onDrive: () -> Unit, viewModel: BackupViewM
                     busy = true
                     scope.launch {
                         val text = viewModel.verify().fold(
-                            { missing ->
-                                if (missing == 0) resources.getString(R.string.backup_verify_ok)
-                                else resources.getQuantityString(R.plurals.backup_verify_missing, missing, missing)
+                            { (missing, imported, importError) ->
+                                listOfNotNull(
+                                    if (missing == 0) resources.getString(R.string.backup_verify_ok)
+                                    else resources.getQuantityString(R.plurals.backup_verify_missing, missing, missing),
+                                    if (imported > 0) resources.getQuantityString(R.plurals.backup_verify_imported, imported, imported) else null,
+                                    importError?.let { resources.getString(R.string.backup_verify_import_failed, it.driveMessage().resolve(resources)) },
+                                ).joinToString(" ")
                             },
                             { resources.getString(R.string.backup_verify_failed, it.driveMessage().resolve(resources)) },
                         )
@@ -501,6 +508,7 @@ class BackupViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BackupQueueUi())
     val progress: StateFlow<Map<String, BackupProgress>> = backupQueue.progress
     val storageFull: StateFlow<Boolean> = backupQueue.storageFull
+    val lastImport: StateFlow<Long?> = backupQueue.lastImport
 
     private val _quota = MutableStateFlow<UiState<DriveQuota>?>(null)
     val quota: StateFlow<UiState<DriveQuota>?> = _quota.asStateFlow()
@@ -539,7 +547,7 @@ class BackupViewModel @Inject constructor(
 
     suspend fun checkNow() = backupQueue.checkNow()
 
-    suspend fun verify(): Result<Int> = backupQueue.reconcile()
+    suspend fun verify(): Result<DriveCheck> = backupQueue.reconcile()
 
     suspend fun enqueue(ids: Collection<String>): EnqueueResult = backupQueue.enqueue(ids)
 

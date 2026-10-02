@@ -31,6 +31,7 @@ import java.io.File
 import java.net.URLConnection
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -130,25 +131,47 @@ class BackupStore @Inject constructor(@ApplicationContext context: Context) {
 
     fun include(id: String) = prefs.edit { remove(EXCLUDED + id) }
 
+    /** Everything stored for [id] (its row was merged into its Drive row). */
+    fun forgetItem(id: String) = prefs.edit { PER_ITEM.forEach { remove(it + id) } }
+
     fun setStorageFull(full: Boolean) {
         prefs.edit { putBoolean(STORAGE_FULL, full) }
         _storageFull.value = full
     }
 
-    /** Account switch: everything stored per item and the storage pause belonged to the previous account. */
+    private val _lastImport = MutableStateFlow(prefs.getLong(LAST_IMPORT, 0).takeIf { it > 0 })
+
+    /** When the last import from Drive ended (Drive tab "Stand"); null before the first one for the current account. */
+    val lastImport: StateFlow<Long?> = _lastImport.asStateFlow()
+
+    fun setLastImport(at: Long) {
+        prefs.edit { putLong(LAST_IMPORT, at) }
+        _lastImport.value = at
+    }
+
+    /** The user disconnected Drive on this phone: no silent reconnect from the app account until they connect again. */
+    var driveDisconnected: Boolean
+        get() = prefs.getBoolean(DRIVE_DISCONNECTED, false)
+        set(value) = prefs.edit { putBoolean(DRIVE_DISCONNECTED, value) }
+
+    /** Account switch: everything stored per item, the storage pause and the import time belonged to the previous account. */
     fun forgetAccountState() {
         val stale = prefs.all.keys.filter { key -> PER_ITEM.any { key.startsWith(it) } }
         prefs.edit {
             stale.forEach(::remove)
             remove(STORAGE_FULL)
+            remove(LAST_IMPORT)
         }
         _storageFull.value = false
+        _lastImport.value = null
     }
 
     private companion object {
         const val PREFS = "backup_queue"
         const val ACCOUNT = "account"
         const val STORAGE_FULL = "storage_full"
+        const val LAST_IMPORT = "last_import"
+        const val DRIVE_DISCONNECTED = "drive_disconnected"
         const val SESSION = "session:"
         const val UNVERIFIED = "unverified:"
         const val DONE_AT = "done_at:"
@@ -380,12 +403,30 @@ class DriveBackup @Inject constructor(
         if (previous == account) return@withLock false
         if (previous != null) {
             store.forgetAccountState()
-            repository.observe().first()
+            val stale = repository.observe().first()
                 .filter { it.driveFileId != null || it.driveMd5 != null || it.backupState != BackupState.NONE || it.backupError != null }
-                .forEach { repository.markDriveDeleted(it.id) }
+            stale.forEach { repository.markDriveDeleted(it.id) }
+            repository.forgetMerges()
+            val fileIds = stale.mapNotNull { it.driveFileId }
+            resetListeners.forEach { it(fileIds) }
         }
         store.account = account
         previous != null
+    }
+
+    private val resetListeners = CopyOnWriteArrayList<(fileIds: List<String>) -> Unit>()
+
+    /** [listener] gets the Drive file ids the library forgot in an account switch (cached Drive images go too). */
+    fun onAccountReset(listener: (fileIds: List<String>) -> Unit) {
+        resetListeners += listener
+    }
+
+    /**
+     * Runs [block] only while the backup states belong to [email], never during an account switch's reset: a write of
+     * the Drive import lands before the reset (and is reset with everything else) or is skipped (null).
+     */
+    suspend fun <T> whileAccount(email: String, block: suspend () -> T): T? = accountLock.withLock {
+        if (store.account == keyOf(email)) block() else null
     }
 
     private fun notConnectedReason() =

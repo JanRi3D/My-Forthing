@@ -73,11 +73,17 @@ private class HomeTile(
     @DrawableRes val icon: Int,
     val route: Route,
     val enabled: Boolean,
+    /** String resources filled into [subtitle]. */
+    val subtitleArgs: List<Int> = emptyList(),
 )
 
 private val tiles = listOf(
     HomeTile(R.string.home_tile_live, R.string.home_tile_live_text, R.drawable.ic_live, Live, FeatureFlags.live),
-    HomeTile(R.string.home_tile_recordings, R.string.home_tile_recordings_text, R.drawable.ic_recordings, Recordings(), FeatureFlags.media),
+    // The tab names of Aufnahmen, so the tile and the screen use the same words.
+    HomeTile(
+        R.string.home_tile_recordings, R.string.home_tile_recordings_text, R.drawable.ic_recordings, Recordings(), FeatureFlags.media,
+        subtitleArgs = listOf(R.string.media_tab_loop, R.string.media_tab_events, R.string.media_tab_photos, R.string.media_tab_drive),
+    ),
     HomeTile(R.string.home_tile_sd_card, R.string.home_tile_sd_card_text, R.drawable.ic_sd_card, SdCard, FeatureFlags.dashcam),
     HomeTile(R.string.home_tile_settings, R.string.home_tile_settings_text, R.drawable.ic_settings, Settings, enabled = true),
 )
@@ -212,7 +218,8 @@ private fun Tile(tile: HomeTile, modifier: Modifier, onClick: () -> Unit) {
             Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(tile.title), style = MaterialTheme.typography.titleMedium.copy(hyphens = Hyphens.Auto))
                 Text(
-                    stringResource(if (tile.enabled) tile.subtitle else R.string.home_tile_unavailable),
+                    if (tile.enabled) stringResource(tile.subtitle, *tile.subtitleArgs.map { stringResource(it) }.toTypedArray())
+                    else stringResource(R.string.home_tile_unavailable),
                     style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

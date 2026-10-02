@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
 import me.ri3d.dashcam.dashcam.RecorderConnectionManagerImpl
+import me.ri3d.dashcam.backup.FakeDriveApi
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.recorder.RecorderReply
 import me.ri3d.dashcam.recorder.RecorderSimulator
@@ -63,7 +64,8 @@ class RecordingsViewModelTest {
         val repository = MediaRepository(context, db, manager)
         val http = RecorderHttp(manager, "http://127.0.0.1:1", context)
         val downloads = DownloadQueue(context, repository, MediaDownloader(repository, http), manager)
-        return RecordingsViewModel(manager, repository, downloads, http, ThumbnailPrefetcher(context, http, manager, downloads, repository))
+        val driveDownloads = DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi(), testPreferences())
+        return RecordingsViewModel(manager, repository, downloads, http, ThumbnailPrefetcher(context, http, manager, downloads, repository), driveDownloads)
     }
 
     /** The tab's entries once the library answered (the screen collects them the same way). */

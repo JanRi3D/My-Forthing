@@ -118,9 +118,30 @@ class GoogleDriveAuth(
         update(StoredDriveAccount(email, granted.scopes, clock()))
     }
 
+    override suspend fun reconnectSilently(accountEmail: String): Result<Unit> = guard {
+        loaded.await()
+        if (account != null) return@guard // stored (or pending reconnect): the existing flows own it
+        when (val auth = authorizer.authorize(accountEmail, chooseAccount = false)) {
+            is Authorization.Granted -> {
+                if (DRIVE_FILE_SCOPE !in auth.scopes) throw DriveError.ScopeNotGranted()
+                val email = authorizer.accountEmail(auth.token) // same checks as connect
+                if (account == null) update(StoredDriveAccount(email, auth.scopes, clock()))
+            }
+            // Never launched from here. Not persisted: the next start tries silently again, and "Erneut verbinden"
+            // (connect) asks Google for this account.
+            is Authorization.NeedsUi -> if (account == null) {
+                val pending = StoredDriveAccount(accountEmail, emptySet(), clock(), ReconnectReason.CONSENT_REQUIRED)
+                account = pending
+                _state.value = stateOf(pending)
+            }
+        }
+    }
+
     override suspend fun disconnect() {
         loaded.await()
-        val email = account?.email
+        // A pending silent reconnect (no scopes: nothing was granted on this phone) is only forgotten: revoking acts on
+        // the Google account as a whole and would end the grant another phone of this account uses.
+        val email = account?.takeIf { it.scopes.isNotEmpty() }?.email
         account = null
         issued.clear()
         _state.value = DriveAuthState.NotConnected

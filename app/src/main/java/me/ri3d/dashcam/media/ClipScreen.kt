@@ -78,6 +78,8 @@ import kotlinx.coroutines.withContext
 import me.ri3d.dashcam.BuildConfig
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.backup.BackupStateTag
+import me.ri3d.dashcam.backup.DriveDownloadAction
+import me.ri3d.dashcam.backup.DriveMedia
 import me.ri3d.dashcam.core.ui.AxoTopBar
 import me.ri3d.dashcam.core.ui.ConfirmDialog
 import me.ri3d.dashcam.core.ui.ListGroup
@@ -274,16 +276,21 @@ private fun rememberClipPlayer(uri: Uri, startMs: Long, onPosition: (Long) -> Un
 private fun NotOnPhone(item: MediaItem, viewModel: ClipViewModel) {
     val transfer by viewModel.transfer.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        MediaThumb(item.localThumbPath?.let(::File), placeholderFor(item.kind), Modifier.fillMaxSize())
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val onDrive = item.driveFileId != null
+    Box(Modifier.fillMaxSize(), contentAlignment = if (onDrive) Alignment.BottomCenter else Alignment.Center) {
+        // drive-restore: a Drive copy shows Drive's photo or thumbnail, with "Vom Drive laden".
+        if (onDrive) DriveMedia(item, Modifier.fillMaxSize()) else MediaThumb(item.localThumbPath?.let(::File), placeholderFor(item.kind), Modifier.fillMaxSize())
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val t = transfer
             when {
                 t != null && t.state in DownloadQueue.ACTIVE -> {
                     val label = stringResource(R.string.media_downloading)
                     CircularProgressIndicator(Modifier.semantics { contentDescription = label })
                 }
-                item.recorderPath != null -> FilledTonalButton(onClick = viewModel::download, enabled = ready) { Text(stringResource(R.string.media_download)) }
+                item.recorderPath != null || onDrive -> {
+                    if (item.recorderPath != null) FilledTonalButton(onClick = viewModel::download, enabled = ready) { Text(stringResource(R.string.media_download)) }
+                    if (onDrive) DriveDownloadAction(item)
+                }
                 else -> Text(stringResource(R.string.media_not_on_phone))
             }
         }

@@ -1,12 +1,18 @@
 package me.ri3d.dashcam.media
 
 import android.content.Context
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.JsonObject
 import org.robolectric.shadows.ShadowLooper
 import me.ri3d.dashcam.core.data.AppDatabase
+import me.ri3d.dashcam.core.data.PreferencesRepository
 import me.ri3d.dashcam.recorder.RecorderFile
+import java.io.File
 
 fun memoryDb(context: Context): AppDatabase =
     Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -35,4 +41,11 @@ fun recorderItem(id: String, type: Int, path: String, time: String? = "2026-10-0
     recorderThumbPath = path.substringBeforeLast('.') + ".thm", originalFileName = path.substringAfterLast('/'), recorderTime = time,
     recorderTimeEpochGuess = null, localUri = null, localSizeBytes = null, localThumbPath = null, downloadedAt = null, parentId = null,
     parentPositionMs = null, driveFileId = null, backupState = BackupState.NONE, backupError = null, driveMd5 = null, createdAt = 0,
+)
+
+/** Preferences on a fresh temporary DataStore with its own IO scope (default values until updated). */
+fun testPreferences(): PreferencesRepository = PreferencesRepository(
+    PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
+        File.createTempFile("prefs", ".preferences_pb").apply { delete() }
+    },
 )

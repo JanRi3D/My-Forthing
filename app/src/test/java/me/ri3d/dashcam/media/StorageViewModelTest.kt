@@ -15,6 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
+import me.ri3d.dashcam.backup.FakeDriveApi
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import me.ri3d.dashcam.recorder.SimulatedFiles
@@ -57,7 +58,10 @@ class StorageViewModelTest {
         File(repository.screenshotDir, "$shot.json").writeText("""{"id":"$shot","capturedAt":"2026-10-01T12:00:00+02:00","source":"live","width":64,"height":36}""")
         val http = RecorderHttp(manager, "http://127.0.0.1:1", context)
 
-        val vm = StorageViewModel(context, repository, DownloadQueue(context, repository, MediaDownloader(repository, http), manager), http)
+        val vm = StorageViewModel(
+            context, repository, DownloadQueue(context, repository, MediaDownloader(repository, http), manager), http,
+            DriveDownloadQueue(context, repository, MediaDownloader(repository, http), FakeDriveApi(), testPreferences()),
+        )
         eventually { vm.usage.value != null }
 
         val usage = vm.usage.value!!

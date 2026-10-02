@@ -46,4 +46,26 @@ class SyncedPreferencesTest {
 
         assertThat(AppPreferences().withSynced(prefs.toSynced())).isEqualTo(prefs)
     }
+
+    @Test
+    fun `the Drive account follows the account once this phone knew one, empty after a disconnect`() {
+        assertThat(AppPreferences().toSynced()).doesNotContainKey("driveAccount")
+        val connected = AppPreferences(driveAccount = "jane@gmail.com")
+        val disconnected = AppPreferences(driveAccount = "")
+
+        assertThat(connected.toSynced()).containsEntry("driveAccount", "jane@gmail.com")
+        assertThat(AppPreferences().withSynced(connected.toSynced())).isEqualTo(connected)
+        assertThat(disconnected.toSynced()).containsEntry("driveAccount", "")
+        assertThat(connected.withSynced(disconnected.toSynced())).isEqualTo(disconnected)
+        assertThat(connected.withSynced(emptyMap())).isEqualTo(connected) // an account from before keeps the phone's
+    }
+
+    @Test
+    fun `a Drive account value that is no e-mail address is ignored`() {
+        val connected = AppPreferences(driveAccount = "jane@gmail.com")
+
+        listOf("not an address", "jane @gmail.com", "a\nb@c", "x".repeat(250) + "@gmail.com").forEach { value ->
+            assertThat(connected.withSynced(mapOf("driveAccount" to value))).isEqualTo(connected)
+        }
+    }
 }

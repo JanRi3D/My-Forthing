@@ -24,20 +24,31 @@ internal const val PROFILE_NAME_MAX = 40
 
 private const val KEY_THEME = "theme"
 private const val KEY_EXPORT_QUALITY = "exportQuality"
+private const val KEY_DRIVE_ACCOUNT = "driveAccount"
 
 /**
  * App preferences that follow the account. Everything else stays on this phone: plate recognition and live upscaling
- * depend on the phone's performance, and all backup options belong to the separate Google Drive feature.
+ * depend on the phone's performance, and the backup options belong to the separate Google Drive feature. The one
+ * exception is [AppPreferences.driveAccount] (the e-mail of the Drive account last connected, "" after a disconnect),
+ * so a fresh install reconnects Drive silently; it is only sent once this phone knew one.
  * Recorder settings are not part of [AppPreferences] at all.
  */
-internal fun AppPreferences.toSynced(): Map<String, String> =
-    mapOf(KEY_THEME to theme.name, KEY_EXPORT_QUALITY to exportQuality.name)
+internal fun AppPreferences.toSynced(): Map<String, String> = buildMap {
+    put(KEY_THEME, theme.name)
+    put(KEY_EXPORT_QUALITY, exportQuality.name)
+    driveAccount?.let { put(KEY_DRIVE_ACCOUNT, it) }
+}
 
 /** Applies the synced keys; unknown keys or values (e.g. from a newer app version) keep the local value. */
 internal fun AppPreferences.withSynced(remote: Map<String, String>): AppPreferences = copy(
     theme = enumOrNull<AppTheme>(remote[KEY_THEME]) ?: theme,
     exportQuality = enumOrNull<ExportQuality>(remote[KEY_EXPORT_QUALITY]) ?: exportQuality,
+    driveAccount = remote[KEY_DRIVE_ACCOUNT]?.takeIf(::isDriveAccountValue) ?: driveAccount,
 )
+
+/** "" (disconnected) or something shaped like an e-mail address; anything else from the account is ignored. */
+private fun isDriveAccountValue(value: String) =
+    value.isEmpty() || value.length <= 254 && '@' in value && value.none { it.isWhitespace() || it.isISOControl() }
 
 private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? = enumValues<E>().firstOrNull { it.name == name }
 
@@ -98,7 +109,13 @@ class ProfileSync @Inject constructor(
             val state = SyncedState(local.displayName, prefs.toSynced())
             val remoteState = SyncedState(remoteProfile.displayName.take(PROFILE_NAME_MAX), prefs.withSynced(remoteProfile.preferences).toSynced())
             lastSynced = when {
-                state == remoteState -> state
+                state == remoteState -> {
+                    // A key the account does not have yet (new in this app version, e.g. driveAccount) is added.
+                    if (!remoteProfile.preferences.keys.containsAll(state.preferences.keys)) {
+                        remote.save(uid, local.displayName, remoteProfile.photoPath, remoteProfile.preferences + state.preferences, create = false)
+                    }
+                    state
+                }
                 lastSynced == null || state == lastSynced -> {
                     if (local.displayName != remoteState.displayName) profiles.upsert(local.copy(displayName = remoteState.displayName))
                     preferences.update { it.withSynced(remoteProfile.preferences) }

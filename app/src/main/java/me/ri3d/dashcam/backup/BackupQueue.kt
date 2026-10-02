@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -64,6 +63,12 @@ import javax.inject.Singleton
 /** The running or waiting upload of one item, as WorkManager reports it. */
 data class BackupProgress(val running: Boolean, val bytes: Long, val total: Long)
 
+/**
+ * Outcome of "Drive-Status prüfen": [missing] backups forgotten, [imported] from Drive into the library, or the
+ * [importError] when that second part failed (the first part stands).
+ */
+data class DriveCheck(val missing: Int, val imported: Int, val importError: Throwable? = null)
+
 /** Outcome of a manual "Sichern". */
 data class EnqueueResult(val queued: Int, val notOnPhone: Int, val alreadyDone: Int)
 
@@ -81,6 +86,7 @@ class BackupQueue @Inject constructor(
     private val auth: DriveAuth,
     private val backup: DriveBackup,
     private val store: BackupStore,
+    private val restore: DriveRestore,
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -88,6 +94,9 @@ class BackupQueue @Inject constructor(
     private var started = false
 
     val storageFull: StateFlow<Boolean> = store.storageFull
+
+    /** When the connected account's backups were last imported; null: nothing is queued automatically yet. */
+    val lastImport: StateFlow<Long?> = store.lastImport
 
     val progress: StateFlow<Map<String, BackupProgress>> = workManager.getWorkInfosByTagFlow(TAG)
         .map { infos ->
@@ -105,24 +114,30 @@ class BackupQueue @Inject constructor(
             started = true
             Log.d(LOG_TAG, "automatic backup rules started")
             scope.launch { observe() }
+            restore.start()
         }
     }
 
     /**
-     * Library × preferences × Drive state × storage pause: resets on an account switch, queues what the automatic
-     * rules select once it is on the phone, re-applies changed network conditions to the waiting work, and starts the
-     * next upload.
+     * Library × preferences × Drive state × storage pause: resets on an account switch, imports an account's backups
+     * the first time it is connected, queues what the automatic rules select once it is on the phone, re-applies
+     * changed network conditions to the waiting work, and starts the next upload.
      */
     suspend fun observe() {
         var applied: Constraints? = null
-        combine(repository.observe(), preferences.preferences, auth.state, store.storageFull) { items, prefs, state, full ->
+        // The import time is part of it: a successful import (also from the Drive tab) runs the rules at once.
+        combine(repository.observe(), preferences.preferences, auth.state, store.storageFull, store.lastImport) { items, prefs, state, full, _ ->
             val email = DriveBackup.accountOf(state)
             if (email != null) {
                 if (backup.adoptAccount(email)) workManager.cancelAllWorkByTag(TAG).await()
-                val byId = items.associateBy { it.id }
-                // ponytail: scans the whole library on every change; a DAO query for NONE rows if libraries get huge.
-                items.filter { it.backupState == BackupState.NONE && !store.isExcluded(it.id) && BackupRules.automatic(it, prefs.backupMode, byId[it.parentId]) }
-                    .forEach { queue(it.id) }
+                // Nothing is queued before this account's backups are in the library: a recording already in Drive takes
+                // its Drive id instead of a second upload. A failed import is tried again at a later pass.
+                if (restore.importOnce(email)) {
+                    val byId = items.associateBy { it.id }
+                    // ponytail: scans the whole library on every change; a DAO query for NONE rows if libraries get huge.
+                    items.filter { it.backupState == BackupState.NONE && !store.isExcluded(it.id) && BackupRules.automatic(it, prefs.backupMode, byId[it.parentId]) }
+                        .forEach { queue(it.id) }
+                }
                 if (!full) BackupNotifications.cancelAlert(context) // reconnected / room made
             }
             val constraints = BackupRules.constraints(prefs)
@@ -165,9 +180,16 @@ class BackupQueue @Inject constructor(
         schedule()
     }
 
-    /** "Jetzt prüfen": applies the automatic rules now, including items that failed before, and lifts a storage pause. */
+    /**
+     * "Jetzt prüfen": applies the automatic rules now, including items that failed before, and lifts a storage pause.
+     * Like the observer, it queues nothing before the connected account's backups are in the library.
+     */
     suspend fun checkNow() {
         store.setStorageFull(false)
+        val email = DriveBackup.accountOf(auth.state.value)
+        // Asked for by the user: the first import runs now, not after the automatic retry window.
+        if (email != null && store.lastImport.value == null) restore.importFromDrive()
+        if (email != null && store.lastImport.value == null) return schedule()
         val mode = preferences.preferences.first().backupMode
         val items = repository.observe().first()
         val byId = items.associateBy { it.id }
@@ -197,13 +219,14 @@ class BackupQueue @Inject constructor(
     suspend fun deleteOnDrive(id: String): Result<Unit> = backup.deleteOnDrive(id)
 
     /** The default network right now fits the network conditions (checked by the worker before it uploads). */
-    suspend fun networkFits(): Boolean {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
-        return BackupRules.networkFits(connectivity.getNetworkCapabilities(connectivity.activeNetwork), preferences.preferences.first())
-    }
+    suspend fun networkFits(): Boolean = BackupRules.defaultNetworkFits(context, preferences.preferences.first())
 
-    /** "Drive-Status prüfen"; returns how many DONE items were missing in Drive. */
-    suspend fun reconcile(): Result<Int> = backup.reconcile()
+    /** "Drive-Status prüfen": DONE items missing in Drive are forgotten, then backups the library lacks are imported. */
+    suspend fun reconcile(): Result<DriveCheck> {
+        val missing = backup.reconcile().getOrElse { return Result.failure(it) }
+        val import = restore.importFromDrive()
+        return Result.success(DriveCheck(missing, import.getOrNull()?.imported ?: 0, import.exceptionOrNull()))
+    }
 
     /**
      * Enqueues the next pending item (an interrupted UPLOADING one first) unless one is active. [replace] restarts the

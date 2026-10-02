@@ -30,8 +30,11 @@ import okio.BufferedSink
 import me.ri3d.dashcam.core.branding.Branding
 import me.ri3d.dashcam.drive.format.DriveFormat
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.random.Random
@@ -98,6 +101,62 @@ class DriveRestApi(
         val url = aboutUrl.newBuilder().addQueryParameter("fields", "storageQuota(limit,usage)").build()
         val quota = driveJson.decodeFromString<About>(send { url(url) }.successBody()).storageQuota
         DriveQuota(quota.limit, quota.usage)
+    }
+
+    override suspend fun readJson(id: String): Result<String> = drive { send { url(mediaUrl(id)) }.successBody() }
+
+    override suspend fun download(id: String, target: File, onProgress: (Long, Long?) -> Unit): Result<Unit> = drive {
+        val part = File(target.path + ".part")
+        target.parentFile?.mkdirs()
+        var restarted = false
+        while (true) {
+            val offset = if (part.isFile) part.length() else 0L
+            val complete = exchange(
+                retryTransient = true,
+                build = { url(mediaUrl(id)).apply { if (offset > 0) header("Range", "bytes=$offset-") } },
+                onError = { throw it.error() },
+            ) { response ->
+                when {
+                    // 416 with "bytes */<size>" equal to the part: it already holds the whole file. Otherwise start over.
+                    response.code == 416 -> offset > 0 && response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() == offset
+                    // A range answer that does not continue the part: start over.
+                    response.code == 206 && rangeStart(response.header("Content-Range")) != offset -> false
+                    !response.isSuccessful -> throw DriveError.Http(response.code, driveErrorReason(response.body.string()))
+                    else -> {
+                        receive(response, part, if (response.code == 206) offset else 0L, onProgress)
+                        true
+                    }
+                }
+            }
+            if (complete) break
+            if (restarted) throw DriveError.Http(416, "range does not continue the part")
+            restarted = true
+            part.delete()
+        }
+        Files.move(part.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    }
+
+    private fun mediaUrl(id: String): HttpUrl = filesUrl.newBuilder().addPathSegment(id).addQueryParameter("alt", "media").build()
+
+    /** Writes the body to [part] from byte [from] (appending to the part, or replacing it from 0). */
+    private fun receive(response: Response, part: File, from: Long, onProgress: (Long, Long?) -> Unit) {
+        val length = response.body.contentLength().takeIf { it >= 0 }
+        val total = if (response.code == 206) response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: length?.plus(from) else length
+        var done = from
+        FileOutputStream(part, from > 0).use { out ->
+            val source = response.body.byteStream()
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val n = source.read(buffer)
+                if (n < 0) break
+                out.write(buffer, 0, n)
+                done += n
+                onProgress(done, total)
+            }
+            out.fd.sync()
+        }
+        // Kept for the resume: the next call asks for the rest.
+        if (total != null && done != total) throw IOException("incomplete: $done of $total bytes")
     }
 
     private suspend fun upload(
@@ -236,17 +295,39 @@ class DriveRestApi(
      * Drive is [DriveError.InsufficientStorage]; with [retryTransient] 429/5xx/rate limits are retried with backoff.
      * Every other status goes back to the caller.
      */
-    private suspend fun send(retryTransient: Boolean = true, build: Request.Builder.() -> Unit): Reply {
+    private suspend fun send(retryTransient: Boolean = true, build: Request.Builder.() -> Unit): Reply =
+        exchange(retryTransient, build, onError = { it }) { Reply(it.code, it.body.string(), it.headers) }
+
+    /**
+     * [send] for any body: [read] gets the open response (it may stream it) unless the status is one handled here
+     * (401, 403, 429, 5xx); such a status that is not retried goes to [onError] as a read [Reply].
+     */
+    private suspend fun <T> exchange(
+        retryTransient: Boolean,
+        build: Request.Builder.() -> Unit,
+        onError: (Reply) -> T,
+        read: (Response) -> T,
+    ): T {
         var refreshed = false
         var attempt = 0
         // Bounded: one token refresh plus maxAttempts - 1 transient retries.
         repeat(maxAttempts + 1) {
             val token = auth.accessToken().getOrThrow()
             val request = Request.Builder().apply(build).header("Authorization", "Bearer $token").build()
-            val reply = try {
-                http.newCall(request).await()
+            val outcome = try {
+                http.newCall(request).await { response ->
+                    if (response.code == 401 || response.code == 403 || response.code == 429 || response.code >= 500) {
+                        Outcome.Status(Reply(response.code, response.body.string(), response.headers))
+                    } else {
+                        Outcome.Read(read(response))
+                    }
+                }
             } catch (e: IOException) {
                 throw DriveError.Offline(e)
+            }
+            val reply = when (outcome) {
+                is Outcome.Read -> return outcome.value
+                is Outcome.Status -> outcome.reply
             }
             when {
                 reply.code == 401 && !refreshed -> {
@@ -259,7 +340,7 @@ class DriveRestApi(
                 }
                 reply.code == 403 && reply.reason == "storageQuotaExceeded" -> throw DriveError.InsufficientStorage()
                 retryTransient && reply.isTransient && ++attempt < maxAttempts -> delay(backoffMs(attempt))
-                else -> return reply
+                else -> return onError(reply)
             }
         }
         throw DriveError.Http(-1, "too many attempts")
@@ -314,8 +395,16 @@ class DriveRestApi(
 
     companion object {
         val GOOGLE_APIS = "https://www.googleapis.com/".toHttpUrl()
+
+        /** Content URL of a Drive file (`files/<id>?alt=media`); images load it through [driveImageClient]. */
+        fun contentUrl(id: String): String =
+            GOOGLE_APIS.resolve("drive/v3/files")!!.newBuilder().addPathSegment(id).addQueryParameter("alt", "media").build().toString()
         private const val RESUME_INCOMPLETE = 308
-        private const val FILE_FIELDS = "id,name,mimeType,size,md5Checksum,appProperties,parents,createdTime,modifiedTime"
+        private const val FILE_FIELDS = "id,name,mimeType,size,md5Checksum,appProperties,parents,createdTime,modifiedTime,thumbnailLink"
+
+        /** `bytes <start>-<end>/<total>` → start. */
+        private fun rangeStart(contentRange: String?): Long? =
+            contentRange?.let { Regex("""bytes\s+(\d+)-\d+/""").find(it) }?.groupValues?.get(1)?.toLongOrNull()
         private val JSON = "application/json; charset=UTF-8".toMediaType()
         private val MULTIPART_RELATED = "multipart/related".toMediaType()
         private val EMPTY_BODY = ByteArray(0).toRequestBody()
@@ -357,14 +446,21 @@ private suspend fun <T> drive(block: suspend () -> T): Result<T> = try {
     Result.failure(e)
 }
 
-/** Enqueues the call so that coroutine cancellation cancels the HTTP exchange. */
-private suspend fun Call.await(): Reply = suspendCancellableCoroutine { continuation ->
+/** A response [DriveRestApi] handles itself ([Status]) or one its caller read ([Read]). */
+private sealed interface Outcome<out T> {
+    class Read<T>(val value: T) : Outcome<T>
+
+    class Status(val reply: Reply) : Outcome<Nothing>
+}
+
+/** Enqueues the call so that coroutine cancellation cancels the HTTP exchange; [read] runs on OkHttp's thread. */
+private suspend fun <T> Call.await(read: (Response) -> T): T = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) = continuation.resumeWithException(e)
 
         override fun onResponse(call: Call, response: Response) {
-            runCatching { response.use { Reply(it.code, it.body.string(), it.headers) } }
+            runCatching { response.use(read) }
                 .onSuccess { continuation.resume(it) }
                 .onFailure { continuation.resumeWithException(it) }
         }

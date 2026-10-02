@@ -39,6 +39,7 @@ private object Keys {
     val backupOnMobileData = booleanPreferencesKey("backup_on_mobile_data")
     val backupRequireInternetWifi = booleanPreferencesKey("backup_require_internet_wifi")
     val backupIncludePlateMetadata = booleanPreferencesKey("backup_include_plate_metadata")
+    val driveAccount = stringPreferencesKey("drive_account")
 }
 
 private val defaults = AppPreferences()
@@ -53,6 +54,7 @@ private fun Preferences.toAppPreferences() = AppPreferences(
     backupOnMobileData = this[Keys.backupOnMobileData] ?: defaults.backupOnMobileData,
     backupRequireInternetWifi = this[Keys.backupRequireInternetWifi] ?: defaults.backupRequireInternetWifi,
     backupIncludePlateMetadata = this[Keys.backupIncludePlateMetadata] ?: defaults.backupIncludePlateMetadata,
+    driveAccount = this[Keys.driveAccount],
 )
 
 private fun MutablePreferences.write(p: AppPreferences) {
@@ -65,6 +67,8 @@ private fun MutablePreferences.write(p: AppPreferences) {
     this[Keys.backupOnMobileData] = p.backupOnMobileData
     this[Keys.backupRequireInternetWifi] = p.backupRequireInternetWifi
     this[Keys.backupIncludePlateMetadata] = p.backupIncludePlateMetadata
+    val driveAccount = p.driveAccount
+    if (driveAccount == null) remove(Keys.driveAccount) else this[Keys.driveAccount] = driveAccount
 }
 
 /** Unknown names (e.g. written by a newer app version) fall back to the default instead of crashing. */

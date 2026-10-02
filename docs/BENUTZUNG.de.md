@@ -90,6 +90,9 @@ beendet sie sofort. Verbindungsfehler zeigt der Bildschirm **Verbindung** mit Co
 | **Vorfälle** | geschützte Clips, z. B. nach einem Stoß (G-Sensor) |
 | **Fotos** | Fotos der Dashcam |
 | **Handy** | alles, was schon auf dem Handy ist: Downloads, Screenshots, verbesserte Dateien – geht auch ohne Dashcam |
+| **Drive** | alles, was in deinem verbundenen Google Drive gesichert ist – auch nach einer Neuinstallation (Abschnitt 6) |
+
+Die Reiterleiste lässt sich seitlich wischen; auf schmalen Handys kommt **Drive** erst dann ins Bild.
 
 - Die ersten drei Reiter zeigen sofort die zuletzt gelesene Liste mit Vorschaubildern, auch ohne Verbindung. Oben
   steht, von wann sie ist: „Stand: 2.10., 09:14 · wird aktualisiert…“ (verbunden, die App liest die Dashcam gerade
@@ -182,6 +185,44 @@ Regeln:
   gesicherte Dateien noch in Drive liegen (auf dem Handy wird dabei nichts gelöscht).
 - In Drive liegt jede Datei unter `My Forthing/media/<Jahr-Monat>/` mit einer gleichnamigen `.json`-Begleitdatei.
 
+**Reiter „Drive“** (*Aufnahmen → Drive*): alle Sicherungen aus dem verbundenen Google Drive, die neuesten oben, mit
+Vorschaubild. Oben steht „Stand: …“ (wann die App Drive zuletzt gelesen hat); das Pfeil-Symbol daneben liest Drive neu.
+- Antippen öffnet die Datei: **Fotos** zeigt die App direkt aus Drive, **Auf dem Handy speichern** legt sie aufs Handy.
+  **Videos** zeigen das Vorschaubild; **Vom Drive laden** holt sie aufs Handy, dann spielen sie ab. Fortschritt in der
+  Zeile, im Clip und unter **Übertragungen** („… · aus Drive“); bricht das Internet ab, macht der Download später an der
+  gleichen Stelle weiter. Mehrere auf einmal: lange drücken, weitere antippen, **Vom Drive laden**.
+- **Vom Drive laden** hält sich an die Netz-Bedingungen der Sicherung (*Einstellungen → Sicherung*): standardmäßig nur
+  im WLAN mit Internet, über mobile Daten nur, wenn du das dort erlaubst. Sonst wartet der Download („Wartet auf ein
+  Netz, …“). Vorschaubilder und Fotos zum Ansehen lädt die App in jedem Netz.
+- Die App prüft jede geladene Datei gegen die Prüfsumme in Drive; passt sie nicht, wird sie verworfen
+  („Prüfsumme“) – einfach erneut versuchen.
+- Ohne Verbindung zeigt der Reiter die Google-Drive-Karte mit **Mit Google Drive verbinden** bzw. **Erneut verbinden**;
+  der Knopf öffnet den Bildschirm *Google Drive*, dort noch einmal antippen. Solange Drive nicht verbunden ist, ist
+  **Vom Drive laden** aus.
+- **Drive-Status prüfen** (*Einstellungen → Sicherung*) übernimmt ebenfalls Sicherungen, die die App noch nicht kennt.
+
+### Nach einer Neuinstallation
+
+Hast du die App-Daten gelöscht oder die App auf einem neuen Handy installiert:
+1. **Mit Online-Konto** (Abschnitt 7): einfach wieder anmelden. Die App merkt sich im Konto, mit welchem Google-Drive-Konto
+   du zuletzt verbunden warst, und verbindet es ohne weiteren Schritt wieder. Möchte Google die Erlaubnis noch einmal
+   bestätigt haben, steht unter *Einstellungen → Google Drive* **Erneut verbinden** – einmal antippen, das richtige
+   Konto ist schon ausgewählt (von der Karte im Reiter **Drive** oder auf dem Sicherungs-Bildschirm aus sind es zwei
+   Tipps: die Karte öffnet diesen Bildschirm). Haben deine Handys verschiedene Google-Drive-Konten, gilt das zuletzt
+   verbundene.
+2. **Ohne Konto**: *Einstellungen → Google Drive → Mit Google Drive verbinden* und dasselbe Google-Konto wählen.
+3. Danach liest die App alle vollständigen Sicherungen aus Drive ein; sie erscheinen im Reiter **Drive**. Erst danach
+   sichert sie automatisch; bis dahin steht unter *Einstellungen → Sicherung* „Wartet auf den ersten Abgleich mit
+   Drive“, und **Jetzt prüfen** versucht den Abgleich sofort (z. B. wenn das Internet vorher weg war). Verbindest du später die Dashcam, ordnet die App deren Dateien diesen Sicherungen zu, damit
+   sie nicht ein zweites Mal hochgeladen werden. Ausnahmen: eine Datei, die gerade schon hochgeladen wurde, eine Datei,
+   die du vorher selbst mit **Sichern** gesichert hast, und eine Handy-Kopie mit anderem Inhalt als in Drive – die
+   können dann zweimal in Drive liegen.
+- Die **Sicherungs-Einstellungen** kommen nicht zurück: Die Sicherung steht danach auf **Nur manuell**; wähle unter
+  *Einstellungen → Sicherung* wieder „Vorfälle“ oder „Alles“, wenn du automatisch sichern willst.
+- Nicht zurück kommen die **erkannten Kennzeichen**: sie bleiben auf dem Handy, auf dem sie erkannt wurden.
+- Hast du Google Drive auf einem Handy **getrennt**, verbindet die App es dort nicht von selbst wieder (bei Handys, die
+  mit Version 1.0.4 oder älter getrennt wurden, kann das einmal doch passieren).
+
 ## 7. Online-Konto (optional)
 
 Ein Konto speichert dein Profil online, damit es auf einem neuen Handy wieder da ist. Für alles andere brauchst du es
@@ -195,8 +236,10 @@ nicht.
   **Erneut senden**). Bestätigen geht auch später.
 - Hat das Konto schon ein Profil, fragt die App „**Welches Profil behalten?**“ – **Dieses Handy** oder **Konto**. Ohne
   deine Wahl wird nichts überschrieben.
-- **Synchronisiert** werden Profilname, Profilbild, Design und Exportqualität. **Nicht**: Kennzeichen-, Hochskalierungs-
-  und Sicherungsoptionen (bleiben auf dem Handy) und die Dashcam-Einstellungen (bleiben in der Dashcam).
+- **Synchronisiert** werden Profilname, Profilbild, Design, Exportqualität und die E-Mail-Adresse des zuletzt
+  verbundenen Google-Drive-Kontos (damit die App es nach einer Neuinstallation wieder verbinden kann, Abschnitt 6).
+  **Nicht**: Kennzeichen-, Hochskalierungs- und Sicherungsoptionen (bleiben auf dem Handy) und die Dashcam-Einstellungen
+  (bleiben in der Dashcam).
 - **Abmelden** lässt das Profil auf dem Handy. **Passwort vergessen?** schickt einen Link zum Zurücksetzen.
 
 ## 8. Kennzeichenerkennung
@@ -261,6 +304,8 @@ schicken. Ohne Verbindung enthält sie nur WLAN-Daten und das Protokoll.
 - **Livebild nie mit einem echten Videostrom abgespielt**; Verzögerung, Bildformat und Screenshots daraus sind offen.
 - **Konto und Google Drive** sind ohne echte Google-/Firebase-Einrichtung nicht getestet; ohne sie erscheinen
   „Konto-Dienst ist in dieser Installation nicht eingerichtet.“ bzw. „Google-Cloud-Konfiguration fehlt (Statuscode 10)“.
+  Auch der Reiter **Drive**, das automatische Wiederverbinden nach einer Neuinstallation und **Vom Drive laden** sind
+  noch nicht mit einem echten Google Drive ausprobiert.
 - **Kennzeichenerkennung** nur mit künstlich erzeugten Bildern geprüft, nicht mit echten Dashcam-Aufnahmen; die
   Live-Erkennung wurde mangels Videostrom gar nicht ausprobiert.
 - **Verbessern** nur auf dem Emulator gemessen. **Hochskalieren** lief dort gar nicht: Der Emulator hat für keine

@@ -36,6 +36,9 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** What [MediaRepository.importDriveCopy] did with one Drive copy. */
+enum class DriveImport { KNOWN, ADOPTED, ADDED }
+
 /**
  * Local library (CONTRACTS §8). Three copies, three explicit actions: [deleteLocalCopy], [deleteOnRecorder] and
  * (feature/drive-backup) `deleteOnDrive` followed by [markDriveDeleted]. None cascades; a row is removed only when
@@ -53,6 +56,9 @@ class MediaRepository @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var screenshotObserver: FileObserver? = null // strong reference: a collected observer stops watching
     private val lastRecorderRows = ConcurrentHashMap<Int, List<MediaItem>>() // per type, as last observed
+
+    // ponytail: in memory; a screen open across a merge (e.g. Bild verbessern) saves under the new id in this process.
+    private val mergedInto = ConcurrentHashMap<String, String>()
 
     val mediaDir get() = File(context.filesDir, "media")
     val screenshotDir get() = File(context.filesDir, "screenshots")
@@ -120,11 +126,12 @@ class MediaRepository @Inject constructor(
     )
 
     /**
-     * Registers an output of feature/enhance-ui as its own item linked to [parentId]. The original is never modified;
+     * Registers an output of feature/enhance-ui as its own item linked to [sourceId]. The original is never modified;
      * the output's file name is reused as id when it is a UUID (as `EnhancedOutput.id`).
      */
-    suspend fun registerDerived(kind: MediaKind, file: File, parentId: String, parentPositionMs: Long?, info: EnhancementInfo?): MediaItem {
+    suspend fun registerDerived(kind: MediaKind, file: File, sourceId: String, parentPositionMs: Long?, info: EnhancementInfo?): MediaItem {
         require(kind == MediaKind.ENHANCED_FRAME || kind == MediaKind.UPSCALED_CLIP) { "not a derived kind: $kind" }
+        val parentId = currentId(sourceId) // the original may have been merged into its Drive row meanwhile
         val id = file.nameWithoutExtension.takeIf(::isUuid) ?: UUID.randomUUID().toString()
         val parent = dao.get(parentId)
         val item = newItem(
@@ -226,6 +233,78 @@ class MediaRepository @Inject constructor(
     suspend fun update(id: String, transform: (MediaItem) -> MediaItem): MediaItem? = mutex.withLock {
         dao.get(id)?.let(transform)?.also { dao.update(it) }
     }
+
+    /** Rows with a Drive copy (Drive tab), newest first. */
+    fun observeDrive(): Flow<List<MediaItem>> = dao.observeDrive()
+
+    /** Rows without Drive copy that are the same recorder file as a row with one ("unmerged twins"). */
+    suspend fun unmergedTwins(): List<DriveTwin> = dao.unmergedTwins()
+
+    /**
+     * Drive import (feature/drive-restore) of [row], a Drive copy. A row with its id and a Drive copy stays as it is; one
+     * without a Drive copy takes over the Drive fields and keeps everything else; otherwise [row] is inserted. The same
+     * recording under another id is merged afterwards ([unmergedTwins], [mergeIntoDriveCopy]).
+     */
+    suspend fun importDriveCopy(row: MediaItem): DriveImport = mutex.withLock {
+        val existing = dao.get(row.id)
+        when {
+            existing?.driveFileId != null -> DriveImport.KNOWN
+            existing != null -> {
+                dao.update(existing.copy(driveFileId = row.driveFileId, driveMd5 = row.driveMd5, backupState = BackupState.DONE, backupError = null))
+                DriveImport.ADOPTED
+            }
+            else -> {
+                dao.insert(row)
+                DriveImport.ADDED
+            }
+        }
+    }
+
+    /**
+     * Replaces [twin] (a row without Drive copy, as seen when the caller decided) by the Drive row [driveId] of the same
+     * recording, so the Drive id wins and the backup never uploads it a second time: the Drive row takes its recorder
+     * copy and, when it has none, its phone copy; derived items and plate sightings move to the Drive id. Refused (false)
+     * when the twin's recording, phone copy, backup state or parent changed meanwhile, or when both have a phone copy.
+     * The twin's recorder fields may have changed (a re-listing): the current ones are taken.
+     */
+    suspend fun mergeIntoDriveCopy(driveId: String, twin: MediaItem): Boolean = mutex.withLock { db.withTransaction { merge(driveId, twin) } }
+
+    /** Inside [mutex] and a transaction. */
+    private suspend fun merge(driveId: String, seen: MediaItem): Boolean {
+        val drive = dao.get(driveId)?.takeIf { it.driveFileId != null } ?: return false
+        val twin = dao.get(seen.id) ?: return false
+        val sameRecording = twin.recorderType == drive.recorderType && twin.originalFileName == drive.originalFileName &&
+            twin.recorderTime == drive.recorderTime
+        val unchanged = twin.driveFileId == null && twin.localUri == seen.localUri && twin.localSizeBytes == seen.localSizeBytes &&
+            twin.backupState == seen.backupState && twin.parentId == seen.parentId
+        if (!sameRecording || !unchanged || twin.localUri != null && drive.localUri != null) return false
+        if (twin.recorderPath != null && drive.recorderPath != null) return false
+        val takeLocal = drive.localUri == null && twin.localUri != null
+        dao.delete(twin.id) // first: the recorder path is unique
+        dao.update(
+            drive.copy(
+                recorderPath = twin.recorderPath ?: drive.recorderPath,
+                recorderThumbPath = if (twin.recorderPath != null) twin.recorderThumbPath else drive.recorderThumbPath,
+                localUri = if (takeLocal) twin.localUri else drive.localUri,
+                localSizeBytes = if (takeLocal) twin.localSizeBytes else drive.localSizeBytes,
+                localThumbPath = if (takeLocal) twin.localThumbPath else drive.localThumbPath,
+                downloadedAt = if (takeLocal) twin.downloadedAt ?: drive.downloadedAt else drive.downloadedAt,
+            ),
+        )
+        dao.moveChildren(twin.id, driveId)
+        db.plateDao().moveSightings(twin.id, driveId)
+        mergedInto[twin.id] = driveId
+        return true
+    }
+
+    /**
+     * The row [id] became after a drive-restore merge in this process (a screen still holding the old id saves there);
+     * only while no row has that id again (e.g. re-imported after an account switch).
+     */
+    suspend fun currentId(id: String): String = if (dao.get(id) != null) id else mergedInto[id] ?: id
+
+    /** Account switch: the merges belonged to the previous account's Drive rows. */
+    fun forgetMerges() = mergedInto.clear()
 
     private fun MediaItem.hasCopy() = localUri != null || recorderPath != null || driveFileId != null
 

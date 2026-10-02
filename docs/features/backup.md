@@ -9,6 +9,16 @@ Package `me.ri3d.dashcam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive clie
 | `DriveBackup.kt` | `DriveBackup` (verified upload of one item, delete Drive copy, reconcile, account-switch reset), `BackupStore` (private bookkeeping), `BackupOutcome`, `BackupErrors` |
 | `BackupQueue.kt` | `BackupQueue` (scheduling, automatic-rules observer, user actions), `BackupWorker` (Hilt, foreground), notifications, `BackupInitializer` (androidx.startup) |
 | `BackupScreen.kt` | Route `Backup` (Settings → Sicherung), `BackupViewModel`, `BackupSelectionAction` ("Sichern"), `driveDeleteTargets` ("Drive-Kopie löschen"), `BackupStateTag` (chip) |
+| `DriveRestore.kt`, `DriveLibrary.kt` | feature/drive-restore: import of Drive backups into the library, Drive-account hint + silent reconnect, Drive tab / clip-screen state – see [`drive-restore.md`](drive-restore.md) |
+
+**Drive restore** (feature/drive-restore, [`drive-restore.md`](drive-restore.md)): the observer and "Jetzt prüfen" queue
+nothing automatically before the connected account's backups were imported once (a recording already in Drive under
+another id is merged into its Drive row instead of being uploaded again; a failed import is retried at a later pass, at
+most once a minute); rows the import could not merge because they were in use are excluded from the automatic rules
+until the next import merges them. "Drive-Status prüfen" imports after its vanish check and reports both. Imported rows
+are `DONE` and are judged by later checks like uploaded ones. `BackupStore` also keeps `last_import` (dropped on an
+account switch) and `drive_disconnected`. "Vom Drive laden" uses the same network conditions
+(`BackupRules.constraints` / `defaultNetworkFits`).
 
 ## Rules (`AppPreferences`)
 

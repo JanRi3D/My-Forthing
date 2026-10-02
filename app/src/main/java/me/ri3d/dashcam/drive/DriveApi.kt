@@ -42,6 +42,16 @@ interface DriveApi {
     suspend fun delete(id: String): Result<Unit>
 
     suspend fun about(): Result<DriveQuota>
+
+    /** The content of a small file, e.g. a sidecar (`files/<id>?alt=media`). */
+    suspend fun readJson(id: String): Result<String>
+
+    /**
+     * Downloads the content of [id] to [target]. The bytes go to `<target>.part` first; a later call resumes that part
+     * with `Range` (an answer that does not continue it starts over). The part becomes [target] once complete.
+     * [onProgress] (bytes, total or null when unknown) is called on a background thread.
+     */
+    suspend fun download(id: String, target: File, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Result<Unit>
 }
 
 @Serializable
@@ -55,6 +65,8 @@ data class DriveFile(
     val parents: List<String> = emptyList(),
     val createdTime: String? = null,
     val modifiedTime: String? = null,
+    /** Short-lived thumbnail URL (hours); it needs the access token. Never stored, only used to fill the thumbnail cache. */
+    val thumbnailLink: String? = null,
 )
 
 /** [limit] is null for unlimited storage. Bytes. */
