@@ -1,6 +1,6 @@
 # Media (feature/media)
 
-Package `me.ri3d.cam.media`. Implements CONTRACTS §8 on top of the connection manager (§7) and `:recorder` (§6).
+Package `me.ri3d.dashcam.media`. Implements CONTRACTS §8 on top of the connection manager (§7) and `:recorder` (§6).
 
 | File | Contents |
 | --- | --- |
@@ -178,7 +178,7 @@ recorder address only); keep its `192.168.42.1` entry identical to `src/main`.
 
 ## Validation
 
-Unit tests (`me.ri3d.cam.media.*`, Robolectric, [SIM] = real connection manager + `RecorderSimulator`):
+Unit tests (`me.ri3d.dashcam.media.*`, Robolectric, [SIM] = real connection manager + `RecorderSimulator`):
 migration 2→3 from the exported v2 schema; `Listing.append` (exact cursor, short/empty page, inclusive cursor, repeated /
 cycling / missing cursor); 120 simulated files in 3 requests with exact cursors [SIM]; cursor-ignoring recorder stopped
 after 2 requests [SIM]; failed page waits for retry [SIM]; MockWebServer downloads: 206 resume with `Range`, 200 restart,

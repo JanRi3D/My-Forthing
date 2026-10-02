@@ -6,7 +6,7 @@ Binding for every agent. Producers implement exactly these shapes (improvements 
 
 | Path | Owner branch | Contents |
 | --- | --- | --- |
-| `recorder/` (Gradle `:recorder`, Kotlin/JVM, no Android deps) | feature/recorder-protocol | `me.ri3d.cam.recorder.*` |
+| `recorder/` (Gradle `:recorder`, Kotlin/JVM, no Android deps) | feature/recorder-protocol | `me.ri3d.dashcam.recorder.*` |
 | `app/.../core/` | feature/foundation | theme, navigation, shared UI, DB, prefs, profile, branding, logging, `core/home`, `core/onboarding`, `core/settings` (app section) |
 | `app/.../dashcam/` | feature/recorder-connection | connection manager, network binding, connection screen, Home dashcam card, device/SD info, recorder settings |
 | `app/.../live/` | feature/live-view | RTSP player, screenshot, photo/record controls |
@@ -23,7 +23,7 @@ Shared files (`app/build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gra
 
 ## 2. Naming, branding, localisation
 
-- Package root `me.ri3d.cam` (applicationId and namespace). App name from `R.string.app_name` only. `core/branding/Branding.kt` holds `appName`, `driveRootFolderName`, `supportUrl`; launcher icon resources under `res/mipmap-*` / `res/drawable/ic_launcher_*`. Renaming = this file + icon + `app_name` (a package change also needs new Firebase / Google Cloud registrations, `docs/features/accounts.md`, `docs/features/drive.md`). `Axo` (`AxoTheme`, `AxoTopBar`, `AxoNavHost`, `AxoColors`, …) is a legacy code prefix from the working name "Axolotl Cam" and is kept; it never reaches the UI.
+- Package root `me.ri3d.dashcam` (applicationId and namespace). App name from `R.string.app_name` only. `core/branding/Branding.kt` holds `appName`, `driveRootFolderName`, `supportUrl`; launcher icon resources under `res/mipmap-*` / `res/drawable/ic_launcher_*`. Renaming = this file + icon + `app_name` (a package change also needs new Firebase / Google Cloud registrations, `docs/features/accounts.md`, `docs/features/drive.md`). `Axo` (`AxoTheme`, `AxoTopBar`, `AxoNavHost`, `AxoColors`, …) is a legacy code prefix from the working name "Axolotl Cam" and is kept; it never reaches the UI.
 - German is the **default** locale (`res/values/strings.xml`), `generateLocaleConfig = true`. The app is pinned to `de` whatever the phone language (`AppLocale.kt`: per-app language through `LocaleManager` on API 33+, a German activity configuration and default locale on every API level), so library texts (Media3, Material 3) and `DateUtils`/`Formatter` output are German too, and the generated locale config lists only `de`. No hard-coded UI text, including content descriptions, notifications, errors. Plurals via `<plurals>`. Dates/sizes via `DateUtils` / `Formatter`.
 - Accessibility: every icon-only control has a content description; touch targets ≥ 48 dp; dynamic type supported; animations use Material motion and are skipped when `Settings.Global.ANIMATOR_DURATION_SCALE == 0`.
 
@@ -215,7 +215,7 @@ No Firebase call anywhere in `drive/`. Scope `https://www.googleapis.com/auth/dr
 
 ```
 <Drive>/My Forthing/                 root folder; appProperties: mf.format=1, mf.role=root
-  myforthing.json                    { "format": 1, "app": "me.ri3d.cam", "createdAt": "ISO-8601" }
+  myforthing.json                    { "format": 1, "app": "me.ri3d.dashcam", "createdAt": "ISO-8601" }
   media/<yyyy-MM>/<mediaId>.<ext>    original or derived file; appProperties: mf.id, mf.kind, mf.category, mf.parent (optional), mf.format=1
   media/<yyyy-MM>/<mediaId>.json     sidecar, written ONLY after the media upload is verified (md5Checksum match)
 ```

@@ -22,7 +22,7 @@ fun String.asBuildConfigString() = "\"" +
     replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 
 // applicationId and namespace; google-services.json must contain a client for this package.
-val appPackage = "me.ri3d.cam"
+val appPackage = "me.ri3d.dashcam"
 
 // Firebase without the google-services plugin (accounts): app/google-services.json is git-ignored and only read if
 // present. Every value stays "" when the file is missing or still holds the example's PLACEHOLDER values, so Firebase

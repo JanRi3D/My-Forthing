@@ -2,7 +2,7 @@
 
 On-device plate recognition for live frames and saved clips, a local searchable history linked to recording + position, and the sidecar hook for the backup. The screens (feature/plates-ui) are described in the section "UI (feature/plates-ui)" at the end; `FeatureFlags.plates` is `true`.
 
-## API for the UI phase (`me.ri3d.cam.plates`)
+## API for the UI phase (`me.ri3d.dashcam.plates`)
 
 ```kotlin
 data class PlateDetection(val text: String, val normalized: String, val confidence: Float?, val box: RectF, val frameTimestampMs: Long, val format: PlateFormat)
@@ -141,9 +141,9 @@ x86_64 emulator numbers run on a desktop CPU and say nothing reliable about a ph
 Needs a USB-debuggable phone and the debug + test APKs (`./gradlew :app:assembleDebug :app:assembleDebugAndroidTest`).
 
 1. Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk` and `adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`.
-2. Speed on the phone: `adb logcat -c`, then `adb shell am instrument -w -e class me.ri3d.cam.plates.PlateBenchmark me.ri3d.cam.test/androidx.test.runner.AndroidJUnitRunner`, then `adb logcat -d -s PlateEval`. Note avg/p95 per width and the live-throttle line (processed fps, busy share). Repeat 3×.
-3. Accuracy sanity on the phone: same with `-e class me.ri3d.cam.plates.PlateEvaluationTest`. ARM and x86 builds of the ML Kit model may differ slightly, so the recall/precision lines should be close to the table above, not necessarily identical; a large difference means a different ML Kit build or a bug.
-4. CPU while live (after feature/plates-ui; until then step 2's `liveThrottle` is the proxy): live view with plates **off** for 10 min, then **on** for 10 min, phone on USB. Per block: `adb shell dumpsys battery unplug` (USB charging otherwise stops battery stats) and `adb shell dumpsys batterystats --reset` at the start; at the end `adb shell dumpsys batterystats me.ri3d.cam > plates-off.txt` (or `plates-on.txt`) and `adb shell dumpsys battery reset`. Compare the `Proc me.ri3d.cam: CPU: … usr + … krn` lines. During the block sample `adb shell top -b -d 5 -n 12 | grep me.ri3d.cam` for %CPU.
+2. Speed on the phone: `adb logcat -c`, then `adb shell am instrument -w -e class me.ri3d.dashcam.plates.PlateBenchmark me.ri3d.dashcam.test/androidx.test.runner.AndroidJUnitRunner`, then `adb logcat -d -s PlateEval`. Note avg/p95 per width and the live-throttle line (processed fps, busy share). Repeat 3×.
+3. Accuracy sanity on the phone: same with `-e class me.ri3d.dashcam.plates.PlateEvaluationTest`. ARM and x86 builds of the ML Kit model may differ slightly, so the recall/precision lines should be close to the table above, not necessarily identical; a large difference means a different ML Kit build or a bug.
+4. CPU while live (after feature/plates-ui; until then step 2's `liveThrottle` is the proxy): live view with plates **off** for 10 min, then **on** for 10 min, phone on USB. Per block: `adb shell dumpsys battery unplug` (USB charging otherwise stops battery stats) and `adb shell dumpsys batterystats --reset` at the start; at the end `adb shell dumpsys batterystats me.ri3d.dashcam > plates-off.txt` (or `plates-on.txt`) and `adb shell dumpsys battery reset`. Compare the `Proc me.ri3d.dashcam: CPU: … usr + … krn` lines. During the block sample `adb shell top -b -d 5 -n 12 | grep me.ri3d.dashcam` for %CPU.
 5. Thermal: `adb shell dumpsys thermalservice` before and after each 10-min block; record "Thermal Status" and the CPU/skin temperatures. Plates on should not raise the thermal status above the plates-off block.
 6. Real footage, once available: copy 3–5 clips with readable plates (day, night, rain, motorway) to the phone, scan them through the app (plates-ui) or a one-off instrumented test calling `ClipPlateScanner.scan`, and write down per clip: plates truly visible, found exact, found with `?`, wrong, scan time. Those numbers replace the synthetic table as the reference.
 
@@ -156,7 +156,7 @@ Needs a USB-debuggable phone and the debug + test APKs (`./gradlew :app:assemble
 
 ## UI (feature/plates-ui)
 
-Package `me.ri3d.cam.plates.ui`. `FeatureFlags.plates = true`: the Home search bar opens `Plates()`, Settings → App has the row "Kennzeichenerkennung".
+Package `me.ri3d.dashcam.plates.ui`. `FeatureFlags.plates = true`: the Home search bar opens `Plates()`, Settings → App has the row "Kennzeichenerkennung".
 
 | File | Contents |
 | --- | --- |

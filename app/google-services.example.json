@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:PLACEHOLDER",
         "android_client_info": {
-          "package_name": "me.ri3d.cam"
+          "package_name": "me.ri3d.dashcam"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "000000000000-PLACEHOLDER-android.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "me.ri3d.cam",
+            "package_name": "me.ri3d.dashcam",
             "certificate_hash": "PLACEHOLDER-sha1-of-the-signing-certificate"
           }
         },

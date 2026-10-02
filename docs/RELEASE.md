@@ -1,6 +1,6 @@
 # My Forthing – Release build
 
-How to build, sign, verify and hand out the release APKs of My Forthing (`me.ri3d.cam`), and how to produce the next
+How to build, sign, verify and hand out the release APKs of My Forthing (`me.ri3d.dashcam`), and how to produce the next
 version. Distribution is by APK file (sideloading); there is no Play Store listing and no in-app updater in v1.
 German instructions for testers: [`INSTALLATION.de.md`](INSTALLATION.de.md), [`BENUTZUNG.de.md`](BENUTZUNG.de.md).
 Firebase / Google Cloud registration: [`SETUP.md`](SETUP.md).
@@ -116,7 +116,7 @@ BT="$ANDROID_HOME/build-tools/36.0.0"
 ```
 
 Expected: `Verifies`, signer DN `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc` (table above),
-`package: name='me.ri3d.cam' versionCode='1' versionName='1.0.0'`, `application: label='My Forthing'`, one
+`package: name='me.ri3d.dashcam' versionCode='1' versionName='1.0.0'`, `application: label='My Forthing'`, one
 `native-code` ABI per APK, no `application-debuggable`. The APK is signed with scheme v2 only (minSdk 26 does not need v1).
 
 On Windows without Git Bash: `Get-FileHash -Algorithm SHA256 <file>` (PowerShell) or `certutil -hashfile <file> SHA256`.
@@ -125,7 +125,7 @@ On Windows without Git Bash: `Get-FileHash -Algorithm SHA256 <file>` (PowerShell
 
 Android installs a new APK over an installed one only if **all** of these hold:
 
-1. same package (`me.ri3d.cam`),
+1. same package (`me.ri3d.dashcam`),
 2. same signing certificate – the `myforthing` key in `release.jks`,
 3. `versionCode` not lower than the installed one. Android accepts an equal versionCode as a reinstall, but two
    different builds must never share a number (nobody could tell them apart), so **every APK that leaves this
@@ -146,6 +146,8 @@ Consequences:
 - Each ABI APK carries the same versionCode; a phone only ever has one of them installed, so that is fine for
   sideloading. (Google Play would need distinct versionCodes per ABI, or an AAB; see section 9.)
 - The older app `me.ri3d.myforthing` from the sibling project is a different package; both can be installed side by side.
+- Builds made before 2026-10-02 used an earlier package id: such a build is a separate app too and stays installed
+  next to this one (two "My Forthing" icons). Uninstall it; its data does not carry over.
 
 ## 6. Next version
 
@@ -184,7 +186,7 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 | --- | --- |
 | `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,986 bytes (34.7 MiB) |
 | `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,890 bytes (28.9 MiB) |
-| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,340,036 bytes (84.2 MiB) |
+| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,372,816 bytes (84.3 MiB) |
 
 Inside the arm64 APK: dex 17.1 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
 stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.6 MB, assets (OCR and

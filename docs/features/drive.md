@@ -1,6 +1,6 @@
 # Feature: Google Drive authorisation and REST client (`feature/drive-auth`)
 
-Package `me.ri3d.cam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
+Package `me.ri3d.dashcam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
 
 ## What it does
 
@@ -21,7 +21,7 @@ Without these steps "Mit Google Drive verbinden" ends with **"Google-Cloud-Konfi
 3. **OAuth consent screen** (Google Auth Platform): app name "My Forthing", support e-mail, audience **External**. Data access → Add scope `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app"; a non-sensitive scope). While the app is in **Testing**, add every Google account that should connect under Audience → Test users (max. 100).
    - Testing status: Google expires the grants of test users after **7 days**; the app then shows "Erneut verbinden". Publishing the app (brand verification only, `drive.file` needs no security assessment) removes the limit.
 4. **Android OAuth clients** (Clients → Create client → Android), one per signing certificate:
-   - Package name `me.ri3d.cam`. Clients created for the old package name do not match; create new ones.
+   - Package name `me.ri3d.dashcam`. Clients created for an earlier package name do not match; create new ones.
    - **Debug** SHA-1: `./gradlew :app:signingReport` (variant `debug`) or `keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android`. Each developer machine has its own debug keystore → one client per machine.
    - **Release** SHA-1: `50:BD:A2:FD:D2:EA:C5:C4:07:17:EA:ED:B5:34:6C:A4:9C:40:8B:76` (`RELEASE.md` §2, `SETUP.md` §1), or `keytool -list -v -keystore <release.jks> -alias myforthing` (keystore path and alias in `local.properties` as `release.storeFile` / `release.keyAlias`, outside git, see `RELEASE.md`). If the APK is ever distributed through Google Play with Play App Signing, add a third client with the SHA-1 from Play Console → App integrity → App signing key.
 5. **Check**: install the matching build, Settings → Google Drive → connect with a test user → Google shows the `drive.file` consent → the screen shows the account e-mail and "x von y belegt · z frei".

@@ -84,7 +84,7 @@
                 tools:node="remove" />
             <!-- backup: applies the automatic backup rules in every process (posted after Application.onCreate) -->
             <meta-data
-                android:name="me.ri3d.cam.backup.BackupInitializer"
+                android:name="me.ri3d.dashcam.backup.BackupInitializer"
                 android:value="androidx.startup" />
         </provider>
     </application>

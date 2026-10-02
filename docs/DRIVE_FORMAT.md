@@ -1,6 +1,6 @@
 # My Forthing – Google Drive format v1
 
-Normative description of what the Android app writes to the user's Google Drive, so a web app can discover, list and play the backups **through Drive alone** (no server, no Firebase). Source of truth in code: `app/src/main/java/me/ri3d/cam/drive/format/` (`DriveFormat`, `DriveSidecar`, `DriveFormatReader`) and `DriveRestApi`. Contract: `docs/CONTRACTS.md` §10.
+Normative description of what the Android app writes to the user's Google Drive, so a web app can discover, list and play the backups **through Drive alone** (no server, no Firebase). Source of truth in code: `app/src/main/java/me/ri3d/dashcam/drive/format/` (`DriveFormat`, `DriveSidecar`, `DriveFormatReader`) and `DriveRestApi`. Contract: `docs/CONTRACTS.md` §10.
 
 ## 1. Access: same Google Cloud project, scope `drive.file`
 
@@ -23,7 +23,7 @@ Normative description of what the Android app writes to the user's Google Drive,
 - The root folder name comes from `Branding.driveRootFolderName` ("My Forthing"). The user may rename or move it; the app identifies it by `mf.role=root` (preferring the one with the current name, else the oldest). A trashed root is ignored and a new one is created.
 - Month folder `yyyy-MM`: the month of the recorder time (`recorderTimeEpochGuess`, the recorder wall clock parsed in the phone's zone), else of the download time (derived files: creation time). Informational only – **readers must not rely on folder placement**; use the queries in §5.
 - `<mediaId>` is the app's stable UUID v4 (`MediaItem.id`). `<ext>` is the lower-cased extension of the recorder file name (`MP4` → `mp4`), else derived from the MIME type (`video/mp4` → `mp4`, `image/jpeg` → `jpg`, `image/png` → `png`, otherwise `bin`).
-- Manifest `myforthing.json`: `{"format":1,"app":"me.ri3d.cam","createdAt":"2026-10-01T12:00:00.317+02:00"}` (`createdAt` = when the root was set up).
+- Manifest `myforthing.json`: `{"format":1,"app":"me.ri3d.dashcam","createdAt":"2026-10-01T12:00:00.317+02:00"}` (`createdAt` = when the root was set up).
 - **Timestamps** (`createdAt`, `downloadedAt`, `backup.completedAt`) are ISO-8601 with offset as `DriveFormat.isoTimestamp` writes them: milliseconds appear when non-zero, with trailing zeros dropped (`2026-10-01T12:03:00.123+02:00`, `…:03.9+02:00`, else `2026-10-01T12:03:00+02:00`), and UTC is written as `Z`. Parse them with a full ISO-8601 parser (`new Date(…)` / `Temporal.Instant.from` both work). `recorderTime` is different: see §4.
 
 ## 3. appProperties
