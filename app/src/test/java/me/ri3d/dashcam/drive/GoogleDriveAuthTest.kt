@@ -310,6 +310,20 @@ class GoogleDriveAuthTest {
     }
 
     @Test
+    fun `disconnecting a pending silent reconnect forgets it without revoking anything at Google`() = runTest {
+        authorizer.authorize = { _, _ -> Authorization.NeedsUi(pendingIntent) }
+        val auth = newAuth()
+        auth.reconnectSilently("a@example.com").getOrThrow()
+        assertThat(auth.state.value).isInstanceOf(DriveAuthState.NeedsReconnect::class.java)
+
+        auth.disconnect()
+
+        assertThat(auth.state.value).isEqualTo(DriveAuthState.NotConnected)
+        assertThat(authorizer.calls.none { it.startsWith("revoke") }).isTrue() // another phone's grant stays
+        assertThat(authorizer.revoked).isEmpty()
+    }
+
+    @Test
     fun `a silent reconnect never replaces a stored connection`() = runTest {
         val auth = connected()
         val calls = authorizer.calls.size

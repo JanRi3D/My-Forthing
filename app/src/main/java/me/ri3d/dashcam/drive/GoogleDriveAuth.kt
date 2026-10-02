@@ -139,7 +139,9 @@ class GoogleDriveAuth(
 
     override suspend fun disconnect() {
         loaded.await()
-        val email = account?.email
+        // A pending silent reconnect (no scopes: nothing was granted on this phone) is only forgotten: revoking acts on
+        // the Google account as a whole and would end the grant another phone of this account uses.
+        val email = account?.takeIf { it.scopes.isNotEmpty() }?.email
         account = null
         issued.clear()
         _state.value = DriveAuthState.NotConnected

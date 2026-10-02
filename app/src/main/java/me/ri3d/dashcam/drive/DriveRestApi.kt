@@ -117,8 +117,10 @@ class DriveRestApi(
                 onError = { throw it.error() },
             ) { response ->
                 when {
-                    // The part does not fit what Drive offers now (e.g. a longer part, or a range answer elsewhere).
-                    response.code == 416 || response.code == 206 && rangeStart(response.header("Content-Range")) != offset -> false
+                    // 416 with "bytes */<size>" equal to the part: it already holds the whole file. Otherwise start over.
+                    response.code == 416 -> offset > 0 && response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() == offset
+                    // A range answer that does not continue the part: start over.
+                    response.code == 206 && rangeStart(response.header("Content-Range")) != offset -> false
                     !response.isSuccessful -> throw DriveError.Http(response.code, driveErrorReason(response.body.string()))
                     else -> {
                         receive(response, part, if (response.code == 206) offset else 0L, onProgress)

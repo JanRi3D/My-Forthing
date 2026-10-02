@@ -319,7 +319,7 @@ class DriveRestApiTest {
     fun `a download starts over when Drive does not continue the part`() = runTest {
         val target = File(tmp.root, "clip.mp4")
         File(target.path + ".part").writeBytes(ByteArray(9000)) // longer than the file: 416
-        server.enqueue(MockResponse.Builder().code(416).build())
+        server.enqueue(MockResponse.Builder().code(416).setHeader("Content-Range", "bytes */${content.size}").build())
         server.enqueue(MockResponse.Builder().code(200).body(Buffer().write(content)).build())
 
         assertThat(api.download("f1", target).isSuccess).isTrue()
@@ -327,6 +327,20 @@ class DriveRestApiTest {
         assertThat(server.takeRequest().headers["Range"]).isEqualTo("bytes=9000-")
         assertThat(server.takeRequest().headers["Range"]).isNull()
         assertThat(target.readBytes()).isEqualTo(content)
+    }
+
+    @Test
+    fun `a part that already holds the whole file is finished without downloading again`() = runTest {
+        val target = File(tmp.root, "clip.mp4")
+        File(target.path + ".part").writeBytes(content) // the process died before the rename
+        server.enqueue(MockResponse.Builder().code(416).setHeader("Content-Range", "bytes */${content.size}").build())
+
+        assertThat(api.download("f1", target).isSuccess).isTrue()
+
+        assertThat(server.takeRequest().headers["Range"]).isEqualTo("bytes=${content.size}-")
+        assertThat(server.requestCount).isEqualTo(1)
+        assertThat(target.readBytes()).isEqualTo(content)
+        assertThat(File(target.path + ".part").exists()).isFalse()
     }
 
     @Test
