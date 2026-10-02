@@ -1,6 +1,6 @@
 # Enhancement (feature/enhance-core)
 
-Package `me.ri3d.cam.enhance`: frame enhancement, clip upscaling, live-upscale probe. No screens (enhance-ui).
+Package `me.ri3d.dashcam.enhance`: frame enhancement, clip upscaling, live-upscale probe. No screens (enhance-ui).
 Everything runs on the phone; nothing is downloaded at runtime. Every output is a reconstruction, never evidence,
 and carries a sidecar saying so.
 
@@ -274,12 +274,12 @@ branch. Replace `<serial>` with the phone's `adb devices` id.
    `adb -s <serial> shell dumpsys battery unplug` (count battery while USB is attached),
    `adb -s <serial> shell dumpsys batterystats --reset`.
 3. Run (times in logcat): `adb -s <serial> logcat -c`, then
-   `adb -s <serial> shell am instrument -w -e enhanceBench 1 -e class me.ri3d.cam.enhance.EnhanceBenchmark me.ri3d.cam.test/androidx.test.runner.AndroidJUnitRunner`.
-   For a sustained clip run add `-e enhanceClipSeconds 60` and `-e class me.ri3d.cam.enhance.EnhanceBenchmark#clipThroughput`.
+   `adb -s <serial> shell am instrument -w -e enhanceBench 1 -e class me.ri3d.dashcam.enhance.EnhanceBenchmark me.ri3d.dashcam.test/androidx.test.runner.AndroidJUnitRunner`.
+   For a sustained clip run add `-e enhanceClipSeconds 60` and `-e class me.ri3d.dashcam.enhance.EnhanceBenchmark#clipThroughput`.
    While it runs, every 10 s: `adb -s <serial> shell dumpsys thermalservice | grep -iE "status|temperature"`.
 4. Read results: `adb -s <serial> logcat -d -s EnhanceBench:I` (QUALITY / SPEED / FULL / CLIP / LIVE lines; CLIP lines
    for 1080p → 1440p/2160p are the real ones), energy:
-   `adb -s <serial> shell dumpsys batterystats me.ri3d.cam` (section "Estimated power use", mAh for the app uid),
+   `adb -s <serial> shell dumpsys batterystats me.ri3d.dashcam` (section "Estimated power use", mAh for the app uid),
    then `adb -s <serial> shell dumpsys battery reset`.
 5. Record per phone: model/SoC, Android version, ms per 1080p frame ×2/×4 (FULL), clip ms/frame at 1440p and 2160p,
    LIVE decision and ms, mAh for the run, peak thermal status. Paste into this file under *Phone measurements*.
@@ -294,7 +294,7 @@ None yet.
 
 ## UI (feature/enhance-ui)
 
-Package `me.ri3d.cam.enhance.ui`. Routes `Enhance(mediaId, positionMs)`, `Upscale(mediaId)`, `EnhanceSettings`
+Package `me.ri3d.dashcam.enhance.ui`. Routes `Enhance(mediaId, positionMs)`, `Upscale(mediaId)`, `EnhanceSettings`
 (`enhanceGraph`); entry points only through the existing slots.
 
 | File | Contents |
@@ -401,7 +401,7 @@ already declares `dataSync` for WorkManager's foreground service (media), so it 
 
 ### Validation (this branch)
 
-Unit tests (`me.ri3d.cam.enhance.ui.*`, 39): Enhance (15, Robolectric) – save path (labelled JPEG, sidecar, derived
+Unit tests (`me.ri3d.dashcam.enhance.ui.*`, 39): Enhance (15, Robolectric) – save path (labelled JPEG, sidecar, derived
 item at its position, original untouched), a failed registration leaves no file, derived items refused, failing
 capabilities → classical, photo enhanced on the defaults, exact video frame at 37 s (`ShadowMediaMetadataRetriever`),
 undecodable frame, another setting after a result, ML → classical fallback flagged, classical only without the model,

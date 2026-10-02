@@ -1,7 +1,7 @@
 # Accounts (feature/accounts)
 
 Optional Firebase account on top of the guest profile: sign-in with Google or e-mail/password, verification and
-password-reset mails, profile + app-preference sync, guest → account migration. Package `me.ri3d.cam.account`.
+password-reset mails, profile + app-preference sync, guest → account migration. Package `me.ri3d.dashcam.account`.
 Guest mode never needs Firebase, a configuration file or internet.
 
 ## Configuration (no google-services plugin)
@@ -12,11 +12,11 @@ Guest mode never needs Firebase, a configuration file or internet.
 | --- | --- |
 | `FIREBASE_PROJECT_ID` | `project_info.project_id` |
 | `FIREBASE_STORAGE_BUCKET` | `project_info.storage_bucket` |
-| `FIREBASE_APP_ID` | `client[package_name == me.ri3d.cam].client_info.mobilesdk_app_id` |
+| `FIREBASE_APP_ID` | `client[package_name == me.ri3d.dashcam].client_info.mobilesdk_app_id` |
 | `FIREBASE_API_KEY` | same client, `api_key[0].current_key` |
 | `FIREBASE_WEB_CLIENT_ID` | same client, `oauth_client[client_type == 3].client_id` (falls back to `services.appinvite_service.other_platform_oauth_client`) |
 
-All fields are `""` when the file is missing, has no client for `me.ri3d.cam`, or still contains the `PLACEHOLDER`
+All fields are `""` when the file is missing, has no client for `me.ri3d.dashcam`, or still contains the `PLACEHOLDER`
 values of `app/google-services.example.json`. Project id, app id and API key are required; without them
 `FirebaseHandles` has no options and every account action returns `Result.failure(AccountNotConfigured)`; the sign-in
 screens show "Konto-Dienst ist in dieser Installation nicht eingerichtet." and disable their buttons. The web client id
@@ -32,11 +32,11 @@ Changing `google-services.json` needs a rebuild (it is a configuration-cache inp
 ## Owner setup (Firebase console)
 
 1. **Project**: <https://console.firebase.google.com> → *Add project* (or reuse "my-forthing"). Analytics is not used.
-2. **Android app**: *Project settings → General → Your apps → Add app → Android*. Package name `me.ri3d.cam`,
+2. **Android app**: *Project settings → General → Your apps → Add app → Android*. Package name `me.ri3d.dashcam`,
    nickname "My Forthing". Skip the "add SDK" steps (the build reads the JSON itself). An app registered earlier
-   under the old package name does not match: add the `me.ri3d.cam` app, then do steps 3 and 8 again.
+   under an earlier package name does not match: add the `me.ri3d.dashcam` app, then do steps 3 and 8 again.
 3. **Fingerprints** (Google sign-in fails with "developer error" without them): *Project settings → Your apps →
-   me.ri3d.cam → Add fingerprint*, add **SHA-1 and SHA-256** for every certificate that signs the app:
+   me.ri3d.dashcam → Add fingerprint*, add **SHA-1 and SHA-256** for every certificate that signs the app:
    - debug: `./gradlew :app:signingReport` (variant `debug`), or
      `keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android`
    - release: `keytool -list -v -keystore <upload-keystore.jks> -alias <alias>`
@@ -59,7 +59,7 @@ Changing `google-services.json` needs a rebuild (it is a configuration-cache inp
    everything works, the picture just stays on the phone (upload/download failures are logged, never shown).
 8. **Download** `google-services.json` (*Project settings → Your apps*), **after** adding the fingerprints (otherwise
    `oauth_client` lacks entries), and save it as `app/google-services.json`. Rebuild; check that
-   `app/build/generated/source/buildConfig/debug/me/ri3d/cam/BuildConfig.java` has non-empty `FIREBASE_*` values.
+   `app/build/generated/source/buildConfig/debug/me/ri3d/dashcam/BuildConfig.java` has non-empty `FIREBASE_*` values.
 
 ## Data model
 
@@ -136,7 +136,7 @@ clears the Credential Manager state.
 
 ## Tests
 
-`app/src/test/java/me/ri3d/cam/account/`: `LinkDecisionTest` (matrix above), `ProfileSyncTest` (linking with fakes,
+`app/src/test/java/me/ri3d/dashcam/account/`: `LinkDecisionTest` (matrix above), `ProfileSyncTest` (linking with fakes,
 avatar downscale, live sync without echo), `SyncedPreferencesTest`, `AccountErrorsTest`, `NotConfiguredTest`
 (no Firebase app is ever created), `AuthViewModelTest`, `VerifyEmailViewModelTest`. No test talks to Firebase.
 

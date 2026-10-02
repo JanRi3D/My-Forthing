@@ -1,11 +1,11 @@
 # My Forthing – Status
 
 As of 2026-10-02: **release 1.0.0 (Build 1)**, built from `main` at `9ba3eb5` plus `fix/final-polish` (fixes from the
-acceptance review: the app is pinned to German, accessibility labels, the live error line, user docs). Every feature
-branch is integrated. Unit tests on `fix/final-polish`
-(`./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :recorder:test`): **443 unit tests, 0 failures,
-0 skipped** (`:app` 371, `:recorder` 72); `:app:lintDebug`: 0 errors, 24 warnings (dependency/AGP/targetSdk version
-notices and one plurals hint).
+acceptance review: the app is pinned to German, accessibility labels, the live error line, user docs), rebuilt with
+the package `me.ri3d.dashcam` (`feature/rename-dashcam`). Every feature branch is integrated. Unit tests on
+`feature/rename-dashcam` (`./gradlew clean :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug
+:recorder:test`): **443 unit tests, 0 failures, 0 skipped** (`:app` 371, `:recorder` 72); `:app:lintDebug`: 0 errors,
+24 warnings (dependency/AGP/targetSdk version notices and one plurals hint).
 
 Labels: **[SIM]** = against `RecorderSimulator` or `:recorder:runSimulator`; **emulator** = AVD Pixel_10_Pro_XL,
 API 36, x86_64 (performance numbers indicative only). The instrumented tests in `app/src/androidTest` (plates 5,
@@ -23,7 +23,8 @@ recorder or on a real phone yet**; the owner checklist is [`HARDWARE_CHECKLIST.m
 | `feature/release` | merged (`32f56f5`) |
 | `feature/plates-ui` | merged (`b153bf4`) |
 | `feature/release-final` | merged (`9ba3eb5`) |
-| `fix/final-polish` | this branch: locale pin, accessibility labels, live error code, user docs, rebuilt APKs |
+| `fix/final-polish` | merged (`d21c42f`) |
+| `feature/rename-dashcam` | this branch: package id changed to `me.ri3d.dashcam`, rebuilt APKs |
 
 ## Release 1.0.0 (Build 1)
 
@@ -32,18 +33,18 @@ In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`; build, veri
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,986 | `ad770b9ea8eec2020d6d6b6e449210fb6755fc09e5fe6d51b866cc7ae79c2183` |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,890 | `14895053b56b1e96b34308f7979f8d0125e46af8094e46e4a806c300d1af6aa5` |
-| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,340,036 | `d874fcb649bea490dd262db85aefe227de9a54085a6a7b619c7e7b7de103d5f2` |
+| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,379,986 | `f1662e728792c33c5088fa308c1280d75c4e6878ea6873501bfd050b36a42116` |
+| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,253,890 | `5289b4f3dfa3a2185b001269d0f407fa342c80d04ed6c496367f4a6feb26c287` |
+| `MyForthing-1.0.0-1-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,372,816 | `29695b1849ba6a010d777e2d52880f1012b46b28e8242e607b10dd2a4b22f7a4` |
 
-- Release APKs: `me.ri3d.cam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
+- Release APKs: `me.ri3d.dashcam`, versionCode 1, versionName 1.0.0, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc`. A second clean build gave
   the same bytes.
 - Contains every feature, including "Sicherung" and the plate screens (`FeatureFlags` all `true`).
 - Built **without** `app/google-services.json`: the online account shows "Konto-Dienst ist in dieser Installation nicht
   eingerichtet."; everything else works without it. Accounts need a new build once the file exists (versionCode 2).
 - Google Drive needs no file in the app: it works with this APK as soon as the Google Cloud project has an Android
-  OAuth client for `me.ri3d.cam` with the release SHA-1 (`SETUP.md` §3); until then "Google-Cloud-Konfiguration fehlt
+  OAuth client for `me.ri3d.dashcam` with the release SHA-1 (`SETUP.md` §3); until then "Google-Cloud-Konfiguration fehlt
   (Statuscode 10)".
 
 ## Features

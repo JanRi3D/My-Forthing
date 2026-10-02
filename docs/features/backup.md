@@ -1,6 +1,6 @@
 # Backup to Google Drive (feature/drive-backup)
 
-Package `me.ri3d.cam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive client and format: `docs/features/drive.md`,
+Package `me.ri3d.dashcam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive client and format: `docs/features/drive.md`,
 `docs/DRIVE_FORMAT.md` (unchanged by this feature).
 
 | File | Contents |
@@ -167,7 +167,7 @@ Shared files touched: `core/navigation/AxoNavHost.kt` (slot arguments + `backupG
 
 ## Needs the real Drive setup (owner)
 
-A real upload is impossible until the owner creates the Google Cloud OAuth client(s) for `me.ri3d.cam`
+A real upload is impossible until the owner creates the Google Cloud OAuth client(s) for `me.ri3d.dashcam`
 (`docs/features/drive.md` → Google Cloud setup); without them "Mit Google Drive verbinden" ends with status code 10.
 Then check on a phone:
 1. Connect, mode "Vorfälle", download an incident clip on Wi-Fi with internet → notification "Sicherung: …", chip "In

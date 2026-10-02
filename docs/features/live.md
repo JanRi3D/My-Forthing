@@ -1,6 +1,6 @@
 # Live view (feature/live-view)
 
-Package `me.ri3d.cam.live`. Builds on the connection manager (CONTRACTS §7) and `:recorder` (§6). Route `Live`,
+Package `me.ri3d.dashcam.live`. Builds on the connection manager (CONTRACTS §7) and `:recorder` (§6). Route `Live`,
 `FeatureFlags.live = true` (Home tile "Live-Ansicht").
 
 | File | Contents |
@@ -123,7 +123,7 @@ filesDir/screenshots/<uuid>.json    {"id":"<uuid>","capturedAt":"2026-10-01T17:4
 // Singleton, inject anywhere
 class LiveFrameSource @Inject constructor() {
     val videoSize: StateFlow<IntSize?>                                        // stream display size, only while it plays
-    fun frames(targetFps: Int /* 1..30 */, wanted: () -> Boolean = { true }): Flow<Frame>   // me.ri3d.cam.plates.Frame
+    fun frames(targetFps: Int /* 1..30 */, wanted: () -> Boolean = { true }): Flow<Frame>   // me.ri3d.dashcam.plates.Frame
 }
 
 fun NavGraphBuilder.liveGraph(

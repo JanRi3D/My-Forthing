@@ -1,6 +1,6 @@
 # :recorder – Forthing U-Tour control protocol
 
-Pure Kotlin/JVM module (`me.ri3d.cam.recorder`, no Android dependencies) implementing the recorder's TCP
+Pure Kotlin/JVM module (`me.ri3d.dashcam.recorder`, no Android dependencies) implementing the recorder's TCP
 control channel (192.168.42.1:7878) as documented in `docs/protocol/Forthing-U-Tour-protocol-report.md`.
 Live view (RTSP 554) and media downloads (HTTP 80) are not part of this module.
 

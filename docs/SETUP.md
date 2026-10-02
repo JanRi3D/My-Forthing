@@ -1,7 +1,7 @@
 # My Forthing – Firebase and Google Cloud setup
 
 What the owner registers so that the optional app account (Firebase) and the Google Drive backup work for package
-`me.ri3d.cam`. Consolidated from [`features/accounts.md`](features/accounts.md) and
+`me.ri3d.dashcam`. Consolidated from [`features/accounts.md`](features/accounts.md) and
 [`features/drive.md`](features/drive.md); those files keep the feature details. Without any of this the app runs as a
 guest: accounts show "Konto-Dienst ist in dieser Installation nicht eingerichtet.", Drive ends with
 "Google-Cloud-Konfiguration fehlt (Statuscode 10)". Nothing else depends on it.
@@ -14,7 +14,9 @@ file to the Cloud project whose OAuth client created the file, and `appPropertie
 web app in another project would see none of the backups (`DRIVE_FORMAT.md` §1). The app still keeps the two
 features independent: Drive never calls Firebase, and the Drive account may differ from the app account.
 
-Registrations made for the old package name (working name "Axolotl Cam") do not apply; add `me.ri3d.cam` anew.
+Registrations made for an earlier package name (the working name "Axolotl Cam", or the package id used until
+2026-10-02) do not apply; add `me.ri3d.dashcam` anew. The Firebase app and Android OAuth clients of an earlier package
+name are unused and can be deleted.
 
 ## 1. Signing certificates to register
 
@@ -40,9 +42,9 @@ certificate from Play Console → Test and release → App integrity.
 ## 2. Firebase (optional app account)
 
 1. **Project**: <https://console.firebase.google.com> → *Add project* (or open the existing one). Analytics is not used.
-2. **Android app**: *Project settings → General → Your apps → Add app → Android*: package `me.ri3d.cam`, nickname
+2. **Android app**: *Project settings → General → Your apps → Add app → Android*: package `me.ri3d.dashcam`, nickname
    "My Forthing". Skip the "add SDK" steps; the build reads the JSON itself (no google-services plugin).
-3. **Fingerprints**: *Your apps → me.ri3d.cam → Add fingerprint*: SHA-1 and SHA-256 of both certificates in section 1.
+3. **Fingerprints**: *Your apps → me.ri3d.dashcam → Add fingerprint*: SHA-1 and SHA-256 of both certificates in section 1.
    Missing fingerprints make Google sign-in fail with a developer error.
 4. **Sign-in providers** (*Authentication → Get started → Sign-in method*):
    - **Email/Password** on ("Email link (passwordless sign-in)" off);
@@ -55,7 +57,7 @@ certificate from Play Console → Test and release → App integrity.
    Without Storage everything works; the picture just stays on the phone.
 7. **Rules** (section 4).
 8. **Download** `google-services.json` **after** step 3 (otherwise `oauth_client` lacks entries) and save it as
-   `app/google-services.json` (git-ignored). Rebuild; `app/build/generated/source/buildConfig/<variant>/me/ri3d/cam/BuildConfig.java`
+   `app/google-services.json` (git-ignored). Rebuild; `app/build/generated/source/buildConfig/<variant>/me/ri3d/dashcam/BuildConfig.java`
    must show non-empty `FIREBASE_*` values. Changing the file always needs a rebuild; an APK built without it has
    accounts disabled (as the 1.0.0 APKs in `dist/` built on 2026-10-02).
 
@@ -74,8 +76,8 @@ matches the Android OAuth client by package name + signing certificate.
    test users' Drive grants after **7 days** (the app then shows "Erneut verbinden"); publishing (brand verification;
    `drive.file` needs no security assessment) removes that.
 3. **Android OAuth clients** (*Clients → Create client → Android*), one per certificate of section 1: package
-   `me.ri3d.cam`, its SHA-1. Firebase may already have created one per fingerprint you added in section 2 ("Android
-   client for me.ri3d.cam (auto created by Google Service)"); a package + SHA-1 pair can exist only once per project,
+   `me.ri3d.dashcam`, its SHA-1. Firebase may already have created one per fingerprint you added in section 2 ("Android
+   client for me.ri3d.dashcam (auto created by Google Service)"); a package + SHA-1 pair can exist only once per project,
    so reuse that one instead of creating a second. Check the *Clients* list: one Android client for the debug SHA-1
    of every developer machine and one for the release SHA-1.
 4. **Check**: install a build signed with a registered certificate → Einstellungen → Google Drive → "Mit Google Drive

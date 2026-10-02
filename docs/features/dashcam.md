@@ -1,6 +1,6 @@
 # Dashcam connection (feature/recorder-connection)
 
-Package `me.ri3d.cam.dashcam`. Builds on `:recorder` (CONTRACTS §6) and implements CONTRACTS §7.
+Package `me.ri3d.dashcam.dashcam`. Builds on `:recorder` (CONTRACTS §6) and implements CONTRACTS §7.
 
 | File | Contents |
 | --- | --- |
