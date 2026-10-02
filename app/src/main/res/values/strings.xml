@@ -590,6 +590,8 @@
     <string name="media_failure_http_code">HTTP %1$d</string>
     <string name="media_transfer_cancelled">Abgebrochen</string>
     <string name="media_transfer_of">%1$s von %2$s</string>
+    <string name="media_transfer_speed">%1$s · %2$d KB/s</string>
+    <string name="media_transfer_stalled">Übertragung ins Stocken geraten, neuer Versuch in %1$d s · bisher %2$s</string>
     <string name="media_download_notification_title">Download: %1$s</string>
     <string name="media_storage_title">Speicher</string>
     <string name="media_storage_settings_text">Downloads, Screenshots, Cache</string>

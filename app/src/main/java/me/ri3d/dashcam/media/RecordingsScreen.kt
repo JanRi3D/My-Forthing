@@ -669,7 +669,7 @@ private fun TransfersSheet(
                     Text(
                         when (t.state) {
                             TransferState.QUEUED -> stringResource(R.string.media_transfer_queued)
-                            TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes)
+                            TransferState.RUNNING -> transferText(context, t.bytes, t.totalBytes, t.bytesPerSecond, t.retryInSeconds)
                             TransferState.WAITING -> if (failure == null) {
                                 stringResource(R.string.media_transfer_waiting)
                             } else {

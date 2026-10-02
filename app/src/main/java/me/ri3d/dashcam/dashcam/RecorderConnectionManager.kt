@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Dispatcher
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -43,6 +44,7 @@ import me.ri3d.dashcam.recorder.parseStorageInfo
 import java.io.IOException
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /** CONTRACTS §7, plus [Disconnected] (idle: before the first connect and after [RecorderConnectionManager.disconnect]). */
 sealed interface RecorderConnectionState {
@@ -332,6 +334,14 @@ class RecorderConnectionManagerImpl(
                 socketFactory(network.socketFactory)
                 dns { host -> network.getAllByName(host).toList() }
             }
+            // Hardware 2026-10-02: a 132 MB download stalled after 3.2 MB while thumbnails were requested next to it.
+            // One request at a time (applies to enqueued calls: thumbnails; downloads run one by one in their queue)
+            // and patient reads: the recorder keeps recording and writing its card meanwhile.
+            dispatcher(Dispatcher().apply { maxRequests = 1; maxRequestsPerHost = 1 })
+            connectTimeout(HTTP_CONNECT_TIMEOUT_S, TimeUnit.SECONDS)
+            readTimeout(HTTP_READ_TIMEOUT_S, TimeUnit.SECONDS)
+            writeTimeout(HTTP_WRITE_TIMEOUT_S, TimeUnit.SECONDS)
+            callTimeout(0, TimeUnit.SECONDS) // a 5-minute clip takes minutes; stalls are caught by the read timeout
             addInterceptor(::logHttp)
         }.build().also { http = network to it }
     }
@@ -461,6 +471,9 @@ class RecorderConnectionManagerImpl(
         const val LOG_SIZE = 400
         const val NOTE_SIZE = 50
         const val HTTP_NOTES = "http"
+        const val HTTP_CONNECT_TIMEOUT_S = 10L
+        const val HTTP_READ_TIMEOUT_S = 90L
+        const val HTTP_WRITE_TIMEOUT_S = 30L
         const val RTSP_NOTES = "rtsp"
 
         /** Capability queries on the way (live view, settings); the recorder answered them at once on hardware. */

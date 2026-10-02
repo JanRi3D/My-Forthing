@@ -31,6 +31,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -52,6 +53,8 @@ import me.ri3d.dashcam.dashcam.RecorderNotBoundException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
@@ -174,6 +177,9 @@ class MediaDownloader @Inject constructor(private val repository: MediaRepositor
         }
     }
 
+    /** A line in the Diagnose export (`notes.http`). */
+    fun note(message: String) = http.note(message)
+
     /** User cancel: the partial file is not kept for a resume. */
     suspend fun discardPartial(mediaId: String) {
         val item = repository.get(mediaId) ?: return
@@ -216,6 +222,7 @@ enum class TransferState { QUEUED, RUNNING, WAITING, DONE, FAILED, CANCELLED }
 /**
  * One download as WorkManager reports it. [totalBytes] is null while unknown. [failure], [httpCode], [detail]
  * ([failureDetail]): why it failed, or for WAITING why the last attempt failed (null while it only waits for a session).
+ * While RUNNING: [bytesPerSecond] over the last 5 s, [retryInSeconds] while the run waits to resume after a stall.
  */
 data class TransferProgress(
     val mediaId: String,
@@ -226,14 +233,33 @@ data class TransferProgress(
     val failure: DownloadFailure?,
     val httpCode: Int?,
     val detail: String? = null,
+    val bytesPerSecond: Long? = null,
+    val retryInSeconds: Int? = null,
 )
+
+/** Transfer speed in bytes per second over the last [windowMs], from (time, bytes) samples. */
+class SpeedMeter(private val windowMs: Long = 5_000) {
+    private val samples = ArrayDeque<Pair<Long, Long>>()
+
+    /** Adds a sample; null until two samples lie apart in time. */
+    fun add(atMs: Long, bytes: Long): Long? {
+        samples.addLast(atMs to bytes)
+        // Keep the newest sample at least windowMs old as the start, so the span covers the whole window.
+        while (samples.size > 2 && atMs - samples[1].first >= windowMs) samples.removeFirst()
+        val (t0, b0) = samples.first()
+        return if (atMs > t0) (bytes - b0).coerceAtLeast(0) * 1000 / (atMs - t0) else null
+    }
+
+    fun reset() = samples.clear()
+}
 
 /** The last real failure of a download waiting for its next attempt (WorkManager keeps no output for a retry). */
 data class RetryReason(val failure: DownloadFailure, val httpCode: Int?, val detail: String?)
 
 /**
  * Durable download queue: WorkManager unique work per media id (KEEP), no network constraint (the recorder Wi-Fi
- * has no internet), linear backoff. At most [MAX_PARALLEL] downloads are runnable; further ones are enqueued "held"
+ * has no internet), linear backoff. At most [MAX_PARALLEL] downloads are runnable ([SIMULATOR_PARALLEL] in the debug
+ * simulator mode); further ones are enqueued "held"
  * (far initial delay) and promoted when a slot frees, so no worker waits while running. Runs survive process death;
  * a work waiting for its next attempt starts again as soon as a session is Ready.
  */
@@ -242,7 +268,7 @@ class DownloadQueue @Inject constructor(
     @ApplicationContext context: Context,
     private val repository: MediaRepository,
     private val downloader: MediaDownloader,
-    manager: RecorderConnectionManager,
+    private val manager: RecorderConnectionManager,
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -274,7 +300,7 @@ class DownloadQueue @Inject constructor(
         if (item.localFile?.isFile == true || item.recorderPath == null) return false
         mutex.withLock {
             val busy = infos().count { it.occupiesSlot() && idOf(it) != mediaId }
-            enqueue(item, ExistingWorkPolicy.KEEP, held = busy >= MAX_PARALLEL)
+            enqueue(item, ExistingWorkPolicy.KEEP, held = busy >= slots())
         }
         return true
     }
@@ -290,7 +316,7 @@ class DownloadQueue @Inject constructor(
     /** Fills free slots with held downloads. [excluding] = the calling worker, which is about to finish. */
     suspend fun promote(excluding: UUID? = null) = mutex.withLock {
         val infos = infos()
-        val free = MAX_PARALLEL - infos.count { it.occupiesSlot() && it.id != excluding }
+        val free = slots() - infos.count { it.occupiesSlot() && it.id != excluding }
         // ponytail: WorkInfo has no enqueue time, so held downloads start in WorkManager's order, not strictly FIFO.
         infos.filter { HELD in it.tags && it.state == WorkInfo.State.ENQUEUED }.take(free.coerceAtLeast(0)).forEach { info ->
             idOf(info)?.let { repository.get(it) }?.let { enqueue(it, ExistingWorkPolicy.REPLACE, held = false) }
@@ -325,6 +351,8 @@ class DownloadQueue @Inject constructor(
 
     private fun WorkInfo.occupiesSlot() = !state.isFinished && HELD !in tags
 
+    private fun slots() = if (manager.simulator.value) SIMULATOR_PARALLEL else MAX_PARALLEL
+
     companion object {
         const val TAG = "media-download"
         private const val ID_TAG = "media-id:"
@@ -332,7 +360,11 @@ class DownloadQueue @Inject constructor(
         private const val HELD = "media-held"
         private const val HOLD_DAYS = 3650L
         private const val BACKOFF_SECONDS = 15L
-        const val MAX_PARALLEL = 2
+        /** Hardware 2026-10-02: next to thumbnails and a second download, a 132 MB download stalled; one at a time. */
+        const val MAX_PARALLEL = 1
+
+        /** The desktop simulator serves parallel requests fine (and the emulator walkthrough exercises the queue). */
+        const val SIMULATOR_PARALLEL = 2
         val ACTIVE = setOf(TransferState.QUEUED, TransferState.RUNNING, TransferState.WAITING)
 
         fun workName(mediaId: String) = "media-download-$mediaId"
@@ -361,6 +393,8 @@ class DownloadQueue @Inject constructor(
                     ?: retry?.failure,
                 httpCode = info.outputData.getInt(DownloadWorker.KEY_HTTP, -1).takeIf { it >= 0 } ?: retry?.httpCode,
                 detail = info.outputData.getString(DownloadWorker.KEY_DETAIL) ?: retry?.detail,
+                bytesPerSecond = info.progress.getLong(DownloadWorker.KEY_SPEED, -1).takeIf { it >= 0 },
+                retryInSeconds = info.progress.getInt(DownloadWorker.KEY_RETRY_IN, -1).takeIf { it > 0 },
             )
         }
     }
@@ -368,7 +402,8 @@ class DownloadQueue @Inject constructor(
 
 /**
  * Runs one download in the foreground (data sync) with a German progress notification and a cancel action.
- * Without a Ready session it retries without using up attempts ([MAX_ATTEMPTS] counts real failures only).
+ * Without a Ready session it retries without using up attempts ([MAX_ATTEMPTS] counts real failures only). A stalled
+ * transfer resumes within the run ([transfer]).
  */
 @HiltWorker
 class DownloadWorker @AssistedInject constructor(
@@ -385,15 +420,7 @@ class DownloadWorker @AssistedInject constructor(
         val foreground = runCatching { setForeground(foregroundInfo(name, 0, null)) }.isSuccess
         try {
             val result = try {
-                var last = 0L
-                downloader.download(mediaId) { bytes, total ->
-                    val now = System.currentTimeMillis()
-                    if (now - last >= PROGRESS_INTERVAL_MS || bytes == total) {
-                        last = now
-                        setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L)))
-                        if (foreground) updateNotification(name, bytes, total)
-                    }
-                }
+                transfer(mediaId, name, foreground)
                 attempts(mediaId, clear = true)
                 queue.retryReason(mediaId, null)
                 Result.success()
@@ -409,6 +436,56 @@ class DownloadWorker @AssistedInject constructor(
         } finally {
             // The progress notification belongs to this run: none may remain after success, retry, failure or stop.
             runCatching { NotificationManagerCompat.from(applicationContext).cancel(notificationId) }
+        }
+    }
+
+    /**
+     * The download; after a stall (read timeout, socket closed or reset – hardware 2026-10-02: the recorder stops
+     * sending while it records) it resumes from the `.part` size within this run after [STALL_BACKOFF_S] (5 s, 15 s,
+     * then 45 s), showing the countdown and the bytes so far. Each stall counts as a real failure towards
+     * [MAX_ATTEMPTS]; one that came after progress starts the count (and the backoff) afresh. Other failures end the
+     * run as before.
+     */
+    private suspend fun transfer(mediaId: String, name: String, foreground: Boolean) {
+        val speed = SpeedMeter()
+        val started = System.currentTimeMillis()
+        var bytes = 0L
+        var total: Long? = null
+        var stalls = 0
+        suspend fun publish(perSecond: Long?, retryIn: Int?) {
+            setProgress(workDataOf(KEY_BYTES to bytes, KEY_TOTAL to (total ?: -1L), KEY_SPEED to (perSecond ?: -1L), KEY_RETRY_IN to (retryIn ?: -1)))
+            if (foreground) updateNotification(name, bytes, total, perSecond, retryIn)
+        }
+        while (true) {
+            val before = bytes
+            var last = 0L
+            try {
+                downloader.download(mediaId) { b, t ->
+                    bytes = b
+                    total = t
+                    val now = System.currentTimeMillis()
+                    val perSecond = speed.add(now, b)
+                    if (now - last >= PROGRESS_INTERVAL_MS || b == t) {
+                        last = now
+                        publish(perSecond, null)
+                    }
+                }
+                downloader.note("download $name: done at $bytes bytes after ${(System.currentTimeMillis() - started) / 1000} s, $stalls stalls")
+                return
+            } catch (e: IOException) {
+                if (isStopped || (e !is SocketTimeoutException && e !is SocketException)) throw e
+                stalls++
+                if (bytes > before) attempts(mediaId, clear = true)
+                val attempt = attempts(mediaId)
+                if (attempt >= MAX_ATTEMPTS) throw e // failed() counts it once more and ends the work
+                val wait = STALL_BACKOFF_S[(attempt - 1).coerceAtMost(STALL_BACKOFF_S.lastIndex)]
+                downloader.note("download $name: stalled at $bytes bytes (${e.javaClass.simpleName}), attempt $attempt of $MAX_ATTEMPTS, resuming in $wait s")
+                speed.reset()
+                for (left in wait downTo 1) {
+                    publish(null, left)
+                    delay(1_000)
+                }
+            }
         }
     }
 
@@ -461,11 +538,11 @@ class DownloadWorker @AssistedInject constructor(
      * Without the notification permission (Android 13+) the transfer runs silently; the in-app sheet shows it.
      * A failing notification never fails the transfer.
      */
-    private fun updateNotification(name: String, bytes: Long, total: Long?) {
+    private fun updateNotification(name: String, bytes: Long, total: Long?, perSecond: Long?, retryIn: Int?) {
         val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         try {
-            if (granted) notifications().notify(notificationId, notification(name, bytes, total))
+            if (granted) notifications().notify(notificationId, notification(name, bytes, total, perSecond, retryIn))
         } catch (e: RuntimeException) {
             Log.w(TAG, "progress notification failed", e)
         }
@@ -479,10 +556,11 @@ class DownloadWorker @AssistedInject constructor(
         )
     }
 
-    private fun notification(name: String, bytes: Long, total: Long?) = NotificationCompat.Builder(applicationContext, CHANNEL)
+    private fun notification(name: String, bytes: Long, total: Long?, perSecond: Long? = null, retryIn: Int? = null) =
+        NotificationCompat.Builder(applicationContext, CHANNEL)
         .setSmallIcon(R.drawable.ic_media_download)
         .setContentTitle(applicationContext.getString(R.string.media_download_notification_title, name))
-        .setContentText(transferText(applicationContext, bytes, total))
+        .setContentText(transferText(applicationContext, bytes, total, perSecond, retryIn))
         .setProgress(100, total?.takeIf { it > 0 }?.let { (bytes * 100 / it).toInt() } ?: 0, total == null || total <= 0)
         .setOngoing(true)
         .setOnlyAlertOnce(true)
@@ -508,7 +586,12 @@ class DownloadWorker @AssistedInject constructor(
         const val KEY_ERROR = "error"
         const val KEY_HTTP = "http"
         const val KEY_DETAIL = "detail"
+        const val KEY_SPEED = "speed"
+        const val KEY_RETRY_IN = "retryIn"
         const val MAX_ATTEMPTS = 10
+
+        /** Waits before resuming after the 1st, 2nd and every further stall in a row. */
+        val STALL_BACKOFF_S = intArrayOf(5, 15, 45)
         private const val ATTEMPTS = "media_download_attempts"
         private const val TAG = "DownloadWorker"
         private const val CHANNEL = "media_transfers"
@@ -516,9 +599,17 @@ class DownloadWorker @AssistedInject constructor(
     }
 }
 
-/** "12,3 MB von 86 MB" / "12,3 MB" (sizes of the phone's download, formatted by Android). */
-fun transferText(context: Context, bytes: Long, total: Long?): String {
+/**
+ * "12,3 MB von 86 MB" / "12,3 MB" (sizes formatted by Android), with " · 412 KB/s" when [bytesPerSecond] is known; while
+ * a stalled transfer waits: "Übertragung ins Stocken geraten, neuer Versuch in 15 s · bisher 12,3 MB von 86 MB".
+ */
+fun transferText(context: Context, bytes: Long, total: Long?, bytesPerSecond: Long? = null, retryIn: Int? = null): String {
     val done = android.text.format.Formatter.formatShortFileSize(context, bytes)
-    return if (total == null || total <= 0) done
+    val size = if (total == null || total <= 0) done
     else context.getString(R.string.media_transfer_of, done, android.text.format.Formatter.formatShortFileSize(context, total))
+    return when {
+        retryIn != null -> context.getString(R.string.media_transfer_stalled, retryIn, size)
+        bytesPerSecond != null -> context.getString(R.string.media_transfer_speed, size, bytesPerSecond / 1024)
+        else -> size
+    }
 }
