@@ -36,7 +36,7 @@ tasks.test {
 // local.properties itself, so the key never passes through Gradle (or its configuration cache).
 tasks.register<JavaExec>("runSimulator") {
     group = "application"
-    description = "Runs the recorder simulator on 127.0.0.1:7878 and its media HTTP server on 8080 (emulator: 10.0.2.2)."
+    description = "Runs the recorder simulator on 127.0.0.1:7878, its media HTTP server on 8080 and RTSP on 7554 (emulator: 10.0.2.2)."
     classpath = sourceSets["testFixtures"].runtimeClasspath
     mainClass = "me.ri3d.dashcam.recorder.SimulatorTcpServerKt"
     // -PsimThrottle=<bytes per second> slows the media downloads (resume tests).

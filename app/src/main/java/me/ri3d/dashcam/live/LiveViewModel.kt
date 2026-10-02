@@ -191,12 +191,8 @@ class LiveViewModel @Inject constructor(
         pendingSize = null
         _stream.value = StreamState.Loading
         startJob = viewModelScope.launch {
-            val urls = if (network == null) {
-                listOf(LiveStream.SIMULATOR_URL)
-            } else {
-                val basic = manager.capabilities(CapabilityGroup.BASIC)?.let { runCatching { parseBasicCapabilities(it) }.getOrNull() }
-                rtspCandidates(basic, worked)
-            }
+            val basic = manager.capabilities(CapabilityGroup.BASIC)?.let { runCatching { parseBasicCapabilities(it) }.getOrNull() }
+            val urls = rtspCandidates(basic, worked, simulator = network == null)
             note("start: " + urls.joinToString())
             sockets = network?.socketFactory ?: SocketFactory.getDefault()
             attempts.clear()
