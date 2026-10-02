@@ -11,6 +11,8 @@ import androidx.room.Query
 import androidx.room.Relation
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
+import me.ri3d.cam.media.MediaCategory
+import me.ri3d.cam.media.MediaKind
 
 /**
  * A distinct plate, keyed by [normalized]. [display] is the best reading so far (one without `?` replaces one
@@ -71,6 +73,15 @@ data class MediaSighting(
     val boxBottom: Float,
 )
 
+/** A sighting with what the plates UI needs of its recording (null columns: live, or the recording is gone). */
+data class SightingRow(
+    @Embedded val sighting: PlateSighting,
+    val mediaKind: MediaKind?,
+    val mediaCategory: MediaCategory?,
+    val mediaRecorderTime: String?,
+    val mediaLocalUri: String?,
+)
+
 @Dao
 interface PlateDao {
     @Query("SELECT * FROM plate ORDER BY lastSeen DESC")
@@ -83,6 +94,21 @@ interface PlateDao {
     @Transaction
     @Query("SELECT * FROM plate WHERE id = :id")
     fun plate(id: Long): Flow<PlateWithSightings?>
+
+    /** Newest first, each with its recording's kind, category, raw time and phone copy. */
+    @Query(
+        """SELECT s.*, m.kind AS mediaKind, m.category AS mediaCategory, m.recorderTime AS mediaRecorderTime,
+           m.localUri AS mediaLocalUri FROM plate_sighting s LEFT JOIN media_item m ON m.id = s.mediaId
+           WHERE s.plateId = :plateId ORDER BY s.seenAt DESC""",
+    )
+    fun sightingRows(plateId: Long): Flow<List<SightingRow>>
+
+    @Query("SELECT * FROM plate_sighting WHERE mediaId = :mediaId ORDER BY positionMs")
+    fun observeForMedia(mediaId: String): Flow<List<PlateSighting>>
+
+    /** Plates with a sighting in an incident recording (category EVENT). */
+    @Query("SELECT DISTINCT s.plateId FROM plate_sighting s JOIN media_item m ON m.id = s.mediaId WHERE m.category = 'EVENT'")
+    fun incidentPlateIds(): Flow<List<Long>>
 
     @Query(
         """SELECT EXISTS(SELECT 1 FROM plate_sighting s JOIN plate p ON p.id = s.plateId
@@ -98,6 +124,16 @@ interface PlateDao {
 
     @Query("SELECT cropPath FROM plate_sighting WHERE mediaId = :mediaId AND cropPath IS NOT NULL")
     suspend fun cropsForMedia(mediaId: String): List<String>
+
+    @Query("SELECT cropPath FROM plate_sighting WHERE plateId = :plateId AND cropPath IS NOT NULL")
+    suspend fun cropsForPlate(plateId: Long): List<String>
+
+    @Query("SELECT normalized FROM plate WHERE id = :id")
+    suspend fun normalizedOf(id: Long): String?
+
+    /** Sightings go with the plate (foreign key cascade). */
+    @Query("DELETE FROM plate WHERE id = :id")
+    suspend fun deletePlate(id: Long)
 
     @Query("SELECT * FROM plate WHERE normalized = :normalized")
     suspend fun byNormalized(normalized: String): Plate?

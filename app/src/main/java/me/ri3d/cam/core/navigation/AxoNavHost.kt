@@ -35,6 +35,13 @@ import me.ri3d.cam.enhance.ui.enhanceGraph
 import me.ri3d.cam.enhance.ui.liveSharpenEffect
 import me.ri3d.cam.live.liveGraph
 import me.ri3d.cam.media.mediaGraph
+import me.ri3d.cam.plates.ui.ClipPlates
+import me.ri3d.cam.plates.ui.ClipPlatesOverlay
+import me.ri3d.cam.plates.ui.LivePlatesList
+import me.ri3d.cam.plates.ui.LivePlatesOverlay
+import me.ri3d.cam.plates.ui.LivePlatesToggle
+import me.ri3d.cam.plates.ui.PlatesAutoScan
+import me.ri3d.cam.plates.ui.platesGraph
 
 /** The single NavHost. Features register their graph here with one line each. */
 @Composable
@@ -63,16 +70,27 @@ fun AxoNavHost(startDestination: Route) {
                     accountGraph(navController)
                     driveGraph(navController)
                     dashcamGraph(navController)
-                    liveGraph(navController, trailingControls = { LiveSharpenControl() }, renderEffect = { liveSharpenEffect(it) })
+                    liveGraph(
+                        navController,
+                        leadingControls = { LivePlatesToggle() },
+                        trailingControls = { LiveSharpenControl() },
+                        belowControls = { LivePlatesList(onNavigate = { navController.navigate(it) }) },
+                        overlay = { LivePlatesOverlay(it) },
+                        renderEffect = { liveSharpenEffect(it) },
+                    )
                     mediaGraph(
                         navController,
                         selectionActions = { items, clear -> BackupSelectionAction(items, clear, onConnectDrive = { navController.navigate(DriveAccount) }) },
                         clipActions = { item, position -> EnhanceClipActions(item, position) { navController.navigate(it) } },
+                        clipExtras = { item, _, seekTo -> ClipPlates(item, seekTo, onNavigate = { navController.navigate(it) }) },
+                        clipOverlay = { item, position -> ClipPlatesOverlay(item, position) },
                         clipDeleteTargets = { item -> driveDeleteTargets(item) },
                     )
                     enhanceGraph(navController)
+                    platesGraph(navController)
                     backupGraph(navController)
                 }
+                PlatesAutoScan()
                 SnackbarHost(
                     snackbarHostState,
                     Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding(),

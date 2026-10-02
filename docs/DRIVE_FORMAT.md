@@ -69,6 +69,8 @@ Written **only after** the media upload has been verified (Drive `md5Checksum` e
 | `backup.complete` | bool | no | `true` when written by the app (the sidecar only exists after verification) |
 | `backup.completedAt` | string | yes | ISO-8601 with offset (milliseconds optional) |
 
+`plates[].confidence` is the recogniser's internal OCR score (not calibrated, not a probability); readers must never render it as a percentage or match rate.
+
 Example (incident clip with plates):
 
 ```json

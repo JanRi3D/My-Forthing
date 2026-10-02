@@ -36,6 +36,7 @@ sealed interface Route
 // Plates, media, enhancement
 @Serializable data class Plates(val query: String? = null) : Route
 @Serializable data class PlateDetail(val plateId: Long) : Route
+@Serializable data object PlatesSettings : Route
 @Serializable data class Clip(val mediaId: String, val positionMs: Long = 0) : Route
 @Serializable data class Enhance(val mediaId: String, val positionMs: Long) : Route
 @Serializable data class Upscale(val mediaId: String) : Route
