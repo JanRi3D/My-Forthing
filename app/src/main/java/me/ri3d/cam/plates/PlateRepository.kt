@@ -94,20 +94,24 @@ class PlateRepository @Inject constructor(
         written
     }
 
-    /** Deletes the whole history and every crop. */
-    suspend fun clear() = mutex.withLock {
-        dao.clear()
-        lastDetection.clear()
-        withContext(Dispatchers.IO) { cropDir().deleteRecursively() }
+    /** Deletes the whole history and every crop. Not cancellable: a confirmed deletion runs to the end. */
+    suspend fun clear() = withContext(NonCancellable) {
+        mutex.withLock {
+            dao.clear()
+            lastDetection.clear()
+            withContext(Dispatchers.IO) { cropDir().deleteRecursively() }
+        }
     }
 
-    /** Deletes one plate with all its sightings and crops. */
-    suspend fun delete(plateId: Long) = mutex.withLock {
-        val normalized = dao.normalizedOf(plateId) ?: return@withLock
-        val crops = dao.cropsForPlate(plateId)
-        dao.deletePlate(plateId)
-        lastDetection.keys.removeAll { it.endsWith("|$normalized") }
-        withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
+    /** Deletes one plate with all its sightings and crops. Not cancellable, like [clear]. */
+    suspend fun delete(plateId: Long) = withContext(NonCancellable) {
+        mutex.withLock {
+            val normalized = dao.normalizedOf(plateId) ?: return@withLock
+            val crops = dao.cropsForPlate(plateId)
+            dao.deletePlate(plateId)
+            lastDetection.keys.removeAll { it.endsWith("|$normalized") }
+            withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
+        }
     }
 
     /** Drops the in-memory dedupe state of a finished clip scan (a later rescan is deduped by the database). */
@@ -117,11 +121,13 @@ class PlateRepository @Inject constructor(
     }
 
     /** Deletes the sightings of one recording (and plates left without sightings) with their crops. */
-    suspend fun clearForMedia(mediaId: String) = mutex.withLock {
-        val crops = dao.cropsForMedia(mediaId)
-        dao.clearForMedia(mediaId)
-        lastDetection.keys.removeAll { it.startsWith("${SightingSource.CLIP}|$mediaId|") }
-        withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
+    suspend fun clearForMedia(mediaId: String) = withContext(NonCancellable) {
+        mutex.withLock {
+            val crops = dao.cropsForMedia(mediaId)
+            dao.clearForMedia(mediaId)
+            lastDetection.keys.removeAll { it.startsWith("${SightingSource.CLIP}|$mediaId|") }
+            withContext(Dispatchers.IO) { crops.forEach { File(context.filesDir, it).delete() } }
+        }
     }
 
     private suspend fun saveCrop(frame: Bitmap, d: PlateDetection, scale: Float): String? = withContext(Dispatchers.IO) {

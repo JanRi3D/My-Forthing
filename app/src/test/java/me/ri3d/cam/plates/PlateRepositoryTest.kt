@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Rule
@@ -171,5 +172,24 @@ class PlateRepositoryTest {
         repository.recordSightings(listOf(bmk), SightingSource.CLIP, "m1", 0, seenAt = 1)
         repository.forgetClip("m1")
         assertThat(repository.recordSightings(listOf(bmk), SightingSource.CLIP, "m1", 1_500, seenAt = 2)).isEqualTo(0)
+    }
+
+    @Test
+    fun `deleting a plate runs to the end when cancelled and resets its live dedupe`() = runTest {
+        val bmk = det("B-MK 4821")
+        val frame = Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888)
+        repository.recordSightings(listOf(bmk, det("HH-JK 553")), SightingSource.LIVE, seenAt = 10_000, frame = frame)
+        val id = plate("BMK4821").id
+
+        val job = launch { repository.delete(id) }
+        testScheduler.runCurrent() // inside the deletion (waiting for Room)
+        job.cancel()
+        job.join()
+        assertThat(repository.history().first().map { it.normalized }).containsExactly("HHJK553")
+        assertThat(File(context.filesDir, "plates").listFiles()!!).hasLength(1) // only HH-JK's crop is left
+
+        // Seen again right away: a new sighting, not a continuation of the deleted one.
+        assertThat(repository.recordSightings(listOf(bmk), SightingSource.LIVE, seenAt = 10_500)).isEqualTo(1)
+        assertThat(repository.recordSightings(listOf(det("HH-JK 553")), SightingSource.LIVE, seenAt = 10_500)).isEqualTo(0)
     }
 }
