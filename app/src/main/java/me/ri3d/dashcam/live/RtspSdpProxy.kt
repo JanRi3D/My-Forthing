@@ -8,6 +8,7 @@ import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import me.ri3d.dashcam.recorder.CapabilityGroup
 import me.ri3d.dashcam.recorder.parseBasicCapabilities
 import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.DataInputStream
 import java.io.EOFException
@@ -19,16 +20,20 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URI
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.net.SocketFactory
 import kotlin.concurrent.thread
 
 /*
- * RTSP plumbing for the recorder's preview. Hardware 2026-10-02: the recorder answers DESCRIBE, but its SDP has no
- * `a=control` in the media section(s), which Media3 1.11 requires (`RtspMediaTrack`: "missing attribute control").
- * Media3 has no option to accept that (RtspMediaSource.Factory offers only TCP, user agent, socket factory, debug
- * logging, timeout), so [RtspSdpProxy] repairs the description on the way.
+ * RTSP plumbing for the recorder's preview. Hardware 2026-10-02: the recorder answers DESCRIBE with
+ *   v=0 / m=video 0 RTP/AVP 96 / a=rtpmap:96 H264/90000 /
+ *   a=fmtp:96 profile-level-id=4DE028;packetization-mode=1;sprop-parameter-sets=AAAAAWdNAB+NjUBuH9CAAALuAACvyA8=,AAAAAWjuOIA=
+ * – no `o=`/`s=`/`t=`/`c=`, no `a=control` (Media3 1.11's `RtspMediaTrack`: "missing attribute control"), and parameter
+ * sets carrying Annex-B start codes (`00 00 00 01 67 …`), which Media3 would read as part of the NAL unit. Media3 has
+ * no option for either (RtspMediaSource.Factory offers only TCP, user agent, socket factory, debug logging, timeout),
+ * so [RtspSdpProxy] repairs the description on the way.
  */
 
 /** One RTSP request or response: start line, header lines as sent, body bytes (by Content-Length). */
@@ -80,27 +85,46 @@ private const val MAX_BODY = 256 * 1024
 private const val INTERLEAVED = '$'.code
 
 /**
- * [kept]: the media lines left in the description, [dropped]: the removed ones, [injected]: how many got `a=control:*`.
+ * [kept]: the media lines left in the description, [dropped]: the removed ones, [injected]: how many got `a=control:*`,
+ * [added]: the session lines added (`o=`, `s=`, `c=`, `t=`), [stripped]: parameter sets that lost their start code,
+ * [spsCut]: SPS whose VUI was cut ([repairSps]).
  */
-internal data class SdpRewrite(val sdp: String, val kept: List<String>, val dropped: List<String>, val injected: Int)
+internal data class SdpRewrite(
+    val sdp: String,
+    val kept: List<String>,
+    val dropped: List<String>,
+    val injected: Int,
+    val added: List<String> = emptyList(),
+    val stripped: Int = 0,
+    val spsCut: Int = 0,
+)
 
 /**
- * Makes the recorder's SDP acceptable to Media3: only the first `m=video` section is kept (live sound is muted anyway,
- * and a second `*` track would SETUP the same URL twice); without a video section every section stays. A kept section
- * without a control attribute gets `a=control:*` – the aggregate (session) URL, which RFC 2326 C.1.1 prescribes when
- * there is no per-track control; a control attribute in other letter case is written as `a=control` (Media3 matches it
- * exactly). Session-level lines are untouched; lines end with CRLF.
+ * Makes the recorder's SDP acceptable to Media3 (and RFC 4566): only the first `m=video` section is kept (live sound
+ * is muted anyway, and a second `*` track would SETUP the same URL twice); without a video section every section
+ * stays. A kept section without a control attribute gets `a=control:*` – the aggregate (session) URL, which RFC 2326
+ * C.1.1 prescribes when there is no per-track control; a control attribute in other letter case is written as
+ * `a=control` (Media3 matches it exactly). Every `sprop-parameter-sets` entry that starts with an Annex-B start code
+ * (`00 00 00 01` / `00 00 01`) is re-encoded without it (RFC 6184 carries bare NAL units; Media3 adds its own start
+ * code), and an SPS that ends inside its VUI is cut there ([repairSps]); `profile-level-id`, `packetization-mode` and
+ * anything else stay. Missing session lines are added with [host] (the recorder's address): `o=- 0 0 IN IP4 <host>`,
+ * `s=My Forthing`, `c=IN IP4 <host>`, `t=0 0`, the session part in RFC order. Lines end with CRLF.
  */
-internal fun rewriteSdp(sdp: String): SdpRewrite {
+internal fun rewriteSdp(sdp: String, host: String): SdpRewrite {
     val lines = sdp.lines().map { it.trimEnd('\r') }.filter { it.isNotBlank() }
-    val session = lines.takeWhile { !it.startsWith("m=") }
-    val sections = lines.drop(session.size).fold(mutableListOf<MutableList<String>>()) { acc, line ->
+    val given = lines.takeWhile { !it.startsWith("m=") }
+    val added = listOf("o=- 0 0 IN IP4 $host", "s=My Forthing", "c=IN IP4 $host", "t=0 0")
+        .filter { line -> given.none { it.startsWith(line.take(2)) } }
+    val session = (given + added).sortedBy { SESSION_ORDER.indexOf(it[0]).takeIf { i -> i >= 0 } ?: SESSION_ORDER.length }
+    val sections = lines.drop(given.size).fold(mutableListOf<MutableList<String>>()) { acc, line ->
         if (line.startsWith("m=")) acc += mutableListOf(line) else acc.last() += line
         acc
     }
     val keep = sections.firstOrNull { it.first().startsWith("m=video") }?.let(::listOf) ?: sections
     val control = Regex("^a=control(?=:|$)", RegexOption.IGNORE_CASE)
     var injected = 0
+    var stripped = 0
+    var spsCut = 0
     val media = keep.flatMap { section ->
         if (section.any(control::containsMatchIn)) {
             section.map { control.replace(it, "a=control") }
@@ -108,13 +132,128 @@ internal fun rewriteSdp(sdp: String): SdpRewrite {
             injected++
             section + "a=control:*"
         }
+    }.map { line ->
+        SPROP.replace(line) { m ->
+            m.groupValues[1] + m.groupValues[2].split(',').joinToString(",") { set ->
+                val bytes = runCatching { Base64.getDecoder().decode(set) }.getOrNull() ?: return@joinToString set
+                val code = START_CODES.firstOrNull { bytes.size > it.size && bytes.copyOf(it.size).contentEquals(it) }
+                val nal = if (code == null) bytes else bytes.copyOfRange(code.size, bytes.size).also { stripped++ }
+                val sps = nal.takeIf { it.isNotEmpty() && (it[0].toInt() and 0x1F) == 7 }?.let(::repairSps)?.also { spsCut++ }
+                if (code == null && sps == null) set else Base64.getEncoder().encodeToString(sps ?: nal)
+            }
+        }
     }
     return SdpRewrite(
         sdp = (session + media).joinToString("") { "$it\r\n" },
         kept = keep.map { it.first() },
         dropped = sections.filter { s -> keep.none { it === s } }.map { it.first() },
         injected = injected,
+        added = added.map { it.take(2) },
+        stripped = stripped,
+        spsCut = spsCut,
     )
+}
+
+/** RFC 4566 order of the session-level lines. */
+private const val SESSION_ORDER = "vosiuepcbtrzka"
+private val SPROP = Regex("""(sprop-parameter-sets=)([^;\s]+)""")
+private val START_CODES = listOf(byteArrayOf(0, 0, 0, 1), byteArrayOf(0, 0, 1))
+
+/**
+ * An H.264 SPS ([nal], no start code) whose VUI sets `bitstream_restriction_flag` but ends before the fields that flag
+ * announces, rewritten with the flag 0 and the RBSP ending right there; null when the SPS is complete or has no VUI.
+ * The recorder's SPS (2026-10-02, 19 bytes, 880x496 Main) ends two bits after that flag: Media3 1.11 reads the
+ * missing fields unchecked (`ArrayIndexOutOfBoundsException` on its playback thread, which ends the app), and strict
+ * decoders reject such an SPS. Cutting there invents no values; decoders then assume the defaults for the absent
+ * restriction fields (output reordering up to the DPB size).
+ * ponytail: SPS with scaling matrices or HRD parameters are not walked and stay as sent; walk them when a recorder
+ * sends one cut like this.
+ */
+internal fun repairSps(nal: ByteArray): ByteArray? {
+    val bits = Bits(nal)
+    val flag = runCatching { bits.restrictionFlag() }.getOrNull() ?: return null
+    if (bits.u(1) == 0) return null
+    // motion_vectors_over_pic_boundaries_flag, six ue(v) fields, then the rbsp_stop_one_bit
+    val complete = runCatching { bits.u(1); repeat(6) { bits.ue() }; '1' in bits.text.substring(bits.pos) }.getOrDefault(false)
+    if (complete) return null
+    val rbsp = (bits.text.substring(0, flag) + "01").let { it.padEnd((it.length + 7) / 8 * 8, '0') } // flag 0, stop bit
+    val out = ByteArrayOutputStream().apply { write(nal[0].toInt()) }
+    var zeros = 0
+    rbsp.chunked(8).map { it.toInt(2) }.forEach { b -> // emulation prevention back in
+        if (zeros >= 2 && b <= 3) {
+            out.write(3)
+            zeros = 0
+        }
+        out.write(b)
+        zeros = if (b == 0) zeros + 1 else 0
+    }
+    return out.toByteArray()
+}
+
+/** The RBSP of a NAL unit (header byte and emulation prevention bytes removed) as '0'/'1' text, read in order. */
+private class Bits(nal: ByteArray) {
+    val text: String = buildString {
+        var zeros = 0
+        for (i in 1 until nal.size) {
+            val b = nal[i].toInt() and 0xFF
+            if (zeros >= 2 && b == 3) { zeros = 0; continue }
+            zeros = if (b == 0) zeros + 1 else 0
+            append(Integer.toBinaryString(b or 0x100).substring(1))
+        }
+    }
+    var pos = 0
+
+    /** [n] bits (n ≤ 30); past the end throws. */
+    fun u(n: Int): Int = text.substring(pos, pos + n).let { pos += n; if (n == 0) 0 else it.toInt(2) }
+
+    fun ue(): Int {
+        var zeros = 0
+        while (text[pos] == '0') { zeros++; pos++ }
+        pos++
+        return (1 shl zeros) - 1 + u(zeros)
+    }
+
+    fun skip(n: Int) {
+        require(pos + n <= text.length)
+        pos += n
+    }
+
+    /**
+     * Walks an SPS (ITU-T H.264 7.3.2.1.1, E.1.1) to `bitstream_restriction_flag`: its position; null without VUI or
+     * with parts not walked.
+     */
+    fun restrictionFlag(): Int? {
+        val profile = u(8)
+        skip(16) // constraint flags, level_idc
+        ue() // seq_parameter_set_id
+        if (profile in HIGH_PROFILES) {
+            if (ue() == 3) skip(1) // chroma_format_idc, separate_colour_plane_flag
+            ue(); ue(); skip(1) // bit depths, qpprime_y_zero_transform_bypass_flag
+            if (u(1) == 1) return null // seq_scaling_matrix_present_flag: not walked
+        }
+        ue() // log2_max_frame_num_minus4
+        when (ue()) { // pic_order_cnt_type
+            0 -> ue()
+            1 -> { skip(1); ue(); ue(); repeat(ue()) { ue() } } // se(v) skipped like ue(v)
+        }
+        ue(); skip(1); ue(); ue() // max_num_ref_frames, gaps, width, height
+        if (u(1) == 0) skip(1) // frame_mbs_only_flag, mb_adaptive_frame_field_flag
+        skip(1) // direct_8x8_inference_flag
+        if (u(1) == 1) repeat(4) { ue() } // frame cropping
+        if (u(1) == 0) return null // vui_parameters_present_flag
+        if (u(1) == 1 && u(8) == 255) skip(32) // aspect ratio, extended SAR
+        if (u(1) == 1) skip(1) // overscan
+        if (u(1) == 1) { skip(4); if (u(1) == 1) skip(24) } // video signal type, colour description
+        if (u(1) == 1) { ue(); ue() } // chroma location
+        if (u(1) == 1) skip(65) // timing info
+        if (u(1) == 1 || u(1) == 1) return null // HRD parameters: not walked
+        skip(1) // pic_struct_present_flag
+        return pos
+    }
+
+    private companion object {
+        val HIGH_PROFILES = setOf(100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135)
+    }
 }
 
 /**
@@ -271,7 +410,7 @@ class RtspSdpProxy(
     }
 
     private fun describe(response: RtspMessage): RtspMessage {
-        val rewrite = rewriteSdp(String(response.body, Charsets.ISO_8859_1))
+        val rewrite = rewriteSdp(String(response.body, Charsets.ISO_8859_1), targetUri.host)
         val body = rewrite.sdp.toByteArray(Charsets.ISO_8859_1)
         val headers = response.headers.map { line ->
             val name = line.substringBefore(':').trim()
@@ -287,6 +426,9 @@ class RtspSdpProxy(
         note(
             "DESCRIBE ${response.status}: kept ${rewrite.kept.joinToString().ifEmpty { "nothing" }}" +
                 (if (rewrite.injected > 0) ", a=control:* added to ${rewrite.injected}" else ", control present") +
+                (if (rewrite.added.isNotEmpty()) ", added ${rewrite.added.joinToString(" ")}" else "") +
+                (if (rewrite.stripped > 0) ", start codes removed from ${rewrite.stripped} sprop-parameter-sets" else "") +
+                (if (rewrite.spsCut > 0) ", SPS cut before its missing bitstream_restriction fields" else "") +
                 (if (rewrite.dropped.isNotEmpty()) ", dropped ${rewrite.dropped.joinToString()}" else "") +
                 (if (h264 && !rewrite.sdp.contains("sprop-parameter-sets=")) ", H264 without sprop-parameter-sets" else "") +
                 (response.header("Content-Base")?.let { ", Content-Base $it" } ?: ""),
