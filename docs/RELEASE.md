@@ -110,13 +110,13 @@ machine setups byte identity is not guaranteed; there, compare package, version 
 
 ```bash
 BT="$ANDROID_HOME/build-tools/36.0.0"
-"$BT/apksigner" verify --verbose --print-certs dist/MyForthing-1.0.4-5-arm64-v8a.apk   # apksigner.bat on Windows
-"$BT/aapt2" dump badging dist/MyForthing-1.0.4-5-arm64-v8a.apk | grep -E "^package:|^application:|native-code"
+"$BT/apksigner" verify --verbose --print-certs dist/MyForthing-1.0.5-6-arm64-v8a.apk   # apksigner.bat on Windows
+"$BT/aapt2" dump badging dist/MyForthing-1.0.5-6-arm64-v8a.apk | grep -E "^package:|^application:|native-code"
 (cd dist && sha256sum -c SHA256SUMS.txt)
 ```
 
 Expected: `Verifies`, signer DN `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc` (table above),
-`package: name='me.ri3d.dashcam' versionCode='5' versionName='1.0.4'`, `application: label='My Forthing'`, one
+`package: name='me.ri3d.dashcam' versionCode='6' versionName='1.0.5'`, `application: label='My Forthing'`, one
 `native-code` ABI per APK, no `application-debuggable`. The APK is signed with scheme v2 only (minSdk 26 does not need v1).
 
 On Windows without Git Bash: `Get-FileHash -Algorithm SHA256 <file>` (PowerShell) or `certutil -hashfile <file> SHA256`.
@@ -173,6 +173,7 @@ Versions handed out:
 | 1.0.2 | 3 | `feature/cache` | Cache: thumbnails on disk (64 MB), recorder tabs from the library at once (also offline) with "Stand", prefetch at the lowest priority, last recorder values "zuletzt gelesen"; database version 4. Tag `v1.0.2` once merged. |
 | 1.0.3 | 4 | `fix/real-recorder-3` | Live view: the RTSP proxy listens on `127.0.0.1` (1.0.1/1.0.2 refused Media3 with ECONNREFUSED), repairs the recorder's exact SDP (session lines, bare parameter sets, cut SPS) and lets TEARDOWN through; simulated RTSP server for `:recorder:runSimulator`. Tag `v1.0.3` once merged. |
 | 1.0.4 | 5 | `main` (tag `v1.0.4`) | Same code as 1.0.3, first build with the real `app/google-services.json`: built with Firebase config, accounts enabled (1.0.0–1.0.3 had accounts disabled). |
+| 1.0.5 | 6 | `main` after `feature/drive-restore` (tag `v1.0.5`) | Drive library restore (every complete Drive backup imported into the library, also on a new phone), silent Drive reconnect through the app account, Drive tab in Aufnahmen with "Vom Drive laden", scrollable tab row; built with Firebase config; database still version 4. |
 
 ## 7. Debug vs release
 
@@ -194,9 +195,9 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 
 | APK | Size |
 | --- | --- |
-| `MyForthing-1.0.4-5-arm64-v8a.apk` | 36,464,142 bytes (34.8 MiB) |
-| `MyForthing-1.0.4-5-armeabi-v7a.apk` | 30,338,046 bytes (28.9 MiB) |
-| `MyForthing-1.0.4-5-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,506,179 bytes (84.4 MiB) |
+| `MyForthing-1.0.5-6-arm64-v8a.apk` | 36,540,726 bytes (34.8 MiB) |
+| `MyForthing-1.0.5-6-armeabi-v7a.apk` | 30,414,630 bytes (29.0 MiB) |
+| `MyForthing-1.0.5-6-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,615,584 bytes (84.5 MiB) |
 
 Inside the arm64 APK: dex 17.1 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
 stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.6 MB, assets (OCR and

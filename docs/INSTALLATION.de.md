@@ -9,18 +9,18 @@ Du bekommst zwei APK-Dateien und eine Prüfsummendatei, z. B.:
 
 | Datei | Für |
 | --- | --- |
-| `MyForthing-1.0.4-5-arm64-v8a.apk` | fast alle Handys ab etwa 2017 – **nimm diese** |
-| `MyForthing-1.0.4-5-armeabi-v7a.apk` | nur ältere 32-Bit-Handys, falls die erste Datei sich nicht installieren lässt |
+| `MyForthing-1.0.5-6-arm64-v8a.apk` | fast alle Handys ab etwa 2017 – **nimm diese** |
+| `MyForthing-1.0.5-6-armeabi-v7a.apk` | nur ältere 32-Bit-Handys, falls die erste Datei sich nicht installieren lässt |
 | `SHA256SUMS.txt` | Prüfsummen, um beschädigte oder fremde Dateien zu erkennen (optional) |
 
-Die Zahlen im Namen sind Version (`1.0.4`) und Build-Nummer (`5`). Meldet Android bei der arm64-Datei „App nicht
+Die Zahlen im Namen sind Version (`1.0.5`) und Build-Nummer (`6`). Meldet Android bei der arm64-Datei „App nicht
 installiert“, obwohl alles andere stimmt, ist das Handy ein 32-Bit-Gerät: dann die armeabi-v7a-Datei nehmen.
 
-**Nicht installieren:** `MyForthing-1.0.4-5-debug-universal.apk` (steht auch in `SHA256SUMS.txt`). Das ist eine
+**Nicht installieren:** `MyForthing-1.0.5-6-debug-universal.apk` (steht auch in `SHA256SUMS.txt`). Das ist eine
 Entwickler-Version für den Emulator; über sie lässt sich die normale Version später nicht installieren, ohne die App
 und alle ihre Daten zu löschen (Abschnitt 5).
 
-**Prüfsumme (optional)** am Windows-PC: in PowerShell `Get-FileHash -Algorithm SHA256 MyForthing-1.0.4-5-arm64-v8a.apk`
+**Prüfsumme (optional)** am Windows-PC: in PowerShell `Get-FileHash -Algorithm SHA256 MyForthing-1.0.5-6-arm64-v8a.apk`
 und den angezeigten Wert mit der Zeile in `SHA256SUMS.txt` vergleichen (Groß-/Kleinschreibung egal).
 
 ## 2. Datei aufs Handy bringen
@@ -49,7 +49,7 @@ Messenger und E-Mail blockieren oder verändern APK-Dateien oft; besser nicht da
    Installation von APK-Dateien grundsätzlich. Dann geht es nur nach dem Ausschalten dieses Modus.
 6. Fertig: Das Symbol heißt **My Forthing**. Weiter mit [`BENUTZUNG.de.md`](BENUTZUNG.de.md), „Erster Start“.
 
-Mit USB-Debugging am PC geht es auch so: `adb install MyForthing-1.0.4-5-arm64-v8a.apk`.
+Mit USB-Debugging am PC geht es auch so: `adb install MyForthing-1.0.5-6-arm64-v8a.apk`.
 
 ## 4. Berechtigungen, die die App später fragt
 
