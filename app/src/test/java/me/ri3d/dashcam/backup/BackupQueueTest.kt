@@ -260,6 +260,29 @@ class BackupQueueTest {
     }
 
     @Test
+    fun `nothing is queued automatically before the connected account was imported once`() = runTest {
+        setup()
+        f.preferences.update { it.copy(backupMode = BackupMode.ALL) }
+        val local = f.local("/sim/EVENT/e.mp4")
+        f.api.backup(
+            me.ri3d.dashcam.drive.format.DriveSidecar(
+                id = java.util.UUID.randomUUID().toString(), kind = "ORIGINAL_VIDEO", category = "EVENT", recorderType = 1,
+                originalFileName = "other.mp4", recorderTime = "2026-10-01 11:00:00", sizeBytes = 0, md5 = "", mime = "video/mp4",
+                backup = me.ri3d.dashcam.drive.format.DriveSidecar.Backup(complete = true),
+            ),
+        )
+        f.api.readHooks += { DriveError.Offline(IOException("offline")) } // the first import fails
+        backgroundScope.launch { queue.observe() }
+        settle()
+        assertThat(state(local.id)).isEqualTo(BackupState.NONE)
+        assertThat(unfinished()).isEmpty()
+
+        // The Drive tab's "Aktualisieren" succeeds: the rules run at once.
+        assertThat(f.restore.importFromDrive().isSuccess).isTrue()
+        eventually { state(local.id) == BackupState.QUEUED }
+    }
+
+    @Test
     fun `the first connect imports the Drive backups before the rules queue anything, so nothing is uploaded twice`() = runTest {
         setup()
         f.preferences.update { it.copy(backupMode = BackupMode.ALL) }

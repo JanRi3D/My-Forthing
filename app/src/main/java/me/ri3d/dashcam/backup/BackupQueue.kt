@@ -119,16 +119,19 @@ class BackupQueue @Inject constructor(
      */
     suspend fun observe() {
         var applied: Constraints? = null
-        combine(repository.observe(), preferences.preferences, auth.state, store.storageFull) { items, prefs, state, full ->
+        // The import time is part of it: a successful import (also from the Drive tab) runs the rules at once.
+        combine(repository.observe(), preferences.preferences, auth.state, store.storageFull, store.lastImport) { items, prefs, state, full, _ ->
             val email = DriveBackup.accountOf(state)
             if (email != null) {
                 if (backup.adoptAccount(email)) workManager.cancelAllWorkByTag(TAG).await()
-                // Before anything is queued: a recording already in Drive takes its Drive id instead of a second upload.
-                restore.importOnce(email)
-                val byId = items.associateBy { it.id }
-                // ponytail: scans the whole library on every change; a DAO query for NONE rows if libraries get huge.
-                items.filter { it.backupState == BackupState.NONE && !store.isExcluded(it.id) && BackupRules.automatic(it, prefs.backupMode, byId[it.parentId]) }
-                    .forEach { queue(it.id) }
+                // Nothing is queued before this account's backups are in the library: a recording already in Drive takes
+                // its Drive id instead of a second upload. A failed import is tried again at a later pass.
+                if (restore.importOnce(email)) {
+                    val byId = items.associateBy { it.id }
+                    // ponytail: scans the whole library on every change; a DAO query for NONE rows if libraries get huge.
+                    items.filter { it.backupState == BackupState.NONE && !store.isExcluded(it.id) && BackupRules.automatic(it, prefs.backupMode, byId[it.parentId]) }
+                        .forEach { queue(it.id) }
+                }
                 if (!full) BackupNotifications.cancelAlert(context) // reconnected / room made
             }
             val constraints = BackupRules.constraints(prefs)
@@ -171,9 +174,14 @@ class BackupQueue @Inject constructor(
         schedule()
     }
 
-    /** "Jetzt prüfen": applies the automatic rules now, including items that failed before, and lifts a storage pause. */
+    /**
+     * "Jetzt prüfen": applies the automatic rules now, including items that failed before, and lifts a storage pause.
+     * Like the observer, it queues nothing before the connected account's backups are in the library.
+     */
     suspend fun checkNow() {
         store.setStorageFull(false)
+        val email = DriveBackup.accountOf(auth.state.value)
+        if (email != null && !restore.importOnce(email)) return schedule()
         val mode = preferences.preferences.first().backupMode
         val items = repository.observe().first()
         val byId = items.associateBy { it.id }
