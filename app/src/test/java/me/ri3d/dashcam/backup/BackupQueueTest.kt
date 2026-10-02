@@ -83,7 +83,7 @@ class BackupQueueTest {
 
     private fun TestScope.setup(): BackupFixture {
         f = BackupFixture(context, db, this, tmp.newFile("prefs.preferences_pb").apply { delete() })
-        queue = BackupQueue(context, f.repository, f.preferences, f.auth, f.backup, f.store)
+        queue = BackupQueue(context, f.repository, f.preferences, f.auth, f.backup, f.store, f.restore)
         defaultNetwork(NetworkCapabilities.TRANSPORT_WIFI, NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         return f
     }
@@ -251,11 +251,38 @@ class BackupQueueTest {
         queue.enqueue(listOf(waiting.id))
         eventually { unfinished().isNotEmpty() }
 
+        f.api.files.clear() // the other account's Drive holds nothing (the switch imports from it)
         f.auth.state.value = DriveAuthState.Connected("other@example.com", setOf(DRIVE_FILE_SCOPE))
 
         eventually { state(done.id) == BackupState.NONE && state(waiting.id) == BackupState.NONE && unfinished().isEmpty() }
         assertThat(runBlocking { f.item(done.id)!!.driveFileId }).isNull()
         assertThat(f.backup.adoptAccount("other@example.com")).isFalse() // already adopted
+    }
+
+    @Test
+    fun `the first connect imports the Drive backups before the rules queue anything, so nothing is uploaded twice`() = runTest {
+        setup()
+        f.preferences.update { it.copy(backupMode = BackupMode.ALL) }
+        f.auth.state.value = DriveAuthState.NotConnected // fresh install: recorder clip downloaded before Drive
+        val local = f.local("/sim/EVENT/e.mp4")
+        val backup = me.ri3d.dashcam.drive.format.DriveSidecar(
+            id = java.util.UUID.randomUUID().toString(), kind = "ORIGINAL_VIDEO", category = "EVENT", recorderType = 1,
+            originalFileName = "e.mp4", recorderTime = "2026-10-01 12:00:00", sizeBytes = 0, md5 = "", mime = "video/mp4",
+            backup = me.ri3d.dashcam.drive.format.DriveSidecar.Backup(complete = true),
+        )
+        f.api.backup(backup, content = local.localFile!!.readBytes())
+        backgroundScope.launch { queue.observe() }
+        settle()
+        assertThat(state(local.id)).isEqualTo(BackupState.NONE) // not connected: nothing queued
+
+        f.auth.state.value = DriveAuthState.Connected("a@example.com", setOf(DRIVE_FILE_SCOPE))
+
+        eventually { runBlocking { f.item(backup.id) }?.localUri == local.localUri }
+        settle()
+        assertThat(runBlocking { f.item(local.id) }).isNull()
+        assertThat(state(backup.id)).isEqualTo(BackupState.DONE)
+        assertThat(unfinished()).isEmpty()
+        assertThat(f.api.sessions).isEmpty()
     }
 
     @Test

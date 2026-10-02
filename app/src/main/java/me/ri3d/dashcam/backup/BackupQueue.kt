@@ -64,6 +64,9 @@ import javax.inject.Singleton
 /** The running or waiting upload of one item, as WorkManager reports it. */
 data class BackupProgress(val running: Boolean, val bytes: Long, val total: Long)
 
+/** Outcome of "Drive-Status prüfen": [missing] backups forgotten, [imported] from Drive into the library. */
+data class DriveCheck(val missing: Int, val imported: Int)
+
 /** Outcome of a manual "Sichern". */
 data class EnqueueResult(val queued: Int, val notOnPhone: Int, val alreadyDone: Int)
 
@@ -81,6 +84,7 @@ class BackupQueue @Inject constructor(
     private val auth: DriveAuth,
     private val backup: DriveBackup,
     private val store: BackupStore,
+    private val restore: DriveRestore,
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -105,13 +109,14 @@ class BackupQueue @Inject constructor(
             started = true
             Log.d(LOG_TAG, "automatic backup rules started")
             scope.launch { observe() }
+            restore.start()
         }
     }
 
     /**
-     * Library × preferences × Drive state × storage pause: resets on an account switch, queues what the automatic
-     * rules select once it is on the phone, re-applies changed network conditions to the waiting work, and starts the
-     * next upload.
+     * Library × preferences × Drive state × storage pause: resets on an account switch, imports an account's backups
+     * the first time it is connected, queues what the automatic rules select once it is on the phone, re-applies
+     * changed network conditions to the waiting work, and starts the next upload.
      */
     suspend fun observe() {
         var applied: Constraints? = null
@@ -119,6 +124,8 @@ class BackupQueue @Inject constructor(
             val email = DriveBackup.accountOf(state)
             if (email != null) {
                 if (backup.adoptAccount(email)) workManager.cancelAllWorkByTag(TAG).await()
+                // Before anything is queued: a recording already in Drive takes its Drive id instead of a second upload.
+                restore.importOnce(email)
                 val byId = items.associateBy { it.id }
                 // ponytail: scans the whole library on every change; a DAO query for NONE rows if libraries get huge.
                 items.filter { it.backupState == BackupState.NONE && !store.isExcluded(it.id) && BackupRules.automatic(it, prefs.backupMode, byId[it.parentId]) }
@@ -202,8 +209,11 @@ class BackupQueue @Inject constructor(
         return BackupRules.networkFits(connectivity.getNetworkCapabilities(connectivity.activeNetwork), preferences.preferences.first())
     }
 
-    /** "Drive-Status prüfen"; returns how many DONE items were missing in Drive. */
-    suspend fun reconcile(): Result<Int> = backup.reconcile()
+    /** "Drive-Status prüfen": DONE items missing in Drive are forgotten, then backups the library lacks are imported. */
+    suspend fun reconcile(): Result<DriveCheck> {
+        val missing = backup.reconcile().getOrElse { return Result.failure(it) }
+        return restore.importFromDrive().map { DriveCheck(missing, it.imported) }
+    }
 
     /**
      * Enqueues the next pending item (an interrupted UPLOADING one first) unless one is active. [replace] restarts the

@@ -206,9 +206,12 @@ fun BackupScreen(onBack: () -> Unit, onDrive: () -> Unit, viewModel: BackupViewM
                     busy = true
                     scope.launch {
                         val text = viewModel.verify().fold(
-                            { missing ->
-                                if (missing == 0) resources.getString(R.string.backup_verify_ok)
-                                else resources.getQuantityString(R.plurals.backup_verify_missing, missing, missing)
+                            { (missing, imported) ->
+                                listOfNotNull(
+                                    if (missing == 0) resources.getString(R.string.backup_verify_ok)
+                                    else resources.getQuantityString(R.plurals.backup_verify_missing, missing, missing),
+                                    if (imported > 0) resources.getQuantityString(R.plurals.backup_verify_imported, imported, imported) else null,
+                                ).joinToString(" ")
                             },
                             { resources.getString(R.string.backup_verify_failed, it.driveMessage().resolve(resources)) },
                         )
@@ -539,7 +542,7 @@ class BackupViewModel @Inject constructor(
 
     suspend fun checkNow() = backupQueue.checkNow()
 
-    suspend fun verify(): Result<Int> = backupQueue.reconcile()
+    suspend fun verify(): Result<DriveCheck> = backupQueue.reconcile()
 
     suspend fun enqueue(ids: Collection<String>): EnqueueResult = backupQueue.enqueue(ids)
 

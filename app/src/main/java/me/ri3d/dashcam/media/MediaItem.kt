@@ -100,6 +100,20 @@ interface MediaDao {
     @Query("SELECT * FROM media_item WHERE localUri IS NOT NULL ORDER BY COALESCE(recorderTimeEpochGuess, createdAt) DESC")
     fun observeLocal(): Flow<List<MediaItem>>
 
+    /** Everything with a Drive copy (Drive tab), newest first like [observe]. */
+    @Query("SELECT * FROM media_item WHERE driveFileId IS NOT NULL ORDER BY COALESCE(recorderTimeEpochGuess, createdAt) DESC")
+    fun observeDrive(): Flow<List<MediaItem>>
+
+    /** Other rows of the same recorder file (type, name, raw time) without a Drive copy: candidates for a Drive import merge. */
+    @Query(
+        "SELECT * FROM media_item WHERE id != :id AND driveFileId IS NULL AND recorderType = :type AND originalFileName = :name " +
+            "AND recorderTime = :time",
+    )
+    suspend fun twins(id: String, type: Int, name: String, time: String): List<MediaItem>
+
+    @Query("SELECT COUNT(*) FROM media_item WHERE parentId = :id")
+    suspend fun childCount(id: String): Int
+
     /** The recorder copies of one listing type as last known, newest recorder time first (unknown times last). */
     @Query("SELECT * FROM media_item WHERE recorderType = :type AND recorderPath IS NOT NULL $RECORDER_ORDER")
     fun observeRecorderType(type: Int): Flow<List<MediaItem>>

@@ -411,7 +411,7 @@
     <string name="account_synced_title">Was synchronisiert wird</string>
     <string name="account_synced_text">Profilname, Profilbild, Design und Exportqualität. Kennzeichen-, Hochskalierungs- und Sicherungsoptionen bleiben auf diesem Handy, die Dashcam-Einstellungen in der Dashcam.</string>
     <string name="account_drive_title">Google Drive</string>
-    <string name="account_drive_text">Die Sicherung in Google Drive ist unabhängig von diesem Konto und wird separat verbunden.</string>
+    <string name="account_drive_text">Die Sicherung in Google Drive ist unabhängig von diesem Konto und wird separat verbunden. Das Konto merkt sich nur, welches Google-Drive-Konto du zuletzt verbunden hast, damit die App es nach einer Neuinstallation wieder verbinden kann.</string>
     <string name="account_sign_out">Abmelden</string>
     <string name="account_sign_out_title">Abmelden?</string>
     <string name="account_sign_out_text">Dein Profil bleibt auf diesem Handy. Änderungen werden erst nach der nächsten Anmeldung wieder synchronisiert.</string>
@@ -754,7 +754,7 @@
     <string name="backup_paused_storage_quota">Belegt: %1$s von %2$s.</string>
     <string name="backup_resume">Fortsetzen</string>
     <string name="backup_verify">Drive-Status prüfen</string>
-    <string name="backup_verify_text">Prüft, ob gesicherte Dateien noch vollständig in Drive liegen. Fehlende gelten danach als nicht gesichert und werden nicht automatisch neu hochgeladen; auf dem Handy wird nichts gelöscht.</string>
+    <string name="backup_verify_text">Prüft, ob gesicherte Dateien noch vollständig in Drive liegen. Fehlende gelten danach als nicht gesichert und werden nicht automatisch neu hochgeladen; auf dem Handy wird nichts gelöscht. Sicherungen in Drive, die die App noch nicht kennt, werden übernommen (Tab „Drive“ in Aufnahmen).</string>
     <string name="backup_verifying">Drive wird geprüft …</string>
     <string name="backup_verify_ok">Alle gesicherten Dateien sind in Drive vorhanden.</string>
     <plurals name="backup_verify_missing">
@@ -916,4 +916,30 @@
     <string name="enhance_settings_licence_show">Antippen zum Anzeigen</string>
     <string name="enhance_settings_licence_hide">Antippen zum Schließen</string>
     <!-- /enhance -->
+
+    <!-- drive-restore -->
+    <string name="media_tab_drive">Drive</string>
+    <string name="media_drive_empty">Noch keine Sicherungen in Google Drive.</string>
+    <string name="media_drive_loading">Sicherungen werden aus Google Drive gelesen …</string>
+    <string name="media_drive_refresh">Aus Google Drive aktualisieren</string>
+    <string name="media_drive_refreshing">Wird aus Google Drive aktualisiert</string>
+    <plurals name="media_drive_count">
+        <item quantity="one">%d Sicherung in Google Drive</item>
+        <item quantity="other">%d Sicherungen in Google Drive</item>
+    </plurals>
+    <string name="media_drive_download">Vom Drive laden</string>
+    <string name="media_drive_download_named">%1$s vom Drive laden</string>
+    <string name="media_drive_save">Auf dem Handy speichern</string>
+    <string name="media_drive_photo_description">Foto aus Google Drive: %1$s</string>
+    <string name="media_drive_download_notification_title">Aus Drive: %1$s</string>
+    <string name="media_transfer_from_drive">%1$s · aus Drive</string>
+    <string name="media_failure_not_on_drive">Fehlgeschlagen: Die Datei ist nicht mehr in Google Drive.</string>
+    <string name="media_failure_drive">Fehlgeschlagen: Google Drive hat die Datei nicht geliefert.</string>
+    <string name="media_failure_drive_not_connected">Fehlgeschlagen: Google Drive ist nicht verbunden. Verbinde es und versuche es erneut.</string>
+    <string name="media_failure_checksum">Fehlgeschlagen: Die Datei aus Google Drive war fehlerhaft (Prüfsumme) und wurde verworfen. Versuche es erneut.</string>
+    <plurals name="backup_verify_imported">
+        <item quantity="one">%d Sicherung aus Drive in die App übernommen.</item>
+        <item quantity="other">%d Sicherungen aus Drive in die App übernommen.</item>
+    </plurals>
+    <!-- /drive-restore -->
 </resources>

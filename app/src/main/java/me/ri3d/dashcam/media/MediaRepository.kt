@@ -36,6 +36,9 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** What [MediaRepository.importDriveCopy] did with one Drive copy. */
+enum class DriveImport { KNOWN, ADOPTED, MERGED, ADDED }
+
 /**
  * Local library (CONTRACTS §8). Three copies, three explicit actions: [deleteLocalCopy], [deleteOnRecorder] and
  * (feature/drive-backup) `deleteOnDrive` followed by [markDriveDeleted]. None cascades; a row is removed only when
@@ -225,6 +228,52 @@ class MediaRepository @Inject constructor(
     /** For feature/drive-backup: backup columns (state, Drive id, md5, error). Returns the updated row. */
     suspend fun update(id: String, transform: (MediaItem) -> MediaItem): MediaItem? = mutex.withLock {
         dao.get(id)?.let(transform)?.also { dao.update(it) }
+    }
+
+    /** Rows with a Drive copy (Drive tab), newest first. */
+    fun observeDrive(): Flow<List<MediaItem>> = dao.observeDrive()
+
+    /** Rows of the same recorder file as [row] (type, name, raw time) under another id and without a Drive copy. */
+    suspend fun driveTwins(row: MediaItem): List<MediaItem> {
+        val type = row.recorderType ?: return emptyList()
+        val time = row.recorderTime ?: return emptyList()
+        return dao.twins(row.id, type, row.originalFileName, time)
+    }
+
+    suspend fun childCount(id: String): Int = dao.childCount(id)
+
+    /**
+     * Drive import (feature/drive-restore) of [row], a Drive copy. A row with its id and a Drive copy stays as it is; one
+     * without a Drive copy takes over the Drive fields and keeps everything else. Otherwise, when [replaces] still equals
+     * the stored row, that row (the same recording under another id) is replaced by [row] carrying over its recorder
+     * and phone copies, so the Drive id wins; else [row] is inserted on its own.
+     */
+    suspend fun importDriveCopy(row: MediaItem, replaces: MediaItem? = null): DriveImport = mutex.withLock {
+        db.withTransaction {
+            val existing = dao.get(row.id)
+            when {
+                existing?.driveFileId != null -> DriveImport.KNOWN
+                existing != null -> {
+                    dao.update(existing.copy(driveFileId = row.driveFileId, driveMd5 = row.driveMd5, backupState = BackupState.DONE, backupError = null))
+                    DriveImport.ADOPTED
+                }
+                replaces != null && dao.get(replaces.id) == replaces -> {
+                    dao.delete(replaces.id)
+                    dao.insert(
+                        row.copy(
+                            recorderPath = replaces.recorderPath, recorderThumbPath = replaces.recorderThumbPath, localUri = replaces.localUri,
+                            localSizeBytes = replaces.localSizeBytes, localThumbPath = replaces.localThumbPath,
+                            downloadedAt = replaces.downloadedAt ?: row.downloadedAt,
+                        ),
+                    )
+                    DriveImport.MERGED
+                }
+                else -> {
+                    dao.insert(row)
+                    DriveImport.ADDED
+                }
+            }
+        }
     }
 
     private fun MediaItem.hasCopy() = localUri != null || recorderPath != null || driveFileId != null

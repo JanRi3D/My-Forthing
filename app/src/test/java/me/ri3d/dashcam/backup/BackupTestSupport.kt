@@ -14,10 +14,14 @@ import me.ri3d.dashcam.drive.FakeDriveAuth
 import me.ri3d.dashcam.drive.format.DriveFormat
 import me.ri3d.dashcam.drive.format.DriveSidecar
 import me.ri3d.dashcam.media.BackupState
+import me.ri3d.dashcam.media.DownloadQueue
+import me.ri3d.dashcam.media.MediaDownloader
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.media.MediaRepository
+import me.ri3d.dashcam.media.RecorderHttp
 import me.ri3d.dashcam.media.recorderFile
 import me.ri3d.dashcam.plates.PlateExport
+import me.ri3d.dashcam.plates.PlateRepository
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import java.io.File
 import java.security.MessageDigest
@@ -153,10 +157,17 @@ class FakeDriveApi : DriveApi {
 class BackupFixture(val context: Context, val db: AppDatabase, scope: TestScope, dataStore: File) {
     val api = FakeDriveApi()
     val auth = FakeDriveAuth("token")
-    val repository = MediaRepository(context, db, scope.managerFor(RecorderSimulator()).apply { setSimulator(true) })
+    val manager = scope.managerFor(RecorderSimulator()).apply { setSimulator(true) }
+    val repository = MediaRepository(context, db, manager)
     val preferences = PreferencesRepository(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { dataStore })
     val store = BackupStore(context)
     val backup = DriveBackup(api, auth, repository, preferences, PlateExport(db.plateDao(), preferences), store)
+    val http = RecorderHttp(manager, "http://127.0.0.1:1", context)
+    val downloader = MediaDownloader(repository, http)
+
+    /** Needs WorkManager (test driver) initialised: the import asks the download queue about running downloads. */
+    val downloads by lazy { DownloadQueue(context, repository, downloader, manager) }
+    val restore by lazy { DriveRestore(api, auth, repository, backup, store, preferences, PlateRepository(context, db.plateDao())) { downloads } }
 
     /** A downloaded recording of recorder [type] with [bytes] on the phone. */
     suspend fun local(path: String, type: Int = 1, bytes: ByteArray = ByteArray(1000) { it.toByte() }): MediaItem {
