@@ -110,13 +110,13 @@ machine setups byte identity is not guaranteed; there, compare package, version 
 
 ```bash
 BT="$ANDROID_HOME/build-tools/36.0.0"
-"$BT/apksigner" verify --verbose --print-certs dist/MyForthing-1.0.0-1-arm64-v8a.apk   # apksigner.bat on Windows
-"$BT/aapt2" dump badging dist/MyForthing-1.0.0-1-arm64-v8a.apk | grep -E "^package:|^application:|native-code"
+"$BT/apksigner" verify --verbose --print-certs dist/MyForthing-1.0.1-2-arm64-v8a.apk   # apksigner.bat on Windows
+"$BT/aapt2" dump badging dist/MyForthing-1.0.1-2-arm64-v8a.apk | grep -E "^package:|^application:|native-code"
 (cd dist && sha256sum -c SHA256SUMS.txt)
 ```
 
 Expected: `Verifies`, signer DN `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc` (table above),
-`package: name='me.ri3d.dashcam' versionCode='1' versionName='1.0.0'`, `application: label='My Forthing'`, one
+`package: name='me.ri3d.dashcam' versionCode='2' versionName='1.0.1'`, `application: label='My Forthing'`, one
 `native-code` ABI per APK, no `application-debuggable`. The APK is signed with scheme v2 only (minSdk 26 does not need v1).
 
 On Windows without Git Bash: `Get-FileHash -Algorithm SHA256 <file>` (PowerShell) or `certutil -hashfile <file> SHA256`.
@@ -164,6 +164,13 @@ Consequences:
 `-Pmyforthing.versionCode=…` on the command line overrides `gradle.properties` for experiments; never hand out such a
 build without committing the number.
 
+Versions handed out:
+
+| Version | Code | Built from | Notes |
+| --- | --- | --- | --- |
+| 1.0.0 | 1 | `main` up to `fix/real-recorder-1` (several rebuilds with the same number) | first hardware tests (2026-10-02) |
+| 1.0.1 | 2 | `fix/real-recorder-2` | RTSP proxy for the recorder's SDP, raw DESCRIBE in Diagnose, recorder HTTP one request at a time with stall resume; the bump lets the owner tell the builds apart (Einstellungen des Handys → Apps → My Forthing shows 1.0.1). Tag `v1.0.1` once merged. |
+
 ## 7. Debug vs release
 
 | | debug | release |
@@ -184,9 +191,9 @@ universal output for debug (named `app-debug.apk` as before) and only the per-AB
 
 | APK | Size |
 | --- | --- |
-| `MyForthing-1.0.0-1-arm64-v8a.apk` | 36,410,486 bytes (34.7 MiB) |
-| `MyForthing-1.0.0-1-armeabi-v7a.apk` | 30,284,390 bytes (28.9 MiB) |
-| `MyForthing-1.0.0-1-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,403,371 bytes (84.3 MiB) |
+| `MyForthing-1.0.1-2-arm64-v8a.apk` | 36,428,254 bytes (34.7 MiB) |
+| `MyForthing-1.0.1-2-armeabi-v7a.apk` | 30,302,158 bytes (28.9 MiB) |
+| `MyForthing-1.0.1-2-debug-universal.apk` (`app-debug.apk`, for comparison) | 88,437,523 bytes (84.3 MiB) |
 
 Inside the arm64 APK: dex 17.1 MB compressed (≈ 47 MB uncompressed, five dex files), native libraries 15.6 MB
 stored uncompressed (ML Kit OCR 11.1 MB, LiteRT 4.5 MB), `resources.arsc` 1.6 MB, assets (OCR and
