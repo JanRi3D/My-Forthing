@@ -1,7 +1,9 @@
 package me.ri3d.cam.media
 
+import android.app.NotificationManager
 import android.content.Context
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.work.Configuration
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
@@ -13,6 +15,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import com.google.common.util.concurrent.Futures
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
@@ -26,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import me.ri3d.cam.dashcam.managerFor
 import me.ri3d.cam.recorder.RecorderSimulator
 import java.io.File
@@ -213,6 +217,37 @@ class DownloadsTest {
         val result = worker(s.item.id, runAttemptCount = DownloadWorker.MAX_ATTEMPTS + 5).doWork()
         assertThat(result).isEqualTo(ListenableWorker.Result.retry())
         assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    private val notifications get() = shadowOf(context.getSystemService(NotificationManager::class.java))
+
+    @Test
+    fun `a retried run leaves no progress notification behind`() = runTest {
+        val s = setup(ready = false)
+        val worker = worker(s.item.id)
+        // As if this run had posted progress before the session dropped.
+        val posted = NotificationCompat.Builder(context, "test").setSmallIcon(android.R.drawable.stat_sys_download).build()
+        context.getSystemService(NotificationManager::class.java).notify(worker.id.hashCode(), posted)
+
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
+
+        assertThat(notifications.getNotification(worker.id.hashCode())).isNull()
+    }
+
+    @Test
+    fun `a refused foreground start still downloads and leaves no notification`() = runTest {
+        val s = setup()
+        server.enqueue(full())
+        val worker = TestListenableWorkerBuilder.from(context, DownloadWorker::class.java)
+            .setInputData(workDataOf(DownloadWorker.KEY_ID to s.item.id, DownloadWorker.KEY_NAME to "a.mp4"))
+            .setWorkerFactory(factory)
+            .setForegroundUpdater { _, _, _ -> Futures.immediateFailedFuture(IllegalStateException("background start not allowed")) }
+            .build() as DownloadWorker
+
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
+
+        assertThat(s.target.readBytes()).isEqualTo(body)
+        assertThat(notifications.allNotifications).isEmpty()
     }
 
     @Test
