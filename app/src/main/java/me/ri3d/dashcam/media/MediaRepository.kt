@@ -297,8 +297,14 @@ class MediaRepository @Inject constructor(
         return true
     }
 
-    /** The row [id] became after a drive-restore merge in this process (a screen still holding the old id saves there). */
-    fun currentId(id: String): String = mergedInto[id] ?: id
+    /**
+     * The row [id] became after a drive-restore merge in this process (a screen still holding the old id saves there);
+     * only while no row has that id again (e.g. re-imported after an account switch).
+     */
+    suspend fun currentId(id: String): String = if (dao.get(id) != null) id else mergedInto[id] ?: id
+
+    /** Account switch: the merges belonged to the previous account's Drive rows. */
+    fun forgetMerges() = mergedInto.clear()
 
     private fun MediaItem.hasCopy() = localUri != null || recorderPath != null || driveFileId != null
 

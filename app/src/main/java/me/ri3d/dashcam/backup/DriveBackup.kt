@@ -406,6 +406,7 @@ class DriveBackup @Inject constructor(
             val stale = repository.observe().first()
                 .filter { it.driveFileId != null || it.driveMd5 != null || it.backupState != BackupState.NONE || it.backupError != null }
             stale.forEach { repository.markDriveDeleted(it.id) }
+            repository.forgetMerges()
             val fileIds = stale.mapNotNull { it.driveFileId }
             resetListeners.forEach { it(fileIds) }
         }

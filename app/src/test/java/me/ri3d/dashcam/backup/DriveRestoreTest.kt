@@ -201,6 +201,26 @@ class DriveRestoreTest {
     }
 
     @Test
+    fun `a merged id leads to its Drive row only while no row has that id, and never after an account switch`() = runTest {
+        val f = fixture()
+        val local = f.local("/sim/EVENT/m.mp4")
+        val backup = sidecar(name = "m.mp4")
+        f.api.backup(backup, local.localFile!!.readBytes())
+        f.restore.importFromDrive().getOrThrow()
+        assertThat(f.repository.currentId(local.id)).isEqualTo(backup.id)
+
+        // The old id is a row again (e.g. imported from another account): it is itself.
+        db.mediaDao().insert(local.copy(recorderPath = null, localUri = null))
+        assertThat(f.repository.currentId(local.id)).isEqualTo(local.id)
+        db.mediaDao().delete(local.id)
+        assertThat(f.repository.currentId(local.id)).isEqualTo(backup.id)
+
+        f.auth.state.value = DriveAuthState.Connected("b@example.com", setOf(DRIVE_FILE_SCOPE))
+        assertThat(f.backup.adoptAccount("b@example.com")).isTrue()
+        assertThat(f.repository.currentId(local.id)).isEqualTo(local.id) // the switch drops the aliases
+    }
+
+    @Test
     fun `a row in use is excluded from the automatic backup and merged by the next import`() = runTest {
         val f = fixture()
         f.repository.upsertFromRecorderListing(1, listOf(recorderFile("/sd/EVENT/e1.mp4")))
