@@ -71,12 +71,18 @@ data class BrowserState(
     val error: RecorderError? = null,
     /** True once the first page was requested since the last reset. */
     val started: Boolean = false,
-)
+) {
+    /** A listing of this session is under way ("wird aktualisiert…"): started, not ended, not failed. */
+    val refreshing: Boolean get() = started && listing.end == null && error == null
+}
 
 /**
- * Pages one recorder type with 4100 and registers every page in the library before showing it. [refresh] starts
- * again with an empty cursor; [loadMore] requests the next page unless the listing ended or failed. [inTransfer]
- * (media id) protects rows with a queued or running download from the end-of-listing reconcile.
+ * Pages one recorder type with 4100 page by page to its end and registers every page in the library, which the
+ * recorder tabs show (so the list stays while it is refreshed). [refresh] starts again with an empty cursor; after a
+ * page the next one follows by itself unless the listing ended or failed; a failed page waits for [retry].
+ * [awaitTurn] holds every page back while it must wait (a download runs: downloads first). [inTransfer] (media id)
+ * protects rows with a queued or running download from the end-of-listing reconcile. When a listing ends, its time is
+ * stored ([MediaRepository.setListedAt]).
  */
 class RecorderBrowser(
     val type: Int,
@@ -84,6 +90,7 @@ class RecorderBrowser(
     private val repository: MediaRepository,
     private val scope: CoroutineScope,
     private val inTransfer: (String) -> Boolean = { false },
+    private val awaitTurn: suspend () -> Unit = {},
 ) {
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
@@ -106,22 +113,35 @@ class RecorderBrowser(
         if (current.loading || current.listing.end != null || current.error != null) return
         _state.value = current.copy(loading = true, started = true)
         job = scope.launch {
+            awaitTurn()
             val result = manager.request(RecorderCommand.ListFiles(type, current.listing.cursor, Listing.PAGE_SIZE), ::parseFileList)
             when (result) {
                 is RecorderResult.Ok -> {
                     repository.upsertFromRecorderListing(type, result.value.fileList)
-                    val listing = current.listing.append(result.value)
+                    // The latest listing: fileNew / fileDel may have changed it while the page was on its way.
+                    val listing = _state.value.listing.append(result.value)
                     if (listing.end == ListingEnd.COMPLETE && listing.reachedTotal) {
                         repository.reconcileRecorderListing(type, listing.files.mapNotNullTo(HashSet()) { it.fileName }, inTransfer)
                     }
+                    if (listing.end != null) repository.setListedAt(type, System.currentTimeMillis())
                     _state.value = BrowserState(listing, loading = false, error = null, started = true)
+                    loadMore() // the next page, until the listing ends
                 }
                 is RecorderResult.Failed -> _state.update { it.copy(loading = false, error = result.error) }
             }
         }
     }
 
-    /** After a 4101: the files are gone from the recorder, the rest of the listing stays. */
+    /**
+     * A `fileNew` of this type: the file is on the recorder now and goes to the top of the listing of this session,
+     * so a listing that reaches `totalFileNum` counts it (and the end-of-listing reconcile keeps its row).
+     */
+    fun add(file: RecorderFile) = _state.update { s ->
+        if (!s.started || s.listing.files.any { it.fileName == file.fileName }) s
+        else s.copy(listing = s.listing.copy(files = listOf(file) + s.listing.files))
+    }
+
+    /** After a 4101 or `fileDel`: the files are gone from the recorder, the rest of the listing stays. */
     fun removeAll(paths: Collection<String>) {
         _state.update { s -> s.copy(listing = s.listing.copy(files = s.listing.files.filterNot { it.fileName in paths })) }
     }

@@ -285,6 +285,9 @@
     <string name="dashcam_err_app_delete">Löschen fehlgeschlagen</string>
     <string name="dashcam_err_app_manual_recording">Manuelle Aufnahme fehlgeschlagen</string>
     <string name="dashcam_err_app_timelapse_failed">Zeitrafferaufnahme fehlgeschlagen</string>
+    <string name="dashcam_last_read">zuletzt gelesen %1$s</string>
+    <string name="dashcam_card_device">Gerät</string>
+    <string name="dashcam_settings_cached">Zuletzt gelesene Werte (%1$s). Ändern geht erst, wenn die Dashcam verbunden ist und die Werte neu gelesen hat.</string>
     <!-- /dashcam -->
 
     <!-- drive -->
@@ -607,13 +610,20 @@
     <string name="media_storage_free_downloads_text">Löscht alle heruntergeladenen Aufnahmen und Fotos auf diesem Handy, auch unvollständige Downloads. Kopien auf der Dashcam und in Google Drive bleiben.</string>
     <string name="media_storage_free_screenshots_text">Löscht alle Screenshots auf diesem Handy. Kopien in Google Drive bleiben.</string>
     <string name="media_storage_free_enhanced_text">Löscht alle verbesserten Bilder und hochskalierten Clips auf diesem Handy. Die Originale bleiben.</string>
-    <string name="media_storage_free_cache_text">Löscht zwischengespeicherte Vorschaubilder der Dashcam. Sie werden bei Bedarf neu geladen.</string>
+    <string name="media_storage_free_cache_text">Löscht die gespeicherten Vorschaubilder der Dashcam (höchstens 64 MB, die ältesten gehen zuerst). Sie werden bei der nächsten Verbindung neu geladen.</string>
     <plurals name="media_storage_last_copies">
         <item quantity="one">Achtung: Eine dieser Dateien gibt es nur auf diesem Handy. Sie ist danach endgültig weg.</item>
         <item quantity="other">Achtung: %d dieser Dateien gibt es nur auf diesem Handy. Sie sind danach endgültig weg.</item>
     </plurals>
     <string name="media_storage_free_space">Frei auf dem Handy: %1$s</string>
     <string name="media_storage_note">„Freigeben“ löscht nur Kopien auf diesem Handy. Dateien auf der Dashcam und in Google Drive bleiben.</string>
+    <string name="media_stand">Stand: %1$s</string>
+    <string name="media_stand_refreshing">Stand: %1$s · wird aktualisiert…</string>
+    <string name="media_stand_offline">Stand: %1$s · nicht verbunden</string>
+    <plurals name="media_known_files">
+        <item quantity="one">%d Datei aus der letzten Liste</item>
+        <item quantity="other">%d Dateien aus der letzten Liste</item>
+    </plurals>
     <!-- /media -->
     <!-- plates -->
     <string name="plates_recognition">Kennzeichenerkennung</string>

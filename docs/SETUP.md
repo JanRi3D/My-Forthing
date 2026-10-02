@@ -33,7 +33,7 @@ Print them yourself (the debug key differs on every machine):
 ```bash
 ./gradlew :app:signingReport                      # variants debug and release (release only if local.properties has release.*)
 keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
-apksigner verify --print-certs dist/MyForthing-1.0.1-2-arm64-v8a.apk    # from a finished APK
+apksigner verify --print-certs dist/MyForthing-1.0.2-3-arm64-v8a.apk    # from a finished APK
 ```
 
 If the app is ever distributed through Google Play with Play App Signing, also register the *app signing key*

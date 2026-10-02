@@ -14,13 +14,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import me.ri3d.dashcam.core.data.AppDatabase
+import me.ri3d.dashcam.dashcam.RecorderFact
 import me.ri3d.dashcam.dashcam.managerFor
 import me.ri3d.dashcam.recorder.RecorderSimulator
 import java.io.File
 
 /**
- * Migration 2 → 3 against a database built from the exported v2 schema; Room validates the result against the v3
- * entities on open (same approach as PlateMigrationTest: MigrationTestHelper breaks Robolectric here).
+ * Migrations 2 → 3 and 3 → 4 against databases built from the exported schemas; Room validates the result against
+ * the current entities on open (same approach as PlateMigrationTest: MigrationTestHelper breaks Robolectric here).
  */
 @RunWith(RobolectricTestRunner::class)
 class MediaMigrationTest {
@@ -33,7 +34,7 @@ class MediaMigrationTest {
 
     @Test
     fun `migration 2 to 3 keeps profile and plates and adds the media library`() = runTest {
-        createVersion2()
+        createVersion(2)
         val db = Room.databaseBuilder(context, AppDatabase::class.java, DB).addMigrations(*AppDatabase.MIGRATIONS).allowMainThreadQueries().build()
         try {
             assertThat(db.localProfileDao().observe().first()?.displayName).isEqualTo("Mein Auto")
@@ -48,10 +49,31 @@ class MediaMigrationTest {
         }
     }
 
-    /** Creates [DB] exactly as schemas/…/2.json describes it, with one profile and one plate. */
-    private fun createVersion2() {
-        val schema = JSONObject(File(SCHEMA_V2).readText()).getJSONObject("database")
-        val callback = object : SupportSQLiteOpenHelper.Callback(2) {
+    @Test
+    fun `migration 3 to 4 keeps the library and adds listing times and recorder facts`() = runTest {
+        createVersion(3) {
+            it.execSQL(
+                "INSERT INTO media_item (id, kind, category, recorderType, recorderPath, originalFileName, backupState, createdAt) " +
+                    "VALUES ('m1', 'ORIGINAL_VIDEO', 'NORMAL', 0, '/sd/DCIM/a.mp4', 'a.mp4', 'NONE', 1)",
+            )
+        }
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, DB).addMigrations(*AppDatabase.MIGRATIONS).allowMainThreadQueries().build()
+        try {
+            assertThat(db.mediaDao().byRecorderPath("/sd/DCIM/a.mp4")?.id).isEqualTo("m1")
+            assertThat(db.mediaDao().observeListedAt(0).first()).isNull()
+            db.mediaDao().setListedAt(ListingStamp(0, 42))
+            assertThat(db.mediaDao().observeListedAt(0).first()).isEqualTo(42)
+            db.recorderFactDao().upsert(RecorderFact("SN-1", 4099, "{}", 7))
+            assertThat(db.recorderFactDao().observeLatestRecorder().first().single().readAt).isEqualTo(7)
+        } finally {
+            db.close()
+        }
+    }
+
+    /** Creates [DB] exactly as schemas/…/<version>.json describes it, with one profile and one plate, then [extra]. */
+    private fun createVersion(version: Int, extra: (SupportSQLiteDatabase) -> Unit = {}) {
+        val schema = JSONObject(File("$SCHEMAS/$version.json").readText()).getJSONObject("database")
+        val callback = object : SupportSQLiteOpenHelper.Callback(version) {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 val entities = schema.getJSONArray("entities")
                 for (i in 0 until entities.length()) {
@@ -72,11 +94,12 @@ class MediaMigrationTest {
         FrameworkSQLiteOpenHelperFactory().create(config).use {
             it.writableDatabase.execSQL("INSERT INTO local_profile VALUES ('p1', 'Mein Auto', NULL, 10, NULL)")
             it.writableDatabase.execSQL("INSERT INTO plate (normalized, display, firstSeen, lastSeen, count) VALUES ('BMK4821', 'B-MK 4821', 1, 1, 1)")
+            extra(it.writableDatabase)
         }
     }
 
     private companion object {
         const val DB = "media-migration-test.db"
-        const val SCHEMA_V2 = "schemas/me.ri3d.dashcam.core.data.AppDatabase/2.json" // unit tests run in app/
+        const val SCHEMAS = "schemas/me.ri3d.dashcam.core.data.AppDatabase" // unit tests run in app/
     }
 }

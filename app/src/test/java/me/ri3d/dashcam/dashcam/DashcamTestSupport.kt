@@ -30,7 +30,8 @@ fun TestScope.managerFor(
     wifi: FakeWifi = FakeWifi(),
     rsaKey: String = sim.keyText(),
     transport: (Network?) -> RecorderTransport = { sim },
-) = RecorderConnectionManagerImpl(wifi, rsaKey, backgroundScope, transport)
+    facts: RecorderFactDao? = null,
+) = RecorderConnectionManagerImpl(wifi, rsaKey, backgroundScope, transport, facts = facts)
 
 /** Holds the first write (the session start) back, so TcpConnected lasts long enough to be observed. */
 class SlowFirstWrite(private val sim: RecorderSimulator, private val holdMs: Long) : RecorderTransport by sim {

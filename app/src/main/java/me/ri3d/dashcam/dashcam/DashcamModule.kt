@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import me.ri3d.dashcam.BuildConfig
+import me.ri3d.dashcam.core.data.AppDatabase
 import javax.inject.Singleton
 
 @Module
@@ -19,11 +20,12 @@ import javax.inject.Singleton
 object DashcamModule {
     @Provides
     @Singleton
-    fun connectionManager(@ApplicationContext context: Context): RecorderConnectionManager =
+    fun connectionManager(@ApplicationContext context: Context, db: AppDatabase): RecorderConnectionManager =
         RecorderConnectionManagerImpl(
             wifi = AndroidRecorderWifi(context),
             rsaKey = BuildConfig.DASHCAM_RSA_KEY,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            facts = db.recorderFactDao(),
         ).also { manager ->
             // Lifecycle observers must be added on the main thread.
             ContextCompat.getMainExecutor(context).execute {

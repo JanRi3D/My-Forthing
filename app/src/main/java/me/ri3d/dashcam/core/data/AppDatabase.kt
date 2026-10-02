@@ -6,6 +6,9 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import me.ri3d.dashcam.core.model.LocalProfile
 import me.ri3d.dashcam.core.profile.LocalProfileDao
+import me.ri3d.dashcam.dashcam.RecorderFact
+import me.ri3d.dashcam.dashcam.RecorderFactDao
+import me.ri3d.dashcam.media.ListingStamp
 import me.ri3d.dashcam.media.MediaDao
 import me.ri3d.dashcam.media.MediaItem
 import me.ri3d.dashcam.plates.Plate
@@ -16,11 +19,16 @@ import me.ri3d.dashcam.plates.PlateSighting
  * The app's only Room database. Features append their entities and DAOs here, bump [version] and add
  * a migration to [MIGRATIONS] (schemas are exported to app/schemas). Never use destructive migration.
  */
-@Database(entities = [LocalProfile::class, Plate::class, PlateSighting::class, MediaItem::class], version = 3, exportSchema = true)
+@Database(
+    entities = [LocalProfile::class, Plate::class, PlateSighting::class, MediaItem::class, ListingStamp::class, RecorderFact::class],
+    version = 4,
+    exportSchema = true,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun localProfileDao(): LocalProfileDao
     abstract fun plateDao(): PlateDao
     abstract fun mediaDao(): MediaDao
+    abstract fun recorderFactDao(): RecorderFactDao
 
     companion object {
         /** 1 → 2: plate history (feature/plates-core); SQL identical to schemas/…/2.json. */
@@ -60,7 +68,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 3 → 4: listing time per recorder type (feature/media) and cached recorder facts (dashcam); SQL as schemas/…/4.json. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `listing_stamp` (`type` INTEGER NOT NULL, `listedAt` INTEGER NOT NULL, PRIMARY KEY(`type`))")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `recorder_fact` (`productSN` TEXT NOT NULL, `msgId` INTEGER NOT NULL, `json` TEXT NOT NULL, " +
+                        "`readAt` INTEGER NOT NULL, PRIMARY KEY(`productSN`, `msgId`))",
+                )
+            }
+        }
+
         /** Registered in CoreDataModule; append new migrations here. */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

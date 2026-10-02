@@ -47,10 +47,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -253,6 +255,9 @@ data class RecorderSettingsUi(
 @HiltViewModel
 class RecorderSettingsViewModel @Inject constructor(private val manager: RecorderConnectionManager) : ViewModel() {
     val connection: StateFlow<RecorderConnectionState> = manager.state
+
+    /** Readback and device info of the last read recorder: shown (not editable) until this session's readback. */
+    val cached: StateFlow<CachedFacts?> = manager.cachedFacts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     private val _ui = MutableStateFlow(RecorderSettingsUi())
     val ui: StateFlow<RecorderSettingsUi> = _ui.asStateFlow()
 
@@ -354,9 +359,12 @@ fun label(setting: RecorderSetting, value: Int?): UiText {
 fun DashcamSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSettingsViewModel = hiltViewModel()) {
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val cached by viewModel.cached.collectAsStateWithLifecycle()
     val ready = connection is RecorderConnectionState.Ready
-    val settings = ui.settings
-    val enabled = ready && settings != null
+    // Editable only with a session and this session's readback; until then the last readback is shown, disabled.
+    val cachedSettings = cached?.settings?.takeIf { ui.settings == null }
+    val settings = ui.settings ?: cachedSettings?.value
+    val enabled = ready && ui.settings != null
     var optionDialog by rememberSaveable { mutableStateOf<RecorderSetting?>(null) }
     var wifiDialog by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -365,11 +373,19 @@ fun DashcamSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSetti
     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             !ready -> NotConnectedNotice { onNavigate(Connection) }
-            settings == null && ui.loadError != null -> {
+            ui.settings == null && ui.loadError != null -> {
                 Text(errorText(ui.loadError!!), Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error)
                 OutlinedButton(onClick = viewModel::load, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.action_retry)) }
             }
-            settings == null -> Text(stringResource(R.string.state_view_loading), Modifier.padding(horizontal = 16.dp))
+            ui.settings == null -> Text(stringResource(R.string.state_view_loading), Modifier.padding(horizontal = 16.dp))
+        }
+        if (cachedSettings != null) {
+            Text(
+                stringResource(R.string.dashcam_settings_cached, readTimeText(cachedSettings.readAt)),
+                Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         val onRow: (RecorderSetting) -> Unit = { setting ->
@@ -407,7 +423,12 @@ fun DashcamSettingsSection(onNavigate: (Route) -> Unit, viewModel: RecorderSetti
         )
 
         SectionHeader(stringResource(R.string.dashcam_group_device))
-        val info: DeviceInfo? = (connection as? RecorderConnectionState.Ready)?.info
+        val liveInfo = (connection as? RecorderConnectionState.Ready)?.info
+        val cachedInfo = cached?.deviceInfo?.takeIf { liveInfo == null }
+        val info: DeviceInfo? = liveInfo ?: cachedInfo?.value
+        if (cachedInfo != null) {
+            Text(lastReadText(cachedInfo.readAt), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+        }
         ListGroup(
             listOf(
                 { shape -> ValueRow(R.string.dashcam_device_model, rawText(info?.productModel), shape) },

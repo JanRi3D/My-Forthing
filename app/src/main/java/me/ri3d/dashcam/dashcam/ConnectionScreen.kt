@@ -59,8 +59,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.ri3d.dashcam.BuildConfig
 import me.ri3d.dashcam.R
@@ -78,6 +80,7 @@ import me.ri3d.dashcam.dashcam.RecorderConnectionState.NoWifi
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.Ready
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.TcpConnected
 import me.ri3d.dashcam.dashcam.RecorderConnectionState.WrongWifi
+import me.ri3d.dashcam.recorder.DeviceInfo
 import me.ri3d.dashcam.recorder.ErrorCodes
 import me.ri3d.dashcam.recorder.NormalInfo
 import me.ri3d.dashcam.recorder.StorageInfo
@@ -94,6 +97,9 @@ class ConnectionViewModel @Inject constructor(private val manager: RecorderConne
 
     /** 4099 read once per session by the manager, for "SD frei" on the card. */
     val storage: StateFlow<StorageInfo?> = manager.storage
+
+    /** Device and SD values of the last read recorder, shown until (or without) the live ones. */
+    val cached: StateFlow<CachedFacts?> = manager.cachedFacts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Phone mobile data, read on resume and whenever the connection fails (for the routing hint). */
     private val _mobileData = MutableStateFlow<Boolean?>(null)
@@ -149,6 +155,7 @@ fun ConnectionScreen(
     val network by viewModel.network.collectAsStateWithLifecycle()
     val simulator by viewModel.simulator.collectAsStateWithLifecycle()
     val mobileData by viewModel.mobileData.collectAsStateWithLifecycle()
+    val cached by viewModel.cached.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var permitted by remember { mutableStateOf(hasSsidPermission(context)) }
     var denied by rememberSaveable { mutableStateOf(false) }
@@ -173,7 +180,7 @@ fun ConnectionScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            StatusCard(state, ssid, network, simulator, permitted, mobileData == true)
+            StatusCard(state, ssid, network, simulator, permitted, mobileData == true, cached?.deviceInfo)
             Actions(
                 state = state,
                 simulator = simulator,
@@ -231,6 +238,7 @@ private fun StatusCard(
     simulator: Boolean,
     permitted: Boolean,
     mobileDataOn: Boolean,
+    cachedDevice: Cached<DeviceInfo>?,
 ) {
     Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -265,21 +273,31 @@ private fun StatusCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
-                is Ready -> {
-                    val info = state.info
-                    val missing = stringResource(R.string.dashcam_value_missing)
-                    Text(
-                        if (info == null) stringResource(R.string.dashcam_ready_no_info)
-                        else stringResource(R.string.dashcam_ready_info, info.productModel ?: missing, info.fwVersion ?: missing),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
                 else -> Unit
+            }
+            // The live 4098 once it arrived, until then (and without a session) the last one read.
+            val live = (state as? Ready)?.info
+            when {
+                live != null -> DeviceLine(live, readAt = null)
+                cachedDevice != null -> DeviceLine(cachedDevice.value, cachedDevice.readAt)
+                state is Ready -> Text(stringResource(R.string.dashcam_ready_no_info), style = MaterialTheme.typography.bodyMedium)
             }
             val unreachable = state == NoWifi || (state is Error && state.error.code == ErrorCodes.CONNECT_FAILED)
             if (unreachable && mobileDataOn && !simulator) {
                 Text(stringResource(R.string.dashcam_mobile_data_on), style = MaterialTheme.typography.bodyMedium)
             }
+        }
+    }
+}
+
+/** "Gerät: … · Firmware …", with "zuletzt gelesen …" when [readAt] is set (a cached 4098). */
+@Composable
+private fun DeviceLine(info: DeviceInfo, readAt: Long?) {
+    val missing = stringResource(R.string.dashcam_value_missing)
+    Column {
+        Text(stringResource(R.string.dashcam_ready_info, info.productModel ?: missing, info.fwVersion ?: missing), style = MaterialTheme.typography.bodyMedium)
+        if (readAt != null) {
+            Text(lastReadText(readAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -386,7 +404,10 @@ fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltVi
     val storage by viewModel.storage.collectAsStateWithLifecycle()
     val recStatus by viewModel.recStatus.collectAsStateWithLifecycle()
     val simulator by viewModel.simulator.collectAsStateWithLifecycle()
+    val cached by viewModel.cached.collectAsStateWithLifecycle()
     val ready = state is Ready
+    // The live 4099 of this session, until then (and without a session) the last one read.
+    val cachedStorage = cached?.storage?.takeIf { storage == null }
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -403,19 +424,28 @@ fun DashcamHomeCard(onClick: () -> Unit, viewModel: ConnectionViewModel = hiltVi
             val rec = recStatus
             // Text only, no recording indicator: the recStatus meaning is an unconfirmed SDK reading.
             if (ready && rec != null) Text(recStatusText(rec).asString(), style = MaterialTheme.typography.bodyMedium)
-            if (ready) {
+            val shownStorage = storage ?: cachedStorage?.value
+            if (ready || cached != null) {
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    CardFact(stringResource(R.string.dashcam_card_wifi), if (simulator) stringResource(R.string.dashcam_simulator_short) else ssid ?: stringResource(R.string.dashcam_ssid_unknown))
+                    if (ready) {
+                        CardFact(stringResource(R.string.dashcam_card_wifi), if (simulator) stringResource(R.string.dashcam_simulator_short) else ssid ?: stringResource(R.string.dashcam_ssid_unknown))
+                    } else {
+                        CardFact(stringResource(R.string.dashcam_card_device), cached?.deviceInfo?.value?.productModel ?: stringResource(R.string.dashcam_value_missing))
+                    }
                     CardFact(
                         stringResource(R.string.dashcam_card_sd),
-                        storage?.available?.let {
-                            if (storageInMb(storage)) stringResource(R.string.dashcam_card_sd_free_gb, gigabytes(it))
+                        shownStorage?.available?.let {
+                            if (storageInMb(shownStorage)) stringResource(R.string.dashcam_card_sd_free_gb, gigabytes(it))
                             else stringResource(R.string.dashcam_card_sd_free, it.toString())
                         }
                             ?: stringResource(R.string.dashcam_value_missing),
                     )
                 }
-            } else {
+                if (cachedStorage != null) {
+                    Text(lastReadText(cachedStorage.readAt), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (!ready) {
                 Text(
                     stringResource(R.string.dashcam_card_hint),
                     modifier = Modifier.padding(top = 8.dp),

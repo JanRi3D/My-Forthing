@@ -5,6 +5,7 @@ Package `me.ri3d.dashcam.dashcam`. Builds on `:recorder` (CONTRACTS §6) and imp
 | File | Contents |
 | --- | --- |
 | `RecorderConnectionManager.kt` | `RecorderConnectionState`, `RecorderConnectionManager`, `RecorderConnectionManagerImpl`, `RecorderNotBoundException`, `boundSocketTransport` |
+| `RecorderFacts.kt` | `RecorderFact` (Room, table `recorder_fact`), `RecorderFactDao`, `CachedFacts`, `Cached<T>` |
 | `RecorderWifi.kt` | Wi-Fi seam (`requestNetwork`, SSID, mobile data), `LatestNetworkCallback`, runtime permission list, FORTHING hint |
 | `DashcamModule.kt` | Hilt singleton + `ProcessLifecycleOwner` observer |
 | `DashcamText.kt` | Error / SD status / recStatus presentation (raw code always shown), outcome-unknown rule |
@@ -122,6 +123,16 @@ on top of the module's own redaction; a test checks the export against the real 
 Shared as `cacheDir/diagnostics/myforthing-diagnose-<time>.json` through `DiagnosticsFileProvider` (own `FileProvider`
 subclass with the paths in its manifest meta-data, authority `${applicationId}.dashcam.files`, so other features'
 providers do not clash in the manifest).
+
+**Cached facts (feature/cache).** Every successful reply of 4098, 4097, 4099 and the capabilities 20481 / 20483 / 20484
+that goes through `request()` (also the manager's own 4098/4099 and `capabilities()`) is stored in `recorder_fact`
+(DB 4) under the session's `productSN` (`""` if 4098 names none; replies before that 4098 wait for it) with its read
+time, as the whole reply text through `redact()` – the 4097 Wi-Fi password is never stored. `cachedFacts` delivers the
+parsed values of the recorder read most recently (same parsers as live replies). The Home card (device + SD free, also
+without a session), the Verbindung device line, the SD-Karte values and the Einstellungen section (readback values,
+device group) show them with "zuletzt gelesen <Zeit>" until this session's live value arrives. Settings stay editable
+only with a session **and** this session's 4097 readback; the cached ones are disabled ("Zuletzt gelesene Werte (…).
+Ändern geht erst, wenn …").
 
 **Cleartext.** `res/xml/network_security_config.xml`: cleartext only for `192.168.42.1`; the base config forbids it.
 

@@ -28,3 +28,11 @@ fun TestScope.eventually(timeoutMs: Long = 5_000, condition: () -> Boolean) {
 
 fun recorderFile(path: String, time: String? = "2026-10-01 12:00:00") =
     RecorderFile(path, path.substringBeforeLast('.') + "_thm.jpg", time, JsonObject(emptyMap()))
+
+/** A library row of a recorder copy, its `.thm` thumbnail next to it as on the recorder. */
+fun recorderItem(id: String, type: Int, path: String, time: String? = "2026-10-01 12:00:00") = MediaItem(
+    id = id, kind = MediaKind.ORIGINAL_VIDEO, category = MediaCategory.of(type), recorderType = type, recorderPath = path,
+    recorderThumbPath = path.substringBeforeLast('.') + ".thm", originalFileName = path.substringAfterLast('/'), recorderTime = time,
+    recorderTimeEpochGuess = null, localUri = null, localSizeBytes = null, localThumbPath = null, downloadedAt = null, parentId = null,
+    parentPositionMs = null, driveFileId = null, backupState = BackupState.NONE, backupError = null, driveMd5 = null, createdAt = 0,
+)

@@ -9,7 +9,9 @@ the package `me.ri3d.dashcam` (`feature/rename-dashcam`). Every feature branch i
 first contact with the physical recorder): **457 unit tests, 0 failures, 0 skipped** (`:app` 383, `:recorder` 74);
 lint unchanged (0 errors, 24 warnings). On `fix/real-recorder-2` (fixes after the second hardware test, **release
 1.0.1 (Build 2)**; `./gradlew :recorder:test :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`): **467 unit
-tests, 0 failures, 0 skipped** (`:app` 393, `:recorder` 74); lint 0 errors, 24 warnings.
+tests, 0 failures, 0 skipped** (`:app` 393, `:recorder` 74); lint 0 errors, 24 warnings. On `feature/cache` (cache
+for thumbnails, listings and recorder values, **release 1.0.2 (Build 3)**; same command): **486 unit tests, 0 failures,
+0 skipped** (`:app` 412, `:recorder` 74); lint 0 errors, 24 warnings.
 
 Labels: **[SIM]** = against `RecorderSimulator` or `:recorder:runSimulator`; **emulator** = AVD Pixel_10_Pro_XL,
 API 36, x86_64 (performance numbers indicative only). The instrumented tests in `app/src/androidTest` (plates 5,
@@ -35,42 +37,44 @@ below): the control session works end to end; live view and downloads did not. S
 | `feature/lion-icon` | merged (`8932583`): the owner's lion replaces the axolotl as launcher icon (light `#F4F5F7` background, themed-icon layer) and Welcome logo; rebuilt APKs |
 | `fix/profile-shortcut` | merged (`fa3bced`): the Home profile picture opens Konto (guest, signed-out and signed-in state) instead of Einstellungen; Welcome logo no longer announced twice; rebuilt APKs |
 | `fix/real-recorder-1` | merged (`bb7ca54`): fixes from the first hardware test – live view tries the recorder's own RTSP URL (20481) then the traced one, UDP after a 461; lenient recorder HTTP (any Content-Type but HTML, Content-Length optional) with the failure reason in Übertragungen; RTSP attempts and recorder HTTP requests in the Diagnose export (`notes`); Wi-Fi password change sends the only mode 20483 lists; SD values read as MB when they fit a card; rebuilt APKs |
-| `fix/real-recorder-2` | this branch: fixes from the second hardware test – loopback RTSP proxy that repairs the recorder's SDP for Media3 (`a=control:*`, video section only); raw RTSP DESCRIBE in Diagnose (`rtsp.describe`); recorder HTTP one request at a time (90 s read timeout), one download at a time, thumbnails paused during downloads, stalled downloads resume within the run (5/15/45 s) with speed display; `.thm` decoded by content; simulator pages of 20; release 1.0.1 (Build 2) |
+| `feature/cache` | this branch: persistent thumbnail disk cache (64 MB LRU, keys path + recorder time, header-independent, offline), recorder tabs from the library at once with "Stand: …" (also offline), listings page by page to the end without moving the list, `fileNew` inserted / `fileDel` removed without re-listing, lowest-priority thumbnail prefetch (paused by downloads and scrolling, 300 per session), last 4098/4097/4099/capabilities per recorder shown as "zuletzt gelesen" (Home card, Verbindung, SD-Karte, Einstellungen), DB 4; release 1.0.2 (Build 3) |
+| `fix/real-recorder-2` | merged (`34a5f71`): fixes from the second hardware test – loopback RTSP proxy that repairs the recorder's SDP for Media3 (`a=control:*`, video section only); raw RTSP DESCRIBE in Diagnose (`rtsp.describe`); recorder HTTP one request at a time (90 s read timeout), one download at a time, thumbnails paused during downloads, stalled downloads resume within the run (5/15/45 s) with speed display; `.thm` decoded by content; simulator pages of 20; release 1.0.1 (Build 2) |
 
-## Release 1.0.1 (Build 2)
+## Release 1.0.2 (Build 3)
 
-In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`, built on `fix/real-recorder-2` (versionCode 2,
-so it installs over any 1.0.0 build without uninstalling; same signing key); the previous 1.0.0 (Build 1) APKs moved to
-`dist/1.0.0-1/` with their checksums. Build, verification and signing in [`RELEASE.md`](RELEASE.md).
+In `dist/` of the main checkout (git-ignored) with `SHA256SUMS.txt`, built on `feature/cache` (versionCode 3, so it
+installs over 1.0.0 and 1.0.1 without uninstalling; same signing key; the database moves to version 4 on first
+start); the previous 1.0.1 (Build 2) APKs moved to `dist/1.0.1-2/` and the 1.0.0 ones are in `dist/1.0.0-1/`, each with
+their checksums. Build, verification and signing in [`RELEASE.md`](RELEASE.md).
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `MyForthing-1.0.1-2-arm64-v8a.apk` | 36,428,254 | `fc4f985ff809705140cf0a4c6163c97361b1c871b705cf3fb9699345f4a85e8d` |
-| `MyForthing-1.0.1-2-armeabi-v7a.apk` | 30,302,158 | `0a1f3b981e4316831391dfc88b7cb9b3b396c602c8eedaa6461485d659ae5406` |
-| `MyForthing-1.0.1-2-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,437,523 | `4be4e9b76d3efaf8fe56064ebc0f5be091293967d1cd3b2265f58514fb9bb0d0` |
+| `MyForthing-1.0.2-3-arm64-v8a.apk` | 36,464,142 | `2044b62273bef23052ef6becc4d797a53150ceeb4b7e1898084f26820ec46121` |
+| `MyForthing-1.0.2-3-armeabi-v7a.apk` | 30,338,046 | `05ca15cc45fd6dcbc29b5997f56c6bd15fbdca4039f5f6c2e142a5d51541af8a` |
+| `MyForthing-1.0.2-3-debug-universal.apk` (owner's emulator / ADB only, debug key) | 88,489,795 | `8b156f1dac8c5f6852c03e85c31980bd8f5a8a2354f31b83ca4db9fc87e4cd4a` |
 
-- Release APKs: `me.ri3d.dashcam`, versionCode 2, versionName 1.0.1, label "My Forthing", not debuggable, one ABI each,
+- Release APKs: `me.ri3d.dashcam`, versionCode 3, versionName 1.0.2, label "My Forthing", not debuggable, one ABI each,
   signed (v2) with `CN=My Forthing, O=Jan Ried`, certificate SHA-256 `82a1f729…f9e735dc` (`apksigner verify`,
   `aapt2 dump badging`).
 - Contains every feature, including "Sicherung" and the plate screens (`FeatureFlags` all `true`).
 - Built **without** `app/google-services.json`: the online account shows "Konto-Dienst ist in dieser Installation nicht
-  eingerichtet."; everything else works without it. Accounts need a new build once the file exists (versionCode 3).
+  eingerichtet."; everything else works without it. Accounts need a new build once the file exists (versionCode 4).
 - Google Drive needs no file in the app: it works with this APK as soon as the Google Cloud project has an Android
   OAuth client for `me.ri3d.dashcam` with the release SHA-1 (`SETUP.md` §3); until then "Google-Cloud-Konfiguration fehlt
   (Statuscode 10)".
 
 ## Features
 
-Unit test counts are `@Test` methods per package on `fix/real-recorder-2` (all run above). Instrumented and emulator results are as
+Unit test counts are `@Test` methods per package on `feature/cache` (all run above). Instrumented and emulator results are as
 reported by the owning branch in `docs/features/*.md`.
 
 | Feature | Unit tests | Emulator / instrumented | Simulator-only [SIM] | Hardware-unverified | Blocked on owner input |
 | --- | --- | --- | --- | --- | --- |
 | **Foundation** (`core/`: theme, navigation, guest profile + onboarding, settings, Darstellung, log redaction; `AppLocale.kt`: UI pinned to German) | 23 | emulator walkthrough; on an en-US emulator Media3 controls ("Player-Steuerelemente anzeigen", "Geschwindigkeit"), Material 3 sheet ("Ziehpunkt"), dates ("2. Oktober 2026 um 05:24") and sizes ("6,3 MB") are German, also on the first start | – | the pin on Android 8–12 (no per-app language; covered by a Robolectric test only) | – |
 | **Recorder protocol** (`:recorder`: framing, session crypto, commands, notifications, error codes, SDK-defect regressions, simulator) | 74 [SIM] | – (pure JVM) | everything: fixtures from the protocol report, fragmentation, heartbeat loss, auto-ack, Wi-Fi mode / OSD / G-sensor / capability-flag regressions; hardware reply shapes | heartbeat-loss timing, error codes (handshake, AES traffic, replies and notifications: **verified on hardware 2026-10-02**) | recorder sessions |
-| **Dashcam connection** (`dashcam/`: Wi-Fi binding, states, Verbindung, Home card, SD-Karte, recorder settings with readback, Diagnose) | 47 [SIM] | walkthrough against `:recorder:runSimulator` [SIM]; real Wi-Fi path up to -101 | settings readback, format, reset | hotspot binding with mobile data **on**, 4099 units (MB assumed), every 8192 change (`chanNo` 0 vs 1), Wi-Fi password (mode 0 from 20483), format, factory reset, recStatus meaning (`features/dashcam.md` 1–14); binding with mobile data off, session, 4097/4098/4099 values, notifications, capabilities: **verified on hardware 2026-10-02** | recorder sessions |
+| **Dashcam connection** (`dashcam/`: Wi-Fi binding, states, Verbindung, Home card, SD-Karte, recorder settings with readback, Diagnose, last read values "zuletzt gelesen") | 51 [SIM] | walkthrough against `:recorder:runSimulator` [SIM]; real Wi-Fi path up to -101 | settings readback, format, reset | hotspot binding with mobile data **on**, 4099 units (MB assumed), every 8192 change (`chanNo` 0 vs 1), Wi-Fi password (mode 0 from 20483), format, factory reset, recStatus meaning (`features/dashcam.md` 1–14); binding with mobile data off, session, 4097/4098/4099 values, notifications, capabilities: **verified on hardware 2026-10-02** | recorder sessions |
 | **Live view** (`live/`: RTSP via Media3 through a loopback SDP-repair proxy, full screen, screenshot, Foto / 5er-Serie / Aufnahme) | 28 (Robolectric, fake player; fake RTSP server; Media3's own track building) | states, retries, commands [SIM] | commands; proxy against a fake RTSP server; **RTSP playback never exercised** (the simulator has no RTSP server) | stream (**failed on hardware 2026-10-02**: Media3 rejects the recorder's SDP, "missing attribute control"; fix: the proxy adds `a=control:*` and keeps only the video section; raw SDP in Diagnose), codec, latency, screenshot from a real frame, keep-screen-on, command replies (`features/live.md` 0–9) | recorder sessions |
-| **Media** (`media/`: cursor paging, download queue with resume, Handy library, clip player, share, three-copy deletion, Speicher) | 48 [SIM] (MockWebServer, WorkManager, migration 2→3) | simulator HTTP incl. force-stop + Range resume [SIM] | listing, paging, downloads, 4101 deletion | downloads (**stalled on hardware 2026-10-02** after 3.2 MB of 132 MB next to thumbnails and a second download; fix: one request and one download at a time, 90 s reads, in-run resume after 5/15/45 s), HTTP Range support, `.thm` content, type 2 content, time zone, 4101 (`features/media.md` 0–9); listing with pages of 20, `totalFileNum` without `totalFileSize`, `/sd/DCIM` + `/sd/EVENT` (`…G.mp4`) paths, `.thm` as `application/binary`, `fileNew`/`fileDel`, recorder clock offset: **verified on hardware 2026-10-02** | recorder sessions |
+| **Media** (`media/`: cursor paging, download queue with resume, Handy library, clip player, share, three-copy deletion, Speicher, thumbnail cache + prefetch, cached listings) | 63 [SIM] (MockWebServer, WorkManager, migrations 2→3, 3→4) | simulator HTTP incl. force-stop + Range resume [SIM]; cache: all tabs offline with lists and thumbnails after a simulator session [SIM] | listing, paging, downloads, 4101 deletion | downloads (**stalled on hardware 2026-10-02** after 3.2 MB of 132 MB next to thumbnails and a second download; fix: one request and one download at a time, 90 s reads, in-run resume after 5/15/45 s), HTTP Range support, `.thm` content, type 2 content, time zone, 4101 (`features/media.md` 0–9); listing with pages of 20, `totalFileNum` without `totalFileSize`, `/sd/DCIM` + `/sd/EVENT` (`…G.mp4`) paths, `.thm` as `application/binary`, `fileNew`/`fileDel`, recorder clock offset: **verified on hardware 2026-10-02** | recorder sessions |
 | **Accounts** (`account/`: Google + e-mail sign-in, verification/reset mails, profile sync, guest → account linking) | 51 (fakes, no Firebase) | not-configured path only | – | real sign-in, mails, sync between phones | **Firebase project + `app/google-services.json`** (`SETUP.md` §2) |
 | **Drive auth** (`drive/`: authorisation, encrypted account record, REST v3 client, format v1) | 42 | account picker opens, cancel | – | real connect, quota, revoke | **Google Cloud: Drive API, consent screen, Android OAuth clients** (`SETUP.md` §3) |
 | **Drive backup** (`backup/`: rules, single-slot upload queue, MD5 verification, sidecars, pause/reconnect, Drive-Kopie löschen, Drive-Status prüfen) | 36 | Drive **not** connected; states seeded in the debug DB; two incident downloads [SIM] | connected states only in unit tests | every upload path (`features/backup.md` 1–8, checklist C3) | Cloud setup as above |

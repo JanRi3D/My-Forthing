@@ -16,10 +16,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,16 +35,22 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Image over a tinted placeholder icon; the icon stays visible while loading and when loading fails. */
+/**
+ * Image over a tinted placeholder icon; the icon stays visible while loading and when loading fails. The caller gives
+ * the slot a fixed size, so nothing moves when the image arrives; Coil decodes off the main thread and cancels the
+ * request when the slot leaves the composition (scrolled away). A [RecorderThumb] becomes its cached request.
+ */
 @Composable
 fun MediaThumb(model: Any?, @DrawableRes placeholder: Int, modifier: Modifier = Modifier, imageLoader: ImageLoader? = null) {
     Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
         Icon(painterResource(placeholder), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (model != null) {
+        val context = LocalContext.current
+        val data = if (model is RecorderThumb) remember(model) { model.request(context) } else model
+        if (data != null) {
             if (imageLoader != null) {
-                AsyncImage(model, contentDescription = null, imageLoader = imageLoader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                AsyncImage(data, contentDescription = null, imageLoader = imageLoader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
-                AsyncImage(model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                AsyncImage(data, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
     }

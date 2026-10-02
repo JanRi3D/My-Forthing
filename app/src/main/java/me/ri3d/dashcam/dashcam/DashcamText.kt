@@ -1,7 +1,9 @@
 package me.ri3d.dashcam.dashcam
 
+import android.text.format.DateUtils
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.core.ui.UiText
@@ -16,6 +18,15 @@ import kotlin.math.roundToLong
 
 // Presentation of raw protocol values. The raw code is always shown next to the meaning; meanings come only
 // from the original app's resource table (recorder rval) or the local code list, never from the SDK's AE enum.
+
+/** "zuletzt gelesen 02.10.2026, 09:14": a value from [RecorderConnectionManager.cachedFacts], not read in this session. */
+@Composable
+fun lastReadText(readAt: Long): String = stringResource(R.string.dashcam_last_read, readTimeText(readAt))
+
+/** "02.10.2026, 09:14" (phone time). */
+@Composable
+fun readTimeText(readAt: Long): String =
+    DateUtils.formatDateTime(LocalContext.current, readAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_NUMERIC_DATE)
 
 /** Meaning of an error: recorder rvals via the app table, local codes via the local list. */
 @StringRes

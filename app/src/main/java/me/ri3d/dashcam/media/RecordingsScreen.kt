@@ -3,6 +3,7 @@ package me.ri3d.dashcam.media
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
@@ -51,13 +52,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,8 +70,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,12 +81,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.distinctUntilChanged
 import me.ri3d.dashcam.R
 import me.ri3d.dashcam.backup.BackupStateTag
 import me.ri3d.dashcam.core.ui.AxoTopBar
 import me.ri3d.dashcam.core.ui.ConfirmDialog
 import me.ri3d.dashcam.core.ui.LocalSnackbarHostState
 import me.ri3d.dashcam.core.ui.listRowShape
+import me.ri3d.dashcam.core.log.Log
 import me.ri3d.dashcam.dashcam.RecorderConnectionState
 import me.ri3d.dashcam.dashcam.errorText
 import java.io.File
@@ -102,6 +110,8 @@ fun RecordingsScreen(
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     LaunchedEffect(tab) { viewModel.show(tab) }
+    val firstContent = rememberFirstContent { "tab ${tab.name}" }
+    val saveable = rememberSaveableStateHolder()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val ready = connection is RecorderConnectionState.Ready
     val selection by viewModel.selection.collectAsStateWithLifecycle()
@@ -135,7 +145,7 @@ fun RecordingsScreen(
                                 Icon(painterResource(R.drawable.ic_media_delete), stringResource(R.string.media_delete_local))
                             }
                         } else {
-                            IconButton(onClick = { download(selection) }) {
+                            IconButton(onClick = { download(selection) }, enabled = ready) {
                                 Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_download))
                             }
                             IconButton(onClick = { confirmRecorderDelete = selection }, enabled = ready) {
@@ -167,15 +177,16 @@ fun RecordingsScreen(
                     else -> details = item
                 }
             }
-            if (type == null) {
-                LocalLibrary(viewModel, selection, onTap)
-            } else if (!ready) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NotConnectedCard(onConnect)
-                    Text(stringResource(R.string.media_offline_hint), style = MaterialTheme.typography.bodyMedium)
+            // Each tab keeps its own scroll position (saved state) while another tab is shown.
+            saveable.SaveableStateProvider(tab.name) {
+                if (type == null) {
+                    LocalLibrary(viewModel, selection, onTap, firstContent)
+                } else {
+                    RecorderListing(
+                        type, grid = tab == RecordingsTab.USER, ready, viewModel, selection, onTap, download, onConnect,
+                        onRawList = { onRawList(tab) }, onFirstContent = firstContent,
+                    )
                 }
-            } else {
-                RecorderListing(type, grid = tab == RecordingsTab.USER, viewModel, selection, onTap, download, onRawList = { onRawList(tab) })
             }
         }
     }
@@ -242,12 +253,8 @@ fun SdFilesScreen(
 
     Scaffold(topBar = { AxoTopBar(stringResource(R.string.media_sd_files_title, tab.name), onBack = onBack) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-            if (!ready) {
-                NotConnectedCard(onConnect, Modifier.padding(16.dp))
-            } else {
-                val onTap: (MediaItem) -> Unit = { if (it.localUri != null) onOpen(it.id) else details = it }
-                RecorderListing(type, grid = false, viewModel, emptySet(), onTap, download, onRawList = null)
-            }
+            val onTap: (MediaItem) -> Unit = { if (it.localUri != null) onOpen(it.id) else details = it }
+            RecorderListing(type, grid = false, ready, viewModel, emptySet(), onTap, download, onConnect, onRawList = null)
         }
     }
     details?.let { item ->
@@ -272,6 +279,31 @@ fun SdFilesScreen(
             onDismiss = { confirmDelete = null },
             danger = true,
         )
+    }
+}
+
+/**
+ * Debug measurement (docs/features/media.md, "Snappiness"): logs once per screen how long the first rows took from the
+ * screen's first composition (about one frame after the tap on "Aufnahmen") to the frame after they were composed.
+ */
+@Composable
+private fun rememberFirstContent(label: () -> String): () -> Unit {
+    val openedAt = remember { SystemClock.uptimeMillis() }
+    var reported by remember { mutableStateOf(false) }
+    return {
+        if (!reported) {
+            reported = true
+            Log.d(PERF_TAG, "first content after ${SystemClock.uptimeMillis() - openedAt} ms (${label()})")
+        }
+    }
+}
+
+/** Calls [onFirstContent] once the frame with the content has been produced. */
+@Composable
+private fun ReportFirstContent(onFirstContent: () -> Unit) {
+    LaunchedEffect(Unit) {
+        withFrameMillis { }
+        onFirstContent()
     }
 }
 
@@ -306,24 +338,37 @@ private fun TransfersButton(active: Int, onClick: () -> Unit) {
     }
 }
 
-/** One recorder type: totals, day groups in the recorder's order, paging at the end of the list. */
+/**
+ * One recorder type as the library knows it (also offline): "Stand" header, day groups newest first. While connected
+ * the browser lists the recorder again page by page and the rows change in place (keys are media ids, so the scroll
+ * position stays). Reports the visible rows and scrolling for the thumbnail prefetch.
+ */
 @Composable
 private fun RecorderListing(
     type: Int,
     grid: Boolean,
+    ready: Boolean,
     viewModel: RecordingsViewModel,
     selection: Set<String>,
     onTap: (MediaItem) -> Unit,
     download: (Collection<String>) -> Unit,
+    onConnect: () -> Unit,
     onRawList: (() -> Unit)?,
+    onFirstContent: () -> Unit = {},
 ) {
     val state by viewModel.browser(type).collectAsStateWithLifecycle()
-    val entries by remember(type) { viewModel.entries(type) }.collectAsStateWithLifecycle(emptyList())
+    val loaded by viewModel.entries(type).collectAsStateWithLifecycle()
+    val listedAt by remember(type) { viewModel.listedAt(type) }.collectAsStateWithLifecycle(null)
+    val entries = loaded ?: return // the library answers within a frame or two; nothing to show meanwhile
     val listing = state.listing
-    if (listing.files.isEmpty()) {
+    if (entries.isEmpty()) {
         val error = state.error
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             when {
+                !ready -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NotConnectedCard(onConnect)
+                    Text(stringResource(R.string.media_offline_hint), style = MaterialTheme.typography.bodyMedium)
+                }
                 error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(errorText(error), color = MaterialTheme.colorScheme.error)
                     FilledTonalButton(onClick = { viewModel.retry(type) }) { Text(stringResource(R.string.action_retry)) }
@@ -337,12 +382,16 @@ private fun RecorderListing(
         }
         return
     }
+    ReportFirstContent(onFirstContent)
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
     LaunchedEffect(gridState, type) {
-        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to gridState.layoutInfo.totalItemsCount }
-            .collect { (last, total) -> if (last != null && last >= total - LOAD_AHEAD) viewModel.loadMore(type) }
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.filter { it.contentType == ENTRY }.map { it.key as String } }
+            .distinctUntilChanged()
+            .collect { viewModel.visible(type, it) }
     }
+    LaunchedEffect(gridState) { snapshotFlow { gridState.isScrollInProgress }.collect(viewModel::scrolling) }
+    DisposableEffect(gridState) { onDispose { viewModel.scrolling(false) } }
     LazyVerticalGrid(
         columns = GridCells.Fixed(if (grid) 3 else 1),
         state = gridState,
@@ -350,43 +399,31 @@ private fun RecorderListing(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        fullWidth("totals") {
-            Column(Modifier.padding(vertical = 8.dp)) {
-                Text(
-                    stringResource(
-                        R.string.media_totals,
-                        listing.totalFileNum?.toString() ?: "–", listing.totalFileSize?.toString() ?: "–", type,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(stringResource(R.string.media_time_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row {
-                    TextButton(onClick = { viewModel.refresh(type) }, enabled = !state.loading) { Text(stringResource(R.string.dashcam_refresh)) }
-                    if (onRawList != null) TextButton(onClick = onRawList) { Text(stringResource(R.string.media_raw_list)) }
-                }
-            }
+        fullWidth("header", HEADER) {
+            ListingHeader(type, entries.size, listing, listedAt, ready, state.refreshing, { viewModel.refresh(type) }, onRawList, onConnect)
         }
-        // Consecutive entries of one day form a group: the recorder's order is kept (it is not established).
+        // Newest first, consecutive entries of one day form a group.
         var day: LocalDate? = null
+        val dayKeys = HashSet<String>()
         entries.forEachIndexed { index, entry ->
-            val entryDay = dayOf(entry.item, entry.file.fileTime)
+            val entryDay = dayOf(entry.item, entry.item.recorderTime)
             if (index == 0 || entryDay != day) {
                 day = entryDay
-                fullWidth("day-$index") { DayHeader(dayLabel(context, entryDay)) }
+                val key = "day-$entryDay".let { if (dayKeys.add(it)) it else "$it-$index" } // an unparsable time may repeat a day
+                fullWidth(key, DAY) { DayHeader(dayLabel(context, entryDay)) }
             }
-            item(key = entry.file.fileName) {
+            item(key = entry.item.id, contentType = ENTRY) {
                 if (grid) {
                     PhotoCell(entry, viewModel, selection, onTap)
                 } else {
-                    RecorderRow(entry, viewModel, selection, onTap, download)
+                    RecorderRow(entry, ready, viewModel, selection, onTap, download)
                 }
             }
         }
-        fullWidth("footer") {
+        fullWidth("footer", FOOTER) {
             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 val error = state.error
                 when {
-                    state.loading -> CircularProgressIndicator(Modifier.size(32.dp))
                     error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(errorText(error), color = MaterialTheme.colorScheme.error)
                         TextButton(onClick = { viewModel.retry(type) }) { Text(stringResource(R.string.action_retry)) }
@@ -398,8 +435,59 @@ private fun RecorderListing(
     }
 }
 
-private fun LazyGridScope.fullWidth(key: String, content: @Composable () -> Unit) =
-    item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+/**
+ * "Stand: <time> · wird aktualisiert…" while connected and listing, "· nicht verbunden" offline; the recorder's totals
+ * once a page of this session arrived, else how many files the list holds. Fixed line count: no jump when it changes.
+ */
+@Composable
+private fun ListingHeader(
+    type: Int,
+    count: Int,
+    listing: Listing,
+    listedAt: Long?,
+    ready: Boolean,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    onRawList: (() -> Unit)?,
+    onConnect: () -> Unit,
+) {
+    val context = LocalContext.current
+    val stand = listedAt?.let { DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_NUMERIC_DATE) } ?: "–"
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text(
+            stringResource(
+                when {
+                    !ready -> R.string.media_stand_offline
+                    refreshing -> R.string.media_stand_refreshing
+                    else -> R.string.media_stand
+                },
+                stand,
+            ),
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            if (ready && listing.totalFileNum != null) {
+                stringResource(R.string.media_totals, listing.totalFileNum.toString(), listing.totalFileSize?.toString() ?: "–", type)
+            } else {
+                pluralStringResource(R.plurals.media_known_files, count, count)
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(stringResource(R.string.media_time_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row {
+            if (ready) {
+                TextButton(onClick = onRefresh, enabled = !refreshing) { Text(stringResource(R.string.dashcam_refresh)) }
+            } else {
+                TextButton(onClick = onConnect) { Text(stringResource(R.string.dashcam_open_connection)) }
+            }
+            if (onRawList != null) TextButton(onClick = onRawList) { Text(stringResource(R.string.media_raw_list)) }
+        }
+    }
+}
+
+private fun LazyGridScope.fullWidth(key: String, contentType: String, content: @Composable () -> Unit) =
+    item(key = key, span = { GridItemSpan(maxLineSpan) }, contentType = contentType) { content() }
 
 @Composable
 private fun DayHeader(text: String) {
@@ -430,7 +518,14 @@ private fun Modifier.selectable(item: MediaItem, selection: Set<String>, onTap: 
         )
 
 @Composable
-private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit, download: (Collection<String>) -> Unit) {
+private fun RecorderRow(
+    entry: RecorderEntry,
+    ready: Boolean,
+    viewModel: RecordingsViewModel,
+    selection: Set<String>,
+    onTap: (MediaItem) -> Unit,
+    download: (Collection<String>) -> Unit,
+) {
     val item = entry.item
     Row(
         Modifier
@@ -450,23 +545,23 @@ private fun RecorderRow(entry: RecorderEntry, viewModel: RecordingsViewModel, se
             SelectionMark(item, selection, Modifier.align(Alignment.TopStart))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(recorderClock(entry.file.fileTime) ?: "–", style = MaterialTheme.typography.titleMedium)
-            Text(entry.file.fileName.orEmpty().substringAfterLast('/'), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(recorderClock(item.recorderTime) ?: "–", style = MaterialTheme.typography.titleMedium)
+            Text(item.originalFileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (item.category == MediaCategory.EVENT) MediaTag(stringResource(R.string.media_category_event))
                 if (item.localUri != null) MediaTag(stringResource(R.string.media_on_phone))
                 BackupStateTag(item)
             }
         }
-        TransferControl(entry, download)
+        TransferControl(entry, ready, download)
     }
 }
 
 @Composable
 private fun PhotoCell(entry: RecorderEntry, viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit) {
     val item = entry.item
-    val clock = recorderClock(entry.file.fileTime) ?: "–"
-    val description = stringResource(R.string.media_photo_description, clock, entry.file.fileName.orEmpty().substringAfterLast('/'))
+    val clock = recorderClock(item.recorderTime) ?: "–"
+    val description = stringResource(R.string.media_photo_description, clock, item.originalFileName)
     Box(
         Modifier
             .aspectRatio(1f)
@@ -507,9 +602,9 @@ private fun SelectionMark(item: MediaItem, selection: Set<String>, modifier: Mod
     )
 }
 
-/** Download button, running transfer, or "auf dem Handy". 48 dp in every state. */
+/** Download button (only with a session), running transfer, or "auf dem Handy". 48 dp in every state. */
 @Composable
-private fun TransferControl(entry: RecorderEntry, download: (Collection<String>) -> Unit) {
+private fun TransferControl(entry: RecorderEntry, ready: Boolean, download: (Collection<String>) -> Unit) {
     val item = entry.item
     val transfer = entry.transfer
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -524,7 +619,7 @@ private fun TransferControl(entry: RecorderEntry, download: (Collection<String>)
                     CircularProgressIndicator(Modifier.size(28.dp).semantics { contentDescription = label })
                 }
             }
-            else -> IconButton(onClick = { download(listOf(item.id)) }) {
+            else -> IconButton(onClick = { download(listOf(item.id)) }, enabled = ready) {
                 Icon(painterResource(R.drawable.ic_media_download), stringResource(R.string.media_download_named, item.originalFileName))
             }
         }
@@ -533,14 +628,16 @@ private fun TransferControl(entry: RecorderEntry, download: (Collection<String>)
 
 /** Downloaded files, screenshots and enhanced outputs: everything with a phone copy (works offline). */
 @Composable
-private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit) {
-    val items by viewModel.local.collectAsStateWithLifecycle()
+private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>, onTap: (MediaItem) -> Unit, onFirstContent: () -> Unit) {
+    val loaded by viewModel.local.collectAsStateWithLifecycle()
+    val items = loaded ?: return
     if (items.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.media_local_empty), style = MaterialTheme.typography.bodyLarge)
         }
         return
     }
+    ReportFirstContent(onFirstContent)
     val context = LocalContext.current
     LazyVerticalGrid(
         columns = GridCells.Fixed(1),
@@ -548,13 +645,15 @@ private fun LocalLibrary(viewModel: RecordingsViewModel, selection: Set<String>,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         var day: LocalDate? = null
+        val dayKeys = HashSet<String>()
         items.forEachIndexed { index, item ->
             val itemDay = dayOf(item, item.recorderTime)
             if (index == 0 || itemDay != day) {
                 day = itemDay
-                fullWidth("day-$index") { DayHeader(dayLabel(context, itemDay)) }
+                val key = "day-$itemDay".let { if (dayKeys.add(it)) it else "$it-$index" }
+                fullWidth(key, DAY) { DayHeader(dayLabel(context, itemDay)) }
             }
-            item(key = item.id) {
+            item(key = item.id, contentType = LOCAL) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -655,7 +754,7 @@ private fun TransfersSheet(
             Text(stringResource(R.string.media_transfers_empty), Modifier.padding(24.dp))
         }
         LazyColumn(contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(transfers.sortedBy { it.state.ordinal }, key = { it.mediaId }) { t ->
+            items(transfers.sortedBy { it.state.ordinal }, key = { it.mediaId }, contentType = { "transfer" }) { t ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(t.name.ifBlank { "–" }, style = MaterialTheme.typography.bodyLarge)
                     // Second line of a failure: HTTP status and the raw detail (Content-Type or "Exception: message").
@@ -697,4 +796,10 @@ private fun TransfersSheet(
     }
 }
 
-private const val LOAD_AHEAD = 8
+// Lazy grid content types: rows of one type share compositions when they scroll.
+private const val HEADER = "header"
+private const val DAY = "day"
+private const val ENTRY = "entry"
+private const val LOCAL = "local"
+private const val FOOTER = "footer"
+private const val PERF_TAG = "RecordingsPerf"
