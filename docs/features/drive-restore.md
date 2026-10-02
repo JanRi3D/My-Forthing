@@ -167,6 +167,14 @@ the rows of recordings already in Drive. Remaining cases, where a recording can 
   download).
 - Guests (no app account) connect Drive manually after a reinstall; the import then runs as above.
 - Firestore rules allow up to 20 preference keys (`firebase/firestore.rules`); `driveAccount` is the third, no rule change.
+- On narrow phones (≈ 360 dp) the "Drive" tab sits entirely off-screen in the scrollable tab row, with no peek of it; it
+  is reached by swiping the row and is named on the Home tile.
+- Orphan Drive file: a queued row whose media file was already uploaded and verified, but whose sidecar write failed,
+  leaves that media file without sidecar in Drive once it is merged into its Drive row. Only reachable through a manual
+  "Sichern" before the merge; readers ignore media files without sidecar (`DRIVE_FORMAT.md` §6).
+- Stale source ids after a merge: derived items moved to the Drive id keep the merged row's old id as `sourceMediaId`
+  in their `*.enhance.json` and as `parent.id` in any Drive sidecar already written. Provenance text only; the library
+  links (`parentId`) are moved.
 
 ## Owner checklist (phone, needs the Google Cloud setup of `drive.md`)
 
