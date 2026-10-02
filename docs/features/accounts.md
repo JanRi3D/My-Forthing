@@ -83,9 +83,19 @@ picture until then). Firestore runs with the persistent cache, so a signed-in us
 | `exportQuality` | yes | personal taste |
 | `platesLive`, `platesClips`, `liveUpscale` | no | depend on this phone's performance |
 | `backupMode`, `backupOnMobileData`, `backupRequireInternetWifi`, `backupIncludePlateMetadata` | no | belong to the Google Drive feature, which is separate from the account |
+| `driveAccount` (feature/drive-restore) | yes, once this phone knew one | e-mail of the Google Drive account last connected (`""` after "Trennen"), so a fresh install signed in to this account reconnects Drive silently |
 
 Recorder settings are a different type and are never touched. Unknown keys/values written by a newer app version are
-kept in the document and ignored locally.
+kept in the document and ignored locally. A synced key the account does not have yet (e.g. `driveAccount` after the
+update) is added to the document by the next sync round.
+
+**Drive account e-mail in the account (owner decision).** Since feature/drive-restore the document holds the e-mail of
+the Google Drive account the user connected (`preferences.driveAccount`), which may be another Google account than the
+app account. It is the user's own document (rules: owner only) and the e-mail is used only to ask Google for that
+account on a phone without Drive connection ([`drive-restore.md`](drive-restore.md)). Values that are neither `""` nor
+shaped like an e-mail address are ignored. If this should not leave the phone, drop the key from `toSynced` /
+`withSynced` in `ProfileSync.kt`; the rest of the restore (manual connect, import) works without it.
+`firebase/firestore.rules` needs no change: `preferences` may hold up to 20 keys, `driveAccount` is the third.
 
 While signed in (`ProfileSync.run`): a remote change (another phone) is applied to the phone; a local change of the
 profile name (Konto screen) or a synced preference (Darstellung) is written to Firestore. Direction: the phone's synced

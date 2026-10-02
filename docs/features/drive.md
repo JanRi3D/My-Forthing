@@ -2,13 +2,21 @@
 
 Package `me.ri3d.dashcam.drive`. Format for the web app: `docs/DRIVE_FORMAT.md`. Contract: `docs/CONTRACTS.md` §10.
 
+Added by feature/drive-restore ([`drive-restore.md`](drive-restore.md)), still without any Firebase reference:
+`DriveApi.readJson(id)` and `download(id, target, onProgress)` (`files/<id>?alt=media`, Range resume of
+`<target>.part`, same 401 / backoff / Offline mapping; `send` streams through `exchange`), `DriveFile.thumbnailLink`
+(listed with every file), `DriveRestApi.contentUrl(id)`, `DriveAuth.reconnectSilently(email)` (no UI; Google needing the
+user only sets `NeedsReconnect` for that account, in memory), `DriveAuthInterceptor` / `driveImageClient` (Bearer token
+only for HTTPS requests to `googleusercontent.com` / `googleapis.com`, 401 invalidates). The app account's knowledge of
+the Drive account lives in `backup/` and `account/`, not here.
+
 ## What it does
 
 - **Connect** (Settings → App → Google Drive → "Mit Google Drive verbinden"): Google Identity Services `AuthorizationClient` (`play-services-auth` 22.0.0) asks for `https://www.googleapis.com/auth/drive.file` only. Google shows its account picker / consent screen; the result comes back through the activity result registry.
 - **States**: `NotConnected`, `Connected(email, scopes)`, `NeedsReconnect(reason)`. `accessToken()` re-authorises silently for the stored account; when Google needs the user again, or the API answers 401 twice (once more after clearing the cached token), the state becomes `NeedsReconnect` with a German explanation and a one-tap "Erneut verbinden".
 - **Konto wechseln**: account picker forced (`Prompt.SELECT_ACCOUNT`); after switching to another account the previous account's grant is revoked.
 - **Trennen** (with confirmation, files stay in Drive): `revokeAccess` at Google, then the local record is deleted.
-- **Independent of Firebase**: no Firebase dependency or call in `drive/`. Guests can connect; connecting never creates an app account; a signed-in user may connect a different Google account; signing in or out of the app account does not touch Drive.
+- **Independent of Firebase**: no Firebase dependency or call in `drive/`. Guests can connect; connecting never creates an app account; a signed-in user may connect a different Google account; signing out of the app account does not touch Drive. Since feature/drive-restore a sign-in on a phone without a Drive connection reconnects the Drive account last used with that app account silently (never with Google UI, never after "Trennen" on this phone).
 - **REST v3 over OkHttp** (`DriveRestApi`): root folder + manifest, `media/<yyyy-MM>` folders, resumable uploads (8 MiB chunks, status query `Content-Range: bytes */total` to resume, persisted session URI, expired session restarted once), multipart JSON create/update, paged `files.list`, delete, `about` quota. Error mapping: 401 → refresh once, then `NeedsReconnect`; 403 `storageQuotaExceeded` → `InsufficientStorage`; 429 / 5xx / rate-limit 403 → up to 5 attempts with exponential backoff (1–16 s + jitter); network failure → `Offline`; 403 `accessNotConfigured` is shown as "Drive API nicht aktiviert".
 - UI: `DriveAccount` route (`DriveAccountScreen`), `DriveSettingsRow`, reusable `DriveStatusCard(state, quota, action)` for the Backup screen, `Throwable.driveMessage()` for German error texts.
 

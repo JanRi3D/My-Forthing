@@ -9,6 +9,13 @@ Package `me.ri3d.dashcam.backup`. Contract: `docs/CONTRACTS.md` §10. Drive clie
 | `DriveBackup.kt` | `DriveBackup` (verified upload of one item, delete Drive copy, reconcile, account-switch reset), `BackupStore` (private bookkeeping), `BackupOutcome`, `BackupErrors` |
 | `BackupQueue.kt` | `BackupQueue` (scheduling, automatic-rules observer, user actions), `BackupWorker` (Hilt, foreground), notifications, `BackupInitializer` (androidx.startup) |
 | `BackupScreen.kt` | Route `Backup` (Settings → Sicherung), `BackupViewModel`, `BackupSelectionAction` ("Sichern"), `driveDeleteTargets` ("Drive-Kopie löschen"), `BackupStateTag` (chip) |
+| `DriveRestore.kt`, `DriveLibrary.kt` | feature/drive-restore: import of Drive backups into the library, Drive-account hint + silent reconnect, Drive tab / clip-screen state – see [`drive-restore.md`](drive-restore.md) |
+
+**Drive restore** (feature/drive-restore, [`drive-restore.md`](drive-restore.md)): the observer imports an account's
+backups the first time it is connected, **before** the automatic rules queue anything (a recording already in Drive
+under another id takes that id instead of being uploaded again); "Drive-Status prüfen" imports after its vanish check
+and reports the count; imported rows are `DONE` and are judged by later checks like uploaded ones. `BackupStore` also
+keeps `last_import` (dropped on an account switch) and `drive_disconnected`.
 
 ## Rules (`AppPreferences`)
 
